@@ -312,11 +312,11 @@ http://www.ccgalberta.com/software-terms-of-use/
 
 
 
-.. |integration_test| image:: https://github.com/MHadavand/pygeostat_public/workflows/IntegrationCheck/badge.svg?branch=master
+.. |integration_test| image:: https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master
     :alt: Integration
     :target: https://github.com/MHadavand/pygeostat_public
 
-.. |docs| image:: https://github.com/MHadavand/pygeostat_public/workflows/Documentation/badge.svg?branch=master
+.. |docs| image:: https://github.com/CcgAlberta/pygeostat/workflows/Documentation/badge.svg?branch=master
     :alt: Documentation Status
     :target: https://github.com/MHadavand/pygeostat_public
 

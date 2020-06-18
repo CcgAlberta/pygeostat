@@ -18,12 +18,12 @@ Contact:
 Refer to `www.ccgalberta.com <http://www.ccgalberta.com>`_
 
 
-.. |integration_test| image:: https://github.com/MHadavand/pygeostat_public/workflows/IntegrationCheck/badge.svg?branch=master
+.. |integration_test| image:: https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master
     :alt: IntegrationTest
     :scale: 100%
     :target: https://github.com/MHadavand/pygeostat_public
 
-.. |docs| image:: https://github.com/MHadavand/pygeostat_public/workflows/Documentation/badge.svg?branch=master
+.. |docs| image:: https://github.com/CcgAlberta/pygeostat/workflows/Documentation/badge.svg?branch=master
     :target: https://github.com/MHadavand/pygeostat_public
     :alt: Documentation Status
     :scale: 100%
