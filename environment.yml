@@ -1,0 +1,25 @@
+name: pygeostat
+channels:
+  - defaults
+  - msys2
+  - conda-forge
+dependencies:
+  - python 3.6.*
+  - conda 4.5.*
+  - pip
+  - pip:
+    - pyperclip
+    - probscale
+    - pytest
+    - pyevtk
+    - numpy
+    - pandas==0.25.3
+    - scipy
+    - scikit-learn
+    - statsmodels
+    - numba
+    - matplotlib==2.2.*
+    - h5py
+    - pillow
+    - jupyter
+    - tqdm

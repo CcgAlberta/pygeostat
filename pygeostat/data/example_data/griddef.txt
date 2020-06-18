@@ -1,0 +1,3 @@
+120       5.00  10.00 -nx, xmn, xsiz
+110    1205.00  10.00 -ny, ymn, ysiz
+1         0.5    1.0  -nz, zmn, zsiz
