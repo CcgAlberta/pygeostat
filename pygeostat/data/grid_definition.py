@@ -445,11 +445,11 @@ class GridDef:
             Generate a grid definition, and generate the coordinate arrays:
 
             >>> griddef = gs.GridDef(gridstr="50 0.5 1 \\n50 0.5 1 \\n50 0.5 1")
-            >>> x, y, z = griddef.gridcoord()
+            >>> x, y, z = griddef.get_coordinates()
 
             Generate coordinates (floats) corresponding with a specific 3d index:
 
-            >>> x, y, z = griddef.gridcoord(1, 1, 1)
+            >>> x, y, z = griddef.get_coordinates(1, 1, 1)
 
         """
         if all([test is not None for test in [ix, iy, iz]]):

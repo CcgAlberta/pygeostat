@@ -1168,7 +1168,7 @@ class DataFile:
 				reqcols.append(False)
 		# Add the coordinates
 		nreal = len(self.data) // self.griddef.count()
-		x, y, z = self.griddef.gridcoord()
+		x, y, z = self.griddef.get_coordinates()
 		gridxyz = np.stack((x, y, z), axis=1)
 		xyzreals = gridxyz.copy()
 		for ireal in range(1, nreal):
