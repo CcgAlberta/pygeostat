@@ -1,6 +1,8 @@
 Pygeostat
 ====================
 
+|pygeostatlogo| 
+
 |integration_test| |docs| |PyPi| 
 
 |Python36| |Python37| |Python38|
@@ -17,6 +19,7 @@ Contact:
 +++++++++++++++++++
 Refer to `www.ccgalberta.com <http://www.ccgalberta.com>`_
 
+.. |pygeostatlogo| image:: http://www.ccgalberta.com/pygeostat_public/_images/pygeostat_logo.png
 
 .. |integration_test| image:: https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master
     :alt: IntegrationTest
