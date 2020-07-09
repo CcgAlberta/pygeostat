@@ -72,7 +72,7 @@ def rmfile(filenames, verbose=False):
                 print('{} not removed - likely does not exist!'.format(filename))
 
 
-def get_executable(source='gslib', access_token=None, clean=False):
+def get_executable(source='gslib', access_token=None, clean=True):
 
     '''
     Gets a collection of executable files from a protected repository using an access token.
@@ -85,11 +85,9 @@ def get_executable(source='gslib', access_token=None, clean=False):
     '''
 
     import subprocess
-    import shutil
     import os
+    import shutil
     import sys
-    import stat
-    from os import path
     import getpass
 
     if access_token is None:
@@ -111,11 +109,11 @@ def get_executable(source='gslib', access_token=None, clean=False):
             rmfile(os.path.join(target_dir,file_name))
 
     # Create a temporary directory to get
-    temp_dir = 'temp'
+    temp_dir = 'temp1618'
     mkdir(temp_dir)
 
     if source.lower() == 'gslib':
-        print('The software is available under gslib license agreement (www.gslib.com)')
+        print('The software is available under gslib license agreement (http://www.gslib.com)')
         
         command = 'git clone https://CcgUser:{access_token}@github.com/CcgAlberta/GslibRepository.git {target}'.format(access_token=access_token,target = temp_dir)
 
@@ -124,9 +122,12 @@ def get_executable(source='gslib', access_token=None, clean=False):
         else:
             source_dir = os.path.join(temp_dir, 'Linux64')
     else:
-        print('comming soon')
-        return
+        print('The software is available under CCG software term of use (http://www.ccgalberta.com/software-terms-of-use)')
+        command = 'git clone https://CcgUser:{access_token}@github.com/CcgAlberta/CcgSoftware.git {target}'.format(access_token=access_token,target = temp_dir)
 
+        print('The software is suited for Microsoft platform')
+        source_dir = os.path.join(temp_dir, 'CcgFortranExecutable')
+        
     try:
         main_process = subprocess.Popen(command, cwd='.',
                                 stdout=subprocess.PIPE,
@@ -144,16 +145,33 @@ def get_executable(source='gslib', access_token=None, clean=False):
 
         logs = logs.replace(access_token, 'retracted')
         
+        __remove_temp_dir(temp_dir)
+        
         raise Exception(logs) from None
 
+    try:
+        for file_name in os.listdir(source_dir):
+            
+            srcfile = os.path.join(source_dir,file_name)
+            
+            destfile = os.path.join(target_dir,file_name)
+            
+            shutil.copy(srcfile,destfile)
 
-    for file_name in os.listdir(source_dir):
-        
-        srcfile = os.path.join(source_dir,file_name)
-	    
-        destfile = os.path.join(target_dir,file_name)
-        
-        shutil.copy(srcfile,destfile)
+    except Exception as exception_content:
+        logs = 'Unable to retrive data from the repository. Please make sure correct access token has been provided!' + str(exception_content)
+        raise Exception(logs) from None
+
+    finally:
+        __remove_temp_dir(temp_dir)
+
+
+def __remove_temp_dir(temp_dir):
+    import os
+    import sys
+    import stat
+    from os import path
+    import shutil
 
     # Remove the temporary directory
     for root, dirs, files in os.walk(temp_dir):  
@@ -162,9 +180,3 @@ def get_executable(source='gslib', access_token=None, clean=False):
         for file in files:
             os.chmod(path.join(root, file), stat.S_IRWXU)
     shutil.rmtree(temp_dir)
-        
-
-    
-                    
-
-    
