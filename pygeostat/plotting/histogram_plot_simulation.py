@@ -28,9 +28,8 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
                             plot_style=None, custom_style=None, output_file=None, out_kws=None, sim_kws=None,
                             **kwargs):
     """
-    histogram_plot_simulation emulates the GSLIB histogram_plot_simulation program as a means of checking histogram
-    reproduction of simulated realizations to the original histogram. Large realizations can be
-    sub-sampled using a FORTRAN subroutine wrapped for python. The use of python generators
+    histogram_plot_simulation emulates the pygeostat histogram_plot program as a means of checking histogram
+    reproduction of simulated realizations to the original histogram. The use of python generators
     is a very flexible and easy means of instructing this plotting function as to what to plot.
 
     The function accepts five types of simulated input passed to the ``simulated_data`` argument:
@@ -42,7 +41,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         #. List containing location(s) of realization file(s).
         #. String containing the location of a folder containing realization files. All files in
            the folder are read in this case.Can contain
-        #. String with a wild card search(s) (e.g., './data/realizations/*.out')
+        #. String with a wild card search (e.g., './data/realizations/*.out')
         #. Python generator object that yields a 1-D numpy array.
 
     The function accepts two types of reference input passed to the ``reference_data`` argument:
@@ -71,9 +70,8 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
 
     >>> ['nreal', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat', 'refavg', 'refstd']
 
-    Please review the documentation of the
-    :func:`gs.set_style() <pygeostat.plotting.set_style.set_style>` and
-    :func:`gs.export_image() <pygeostat.plotting.export_image.export_image>` functions for details on their
+    Please review the documentation of the :func:`gs.set_style() <pygeostat.plotting.set_plot_style>` and
+    :func:`gs.export_image() <pygeostat.plotting.export_image>` functions for details on their
     parameters so that their use in this function can be understood.
 
     Parameters:
@@ -127,7 +125,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     Returns:
         ax (ax): matplotlib Axes object with the histogram reproduction plot
 
-    Examples:
+    **Examples:**
 
     .. plot:: 
     

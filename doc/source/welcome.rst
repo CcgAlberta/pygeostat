@@ -136,6 +136,17 @@ Plotting Gallery
 
 .. raw:: html
 
+    <a href=./plotting.html#pygeostat.plotting.grid_slice_plot>
+    <div style="background-image: url(./_images/plotting-21.png); background-repeat:no-repeat; background-size: contain"
+         class='figure align-center'>
+    <span class='figure-label'>
+    <p>histogram_plot</p>
+    </span>
+    </div>
+    </a>
+
+.. raw:: html
+
     <a href=./plotting.html#pygeostat.plotting.scatter_plot>
     <div style="background-image: url(./_images/plotting-15_00.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
@@ -246,6 +257,28 @@ Plotting Gallery
 
 .. raw:: html
 
+    <a href=./plotting.html#pygeostat.plotting.histogram_plot>
+    <div style="background-image: url(./_images/plotting-10.png); background-repeat:no-repeat; background-size: contain"
+         class='figure align-center'>
+    <span class='figure-label'>
+    <p>histogram_plot</p>
+    </span>
+    </div>
+    </a>
+
+.. raw:: html
+
+    <a href=./plotting.html#pygeostat.plotting.histogram_plot>
+    <div style="background-image: url(./_images/plotting-11.png); background-repeat:no-repeat; background-size: contain"
+         class='figure align-center'>
+    <span class='figure-label'>
+    <p>histogram_plot</p>
+    </span>
+    </div>
+    </a>
+
+.. raw:: html
+
     <a href=./plotting.html#pygeostat.plotting.histogram_plot_simulation>
     <div style="background-image: url(./_images/plotting-12.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
@@ -299,7 +332,7 @@ Plotting Gallery
     </div>
     </a>
 
-.. raw:: html
+.. raw:: html 
 
     <div style="clear: both"></div>
 
@@ -314,16 +347,16 @@ http://www.ccgalberta.com/software-terms-of-use/
 
 .. |integration_test| image:: https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master
     :alt: Integration
-    :target: https://github.com/MHadavand/pygeostat_public
+    :target: https://github.com/CcgAlberta/pygeostat
 
 .. |docs| image:: https://github.com/CcgAlberta/pygeostat/workflows/Documentation/badge.svg?branch=master
     :alt: Documentation Status
-    :target: https://github.com/MHadavand/pygeostat_public
+    :target: https://github.com/CcgAlberta/pygeostat
 
 .. |PyPi| image:: https://badge.fury.io/py/pygeostat.svg
     :target: https://badge.fury.io/py/pygeostat
 
-.. |Python36| image:: https://img.shields.io/badge/python-3.6-cyan.svg
+.. |Python36| image:: https://img.shields.io/badge/python-3.6-blue.svg
     :target: https://www.python.org/downloads/release/python-360
     :alt: Python Version
 

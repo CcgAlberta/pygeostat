@@ -19,15 +19,15 @@ Contact:
 +++++++++++++++++++
 Refer to `www.ccgalberta.com <http://www.ccgalberta.com>`_
 
-.. |pygeostatlogo| image:: http://www.ccgalberta.com/pygeostat_public/_images/pygeostat_logo.png
+.. |pygeostatlogo| image:: http://www.ccgalberta.com/pygeostat/_images/pygeostat_logo.png
 
 .. |integration_test| image:: https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master
     :alt: IntegrationTest
     :scale: 100%
-    :target: https://github.com/MHadavand/pygeostat_public
+    :target: https://github.com/CcgAlberta/pygeostat
 
 .. |docs| image:: https://github.com/CcgAlberta/pygeostat/workflows/Documentation/badge.svg?branch=master
-    :target: https://github.com/MHadavand/pygeostat_public
+    :target: https://github.com/CcgAlberta/pygeostat
     :alt: Documentation Status
     :scale: 100%
 

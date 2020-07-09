@@ -31,5 +31,5 @@ Misc Program Utilities
 .. autofunction:: pygeostat.programs.program_utils.rseed_list
 .. autofunction:: pygeostat.programs.program_utils.parstr_kwargs
 .. autofunction:: pygeostat.programs.program_utils.dedent_parstr
-.. autofunction:: pygeostat.programs.programs.ScriptCrash
+
 

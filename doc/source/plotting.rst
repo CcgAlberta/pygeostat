@@ -62,7 +62,7 @@ colormap theory.
 
 **Example**
 
-Which illustrates the most detail in the data? Spoiler: inferno does, in my opinion :) (Warren Black)
+Which illustrates the most detail in the data?
 
 Colour theory research has shown that the colormap jet may appear detailed due to the colour
 differential; however, our perception of the colours distort the data's representation. The
@@ -124,11 +124,11 @@ changed within a python session or permanently within the matplotlibrc file. For
 ``mpl.rcParams`` and what each setting is, visit http://matplotlib.org/users/customizing.html
 
 As a means of creating a standard, a base pre-set style is set within pygeostat ``ccgpaper`` and some variables of it. They are accessible through the function :func:`gs.set_style() <pygeostat.plotting.set_style.set_style>`. If you'd like to review their settings, the source can be easily viewed from this documentation. If users with to use their own defined ``mpl.rcParams``, the influence of :func:`gs.set_style() <pygeostat.plotting.set_style.set_style>` can be easily turned off so the custom settings are honored, or custom settings can be set through :func:`gs.set_style() <pygeostat.plotting.set_style.set_style>`. Make sure to check out the functionality of
-:class:`gs.gsPlotStyle() <pygeostat.plotting.set_style.DefaultPlotStyles>`.
+:class:`gs.PlotStyle() <pygeostat.pygeostat_parameters.PlotStyle>`.
 
 Dealing with Memory Leaks from Plotting
 =======================================
-As HDF5 functionality is enhanced within pygoestat (see :func:`gs.DataFile() <pygeostat.data.data.DataFile>`), loading large datasets into memory will become a viable option. Some plotting functions are being updated to be able to handle these file types, such as :func:`gs.histogram_plot_simulation() <pygeostat.plotting.histogram_plot_simulation.histogram_plot_simulation>`. If numerous plots are being generated in a loop, you may also notice that your systems physical memory is increasing without being dumped. This is a particular problem if large datasets are being loaded into memory.
+As HDF5 functionality is enhanced within pygoestat (see :class:`gs.DataFile() <pygeostat.data.data.DataFile>`), loading large datasets into memory will become a viable option. Some plotting functions are being updated to be able to handle these file types, such as :func:`gs.histogram_plot_simulation() <pygeostat.plotting.histogram_plot_simulation>`. If numerous plots are being generated in a loop, you may also notice that your systems physical memory is increasing without being dumped. This is a particular problem if large datasets are being loaded into memory.
 
 Not sure as to the reason, but even if you reuse a name space, the old data attached to it is not removed until your systems memory is maxed out. Matplotlib also stores figures in a loop. The module `gc <https://docs.python.org/2/library/gc.html>`_ has a function ``gc.collect()`` that will dump data not connected to a namespace in python.
 
@@ -164,6 +164,11 @@ Scatter Plot
 *************
 .. autofunction:: pygeostat.plotting.scatter_plot
 
+Scatter Plot (Multivariate)
+*******************************
+The function :func:`gs.scatter_plots() <pygeostat.plotting.utils.scatter_plots>` can be used to study multivariate relationships by plotting the bivariate relationships between different variables.
+
+.. autofunction:: pygeostat.plotting.scatter_plots
 
 Slice Plot
 *************
@@ -174,11 +179,6 @@ Slice Plot (Grids)
 *****************************
 .. autofunction:: pygeostat.plotting.grid_slice_plot
 
-Scatter Plot (Multivariate)
-*******************************
-The function :func:`gs.scatter_plots() <pygeostat.plotting.utils.scatter_plots>` can be used to study multivariate relationships by plotting the bivariate relationships between different variables.
-
-.. autofunction:: pygeostat.plotting.scatter_plots
 
 Scatter Plot (Multivariate-Comparison)
 *******************************************

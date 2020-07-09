@@ -1,70 +1,20 @@
-Python code is licensed under CCG Software Terms of Use, which are copied below.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                                                                                  %
-Use and Support of Software from the Centre for Computational Geostatistics (CCG) %
-                                                                                  %
-Last Revised August 30, 2016                                                      %
-                                                                                  %
-The Centre for Computational Geostatistics (CCG) at the University of Alberta     %
-has evolved over the years, yet the basic idea remains the same: organizations    %
-provide research funding for access to research results. CCG software is          %
-intellectual property of CCG; the following principles apply to the use and       %
-support of CCG software.                                                          %
-                                                                                  %
- 1. Openness within the CCG Community                                             %
-    All researchers within CCG share all software developed at the CCG openly     %
-    within the CCG community. All software aims for high standards, but many      %
-    programs are works in progress.                                               %
-                                                                                  %
- 2. Support of CCG Software                                                       %
-    There is no support provided for CCG software. CCG researchers may address    %
-    questions and reports of errors and deficiencies. CCG Research Partners       %
-    receive greater consideration.                                                %
-                                                                                  %
- 3. Software Use for Short Courses and the Citation Program in Applied            %
-    Geostatistics Course participants use CCG software for exercises and          %
-    projects, but should not use the software for commercial application outside  %
-    of the CCG community after the training course.                               %
-                                                                                  %
- 4. Use in Commercial Software                                                    %
-    A CCG member may embed CCG software within commercial software that they      %
-    develop or apply, if they take responsibility for the product.                %
-                                                                                  %
- 5. Software Use if a CCG Member Drops Support                                    %
-    It is an expectation of the CCG community that former CCG members discontinue %
-    the use of CCG software embedded within their practices and applications,     %
-    unless they were the developer.                                               %
-                                                                                  %
- 6. Software Use by the Developer                                                 %
-    A particular researcher within CCG can distribute their software as they see  %
-    fit. Special care is required for derivative works built on previous CCG      %
-    software.                                                                     %
-                                                                                  %
- 7. Released Software                                                             %
-    Certain software is released as part of journal publications or on our        %
-    website.                                                                      %
-    Such software is released and licensed under                                  %
-    https://creativecommons.org/licenses/by-nc-nd/4.0/                            %
-                                                                                  %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Copyright (c) 2020 Center for Computational Geostatistics
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                                                                     %
-Copyright (C) 1996, The Board of Trustees of the Leland Stanford     %
-Junior University.  All rights reserved.                             %
-                                                                     %
-The programs in GSLIB are distributed in the hope that they will be  %
-useful, but WITHOUT ANY WARRANTY.  No author or distributor accepts  %
-responsibility to anyone for the consequences of using them or for   %
-whether they serve any particular purpose or work at all, unless he  %
-says so in writing.  Everyone is granted permission to copy, modify  %
-and redistribute the programs in GSLIB, but only under the condition %
-that this notice and the above copyright notice remain intact.       %
-                                                                     %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
