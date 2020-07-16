@@ -69,7 +69,7 @@ def pit_plot(arr, griddef, ax=None, orient='xz', slice_number=0, lineweight=1, c
 
         >>> gs.pit_plot(data.data, data.griddef, title='Pit Outline Using LG3D output')
 
-        .. image:: ./figures/pitplot.png
+        .. image:: ./figures/PlottingGallery/pitplot.png
 
         In order to plot multiple pits (say from a file with multiple realizations) you have can
         plot to the same matplotlib axis. For multiple realizations using a loop is the easiest
@@ -99,7 +99,7 @@ def pit_plot(arr, griddef, ax=None, orient='xz', slice_number=0, lineweight=1, c
 
         >>> gs.export_image('pitplot_mr.png', format='png')
 
-        .. image:: ./figures/pitplot_mr.png
+        .. image:: ./figures/PlottingGallery/pitplot_mr.png
     """
     from .export_image import export_image
     from . utils import format_plot, _spatial_labels, _tickoverlap

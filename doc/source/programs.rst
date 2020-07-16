@@ -4,6 +4,9 @@
 Scripting CCG Executables
 =========================
 
+Pygeostat can be used for scripting parameter files and using CCG/GSLIB software (executable files) to create advanced geostatistical workflows. This is done using **Program** class.
+
+
 Program Class
 *************
 .. autoclass:: pygeostat.programs.programs.Program

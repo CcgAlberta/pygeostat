@@ -82,6 +82,15 @@ def get_executable(source='gslib', access_token=None, clean=True):
         access_token (str): An access token to authorize access to the target private repository
         clean (bool): Option to clean the executable directory prior to upload the files from the target private repository
 
+    **Examples**
+
+    .. code-block:: python
+        
+        import pygeostat as gs
+        gs.get_executable(source='CCG', clean=True)
+
+    |
+
     '''
 
     import subprocess

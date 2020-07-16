@@ -15,13 +15,13 @@ Welcome to pygeostat, a Python package for geostatistical modeling. Pygeostat is
 
 **Features:**
 
-* Configurations of persistent project parameters and plotting style parameters
+* Configurations of persistent project parameters and plotting style
 * Data file management functions for interacting with CSV, GeoEAS (GSLIB), and VTK formats
 * Utilities for managing GSLIB-style grid definitions
-* Export gridded and point data files for visualization with Paraview (VTK format)
-* Simplified scripting of gslib programs with parallelization and crash detection/notification
+* Export grid and point data files for visualization with Paraview (VTK format)
+* Simplified scripting of GSLIB programs with parallelization and crash detection/notification
 * Linear desurveying and compositing methods including automatic composite detection
-* Vast library of :ref:`plotting functions <plotting>`
+* Library of :ref:`plotting functions <plotting>`
 
 Indices and tables
 ++++++++++++++++++
@@ -115,7 +115,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.correlation_matrix_plot>
-    <div style="background-image: url(./_images/plotting-24.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/Correlation_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>correlation_matrix_plot</p>
@@ -126,7 +126,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.slice_plot>
-    <div style="background-image: url(./_images/plotting-13.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/slice_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center' margin=10px>
     <span class='figure-label'>
     <p>slice_plot</p>
@@ -137,10 +137,21 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.grid_slice_plot>
-    <div style="background-image: url(./_images/plotting-21.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/grid_slice_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
-    <p>histogram_plot</p>
+    <p>grid_slice_plot</p>
+    </span>
+    </div>
+    </a>
+
+.. raw:: html
+
+    <a href=./plotting.html#pygeostat.plotting.contour_plot>
+    <div style="background-image: url(./_static/contour_plot.png); background-repeat:no-repeat; background-size: contain"
+         class='figure align-center'>
+    <span class='figure-label'>
+    <p>contour_plot</p>
     </span>
     </div>
     </a>
@@ -148,7 +159,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.scatter_plot>
-    <div style="background-image: url(./_images/plotting-15_00.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/scatter_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>scatter_plot</p>
@@ -159,7 +170,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.scatter_plots>
-    <div style="background-image: url(./_images/plotting-22.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/scatter_plots.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>scatter_plots</p>
@@ -170,7 +181,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.scatter_plots_lu>
-    <div style="background-image: url(./_images/plotting-23_01.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/scatter_plots_lu.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>scatter_plots_lu</p>
@@ -181,7 +192,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.pit_plot>
-    <div style="background-image: url(./_images/pitplot_mr.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/pitplot_mr.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>pit_plot</p>
@@ -192,7 +203,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.accuracy_plot>
-    <div style="background-image: url(./_images/plotting-1.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/accuracy_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>accuracy_plot</p>
@@ -203,7 +214,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.variogram_plot>
-    <div style="background-image: url(./_images/plotting-37.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/variogram_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>variogram_plot</p>
@@ -214,7 +225,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.drill_plot>
-    <div style="background-image: url(./_images/plotting-28.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/drill_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>drill_plot</p>
@@ -225,7 +236,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.qq_plot>
-    <div style="background-image: url(./_images/plotting-30.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/qq_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>qq_plot</p>
@@ -236,7 +247,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.validation_plot>
-    <div style="background-image: url(./_images/plotting-33.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/validation_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>validation_plot</p>
@@ -247,7 +258,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.histogram_plot>
-    <div style="background-image: url(./_images/plotting-9.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/histogram_plot1.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>histogram_plot</p>
@@ -258,7 +269,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.histogram_plot>
-    <div style="background-image: url(./_images/plotting-10.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/histogram_plot2.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>histogram_plot</p>
@@ -269,7 +280,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.histogram_plot>
-    <div style="background-image: url(./_images/plotting-11.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/histogram_plot3.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>histogram_plot</p>
@@ -280,7 +291,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.histogram_plot_simulation>
-    <div style="background-image: url(./_images/plotting-12.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/histogram_plot_simulation.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>histogram_plot_simulation</p>
@@ -291,7 +302,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.location_plot>
-    <div style="background-image: url(./_images/plotting-5.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/location_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>location_plot</p>
@@ -302,7 +313,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.probability_plot>
-    <div style="background-image: url(./_images/plotting-31.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/probability_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>probability_plot</p>
@@ -313,7 +324,7 @@ Plotting Gallery
 .. raw:: html
 
     <a href=./plotting.html#pygeostat.plotting.loadings_plot>
-    <div style="background-image: url(./_images/plotting-38.png); background-repeat:no-repeat; background-size: contain"
+    <div style="background-image: url(./_static/loadings_plot.png); background-repeat:no-repeat; background-size: contain"
          class='figure align-center'>
     <span class='figure-label'>
     <p>loadings_plot</p>
@@ -321,26 +332,9 @@ Plotting Gallery
     </div>
     </a>
 
-.. raw:: html
-
-    <a href=./plotting.html#pygeostat.plotting.contour_plot>
-    <div style="background-image: url(./_images/plotting-40.png); background-repeat:no-repeat; background-size: contain"
-         class='figure align-center'>
-    <span class='figure-label'>
-    <p>contour_plot</p>
-    </span>
-    </div>
-    </a>
-
 .. raw:: html 
 
     <div style="clear: both"></div>
-
-Terms of Use
-++++++++++++
-pygeostat is licensed under the CCG Terms of Use, which may be found at the below link.
-http://www.ccgalberta.com/software-terms-of-use/
-
 
 
 

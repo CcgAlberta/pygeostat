@@ -175,6 +175,7 @@ html_favicon = './figures/favicon.ico'
 # so a file named "default.css" will overwrite the builtin "default.css".
 extra_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..\..\examples'))
 html_static_path = ['static', extra_path]
+html_static_path.append(os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'.\figures\PlottingGallery')))
 
 # html_extra_path = []
 
@@ -211,7 +212,7 @@ html_static_path = ['static', extra_path]
 #html_show_sourcelink = True
 
 # If true, "Created using Sphinx" is shown in the HTML footer. Default is True.
-#html_show_sphinx = True
+html_show_sphinx = False
 
 # If true, "(C) Copyright ..." is shown in the HTML footer. Default is True.
 #html_show_copyright = True
@@ -222,7 +223,7 @@ html_static_path = ['static', extra_path]
 #html_use_opensearch = ''
 
 # This is the file name suffix for HTML files (e.g. ".xhtml").
-#html_file_suffix = None
+# html_file_suffix
 
 # Language to be used for generating the HTML full-text search index.
 # Sphinx supports the following languages:

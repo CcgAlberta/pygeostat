@@ -36,10 +36,8 @@ The UofA's minimum requirement for a thesis allows the user to select their own 
 readability in mind.
 
 If you are exporting postscript figures, some odd behavior may occur. Matplotlib needs to be
-instructed which type of fonts to export with them, this is handled by using :func:`gs.set_style()
-<pygeostat.plotting.set_style.set_style>` which is within many of the plotting functions. The font
-may also be called within the postscript file as a byte string, the function :func:`gs.export_image()
-<pygeostat.plotting.export_image.export_image>` converts this into a working string.
+instructed which type of fonts to export with them, this is handled by using :func:`gs.set_plot_style() <pygeostat.plotting.set_plot_style>` which is within many of the plotting functions. The font
+may also be called within the postscript file as a byte string, the function :func:`gs.export_image() <pygeostat.plotting.export_image>` converts this into a working string.
 
 You may find that when saving to a PDF document, the font you select is appearing bold. This happens
 due to matplotlib using the same name for fonts within the same family. For example, if you specify
@@ -84,7 +82,7 @@ and http://matplotlib.org/style_changes.html
 There are two custom colormaps available through pygeostat for visualizing digital elevation models.
 ``topo1`` and ``topo2`` are available through the
 :func:`gs.get_cmap() <pygeostat.plotting.utils.get_cmap>` function. They won't look as pixelated as
-the examples below...I promise!
+the examples below.
 
 ``topo1``
 
@@ -156,9 +154,12 @@ Histogram Plot (Simulation Check)
 
 
 Slice Plot
-************
+*************
 .. autofunction:: pygeostat.plotting.slice_plot
 
+Slice Plot (Grids)
+*****************************
+.. autofunction:: pygeostat.plotting.grid_slice_plot
 
 Scatter Plot
 *************
@@ -169,15 +170,6 @@ Scatter Plot (Multivariate)
 The function :func:`gs.scatter_plots() <pygeostat.plotting.utils.scatter_plots>` can be used to study multivariate relationships by plotting the bivariate relationships between different variables.
 
 .. autofunction:: pygeostat.plotting.scatter_plots
-
-Slice Plot
-*************
-.. autofunction:: pygeostat.plotting.slice_plot
-
-
-Slice Plot (Grids)
-*****************************
-.. autofunction:: pygeostat.plotting.grid_slice_plot
 
 
 Scatter Plot (Multivariate-Comparison)
@@ -228,3 +220,7 @@ Contour Plot
 Exporting Images
 ***********************
 .. autofunction:: pygeostat.plotting.export_image
+
+Set Plot Style
+***********************
+.. autofunction:: pygeostat.plotting.set_plot_style

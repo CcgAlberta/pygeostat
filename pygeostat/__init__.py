@@ -11,7 +11,7 @@ interact with GSLIB and CCG software using Python.
 '''
 from __future__ import absolute_import, division, print_function
 
-__version__ = '1.0.3'
+__version__ = '1.0.4'
 
 # parameter configurations
 from . pygeostat_parameters import Parameters, PlotStyle

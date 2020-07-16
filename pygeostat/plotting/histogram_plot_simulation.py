@@ -70,7 +70,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
 
     >>> ['nreal', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat', 'refavg', 'refstd']
 
-    Please review the documentation of the :func:`gs.set_style() <pygeostat.plotting.set_plot_style>` and
+    Please review the documentation of the :func:`gs.set_plot_style() <pygeostat.plotting.set_plot_style>` and
     :func:`gs.export_image() <pygeostat.plotting.export_image>` functions for details on their
     parameters so that their use in this function can be understood.
 

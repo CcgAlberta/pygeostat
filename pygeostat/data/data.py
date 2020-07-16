@@ -1211,7 +1211,7 @@ class DataFile:
 			assigns the griddef to the current `gs.DataFile`
 
 		Note:
-			this function lazily assumes things are either 3D or 2D along the xy plane. If nx == 1
+			this function assumes things are either 3D or 2D along the xy plane. If nx == 1
 			or ny == 1, nonsense will result!
 
 		Usage:

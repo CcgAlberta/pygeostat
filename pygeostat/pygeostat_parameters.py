@@ -862,7 +862,7 @@ class PlotStyle(Parameters):
 			if self._check_style_parameter(key):
 				dict.__setitem__(self, key, val)
 		except KeyError:
-			raise KeyError('%s is not a valid matplotlib plotting parameter.')
+			raise KeyError('%s is not a valid matplotlib plotting parameter.' % (key,))
 
 	def _generate(self, style=None, custom=None):
 		"""

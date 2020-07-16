@@ -18,7 +18,7 @@ The Anaconda distribution by Continuum Analytics: https://www.continuum.io/downl
 then accepting the defaults of registering with the system and installing to the path are
 recommended.
 
-pygeostat Installation
+Pygeostat Installation
 --------------------------
 
 `Pygeostat <https://pypi.org/project/pygeostat/>`_ can be installed from python package index (PyPI) repository.
@@ -26,6 +26,13 @@ pygeostat Installation
 .. code-block:: shell
 
    pip install pygeostat
+
+Additional Software (`CCG <https://CCGAlberta.com/>`_ Members)
+****************************************************************
+
+`CCG <https://CCGAlberta.com/>`_ memebers have the option to install CCG/GSLIB software (executables files) to enable pygeostat :ref:`scripting features <programs>`. This can be done using the following function and providing a valid access token.
+
+.. autofunction:: pygeostat.utility.get_executable
 
 
 Create Virtual Environments
@@ -51,7 +58,7 @@ Python environments can be used to isolate different projects with different dep
 
    pip install pygeostat
 
-The nexs step is to lunch your favorite IDE for python (e.g. Jupyter).
+The nexs step is to launch your favorite IDE for python (e.g. Jupyter).
 
 Using R from Python
 *******************
@@ -64,7 +71,7 @@ Consider:
 
 To allow interfacing between Python and R, rpy2 is required. Currently, only the utility gs.nearpd()
 uses rpy2 which also requires the R library "Matrix" to be installed through R. Installing rpy2 can
-be temperamental. The following installation instructions for rpy2 should do the trick:
+be temperamental. Use the following installation instructions for rpy2:
 
    1. Download the rpy2 wheel file (e.g., rpy2-2.6.0-cp34-none-win_amd64) from:
       http://www.lfd.uci.edu/~gohlke/pythonlibs/#rpy2

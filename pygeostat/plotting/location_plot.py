@@ -177,8 +177,7 @@ def location_plot(data, x=None, y=None, z=None, var=None, dhid = None, catdata=N
 		gs.location_plot(data_file, var='Lithofacies', orient='yz', aspect =5, plot_collar = True)
 
 	|
-
-	.. codeauthor:: pygeostat team 2018-04-13
+	
 	"""
 	from . utils import (_spatial_labels, _spatial_pointdata, _spatial_slice, _format_tick_labels, setup_plot,
 						 _spatial_orient2fig, format_plot, _get_cmap, _spatial_aspect, get_contcbarargs)

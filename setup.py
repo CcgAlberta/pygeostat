@@ -36,7 +36,7 @@ setup(name='pygeostat',
         "License :: OSI Approved :: MIT License", 
         "Operating System :: Microsoft", 
        ],
-      package_data={'pygeostat': ['data/example_data/*', 'executable/*.exe']},
+      package_data={'pygeostat': ['data/example_data/*', 'executable/*.txt']},
       include_package_data=True,
       zip_safe=False)
 

@@ -21,7 +21,7 @@ def set_plot_style(plot_function):
     Applies pygeostat plotting style before plotting function is called based on the provided style name and custom dictionary then
     retore it back to the original plot style.
 
-    Usage:
+    **Example:**
 
     .. code-block:: Python
 

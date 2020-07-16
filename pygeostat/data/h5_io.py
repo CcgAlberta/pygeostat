@@ -95,7 +95,7 @@ def h5_combine_data(flname, h5paths, datasets=None):
 
 def write_h5(data, flname, h5path=None, datasets=None, dtype=None, gridstr=None,
                trim_variable=None, var_min=-998.0):
-    """Write data to an HDF5 file useing the python package H5PY. The file is appended to and in
+    """Write data to an HDF5 file using the python package H5PY. The file is appended to and in
     the case that a dataset already exists, it is overwritten.
 
     Parameters:

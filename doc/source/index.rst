@@ -21,6 +21,5 @@ Table of Contents
    statistics.rst
    plotting.rst
    programs.rst
-   transformations.rst
    examples.rst
    contribution.rst
