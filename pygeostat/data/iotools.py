@@ -108,7 +108,7 @@ def _test_file_open(filename):
         raise IOError('Could not open {}'.format(filename))
 
 
-def read_gslib(flname, headeronly=False, delimiter=' ', tmin=None):
+def read_gslib(flname, headeronly=False, delimiter=r'\s*', tmin=None):
     '''Reads in a GSLIB-style Geo-EAS data file
 
     Parameters:
