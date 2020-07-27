@@ -72,25 +72,70 @@ def rmfile(filenames, verbose=False):
                 print('{} not removed - likely does not exist!'.format(filename))
 
 
-def get_executable(source='gslib', access_token=None, clean=True):
+def get_executable(source='gslib', access_token=None, clean=False):
 
     '''
-    Gets a collection of executable files from a protected repository using an access token.
+    Gets a collection of executable files from a protected repository using an access token. Note that in order to use this function, git needs to be installed on the target computer.
     
     Parameters:
-        source (str): gslib or CCG as the source of software
-        access_token (str): An access token to authorize access to the target private repository
-        clean (bool): Option to clean the executable directory prior to upload the files from the target private repository
+        source (str): gslib or CCG as the source of software.
+        access_token (str): An access token to authorize access to the target private repository for CCG software. Access token is available for CCG members and can be found at CCG knowledge base. 
+        clean (bool): Option to clean the executable directory prior to upload the files from the target private repository. Note that choosing this option will delete the existing executable files.
 
     **Examples**
+
+    Installing GSLIB executable files
+
+    .. code-block:: python
+        
+        import pygeostat as gs
+        gs.get_executable(source='GSLIB')
+    
+    .. image:: ./figures/GslibGetFiles.png
+    |
+
+    Installing CCG software
 
     .. code-block:: python
         
         import pygeostat as gs
         gs.get_executable(source='CCG', clean=True)
 
+    .. image:: ./figures/CcgGetFiles.png
     |
 
+    Using the installed software
+
+    .. code-block:: python
+
+        # Load example data included in pygeostat
+        data_file = gs.ExampleData('cluster')
+
+        # Initialize the Program object
+        nscore = gs.Program('nscore', getpar=True)
+
+        # Run normal score transformation
+        parstr = """ Parameters for NSCORE
+                     *********************
+        START OF PARAMETERS:
+        {datafile}                -  file with data
+        3  1  2  3                -  number of variables and columns
+        5                         -  column for weight, 0 if none
+        0                         -  column for category, 0 if none
+        0                         -  number of records if known, 0 if unknown
+        -1.0e21   1.0e21          -  trimming limits
+        0                         -transform using a reference distribution, 1=yes
+        ../histsmth/histsmth.out  -file with reference distribution.
+        1   2   0                 -  columns for variable, weight, and category
+        101                       -maximum number of quantiles, 0 for all
+        {outfl}                   -file for output
+        {trnfl}                   -file for output transformation table
+        """
+
+        pars = dict(datafile=data_file.flname,
+                    outfl = 'nscore.out',
+                    trnfl = 'nscore.trn')
+        nscore.run(parstr=parstr.format(**pars), liveoutput=True)
     '''
 
     import subprocess
@@ -99,23 +144,27 @@ def get_executable(source='gslib', access_token=None, clean=True):
     import sys
     import getpass
 
-    if access_token is None:
+    if access_token is None and source.upper() == 'CCG':
         access_token = getpass.getpass('Please provide a valid access token')
 
     # check if git is available
     try:
         popenobject_ = subprocess.Popen('git')
         popenobject_.terminate()
-    except Exception:
+    except Exception as exception_content:
         print ('Unsuccessful! Could not access git. Please make sure git is installed.')
+        raise Exception(str(exception_content)) from None
 
     # Target direcory for executable
     target_dir = os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..', r'executable'))
 
     # Clean the directory first before uploading the executable files
     if clean:
-        for file_name in os.listdir(target_dir):
-            rmfile(os.path.join(target_dir,file_name))
+        try:
+            for file_name in os.listdir(target_dir):
+                rmfile(os.path.join(target_dir,file_name))
+        except Exception:
+            print('Unable to clean the previously installed files!')
 
     # Create a temporary directory to get
     temp_dir = 'temp1618'
@@ -124,18 +173,20 @@ def get_executable(source='gslib', access_token=None, clean=True):
     if source.lower() == 'gslib':
         print('The software is available under gslib license agreement (http://www.gslib.com)')
         
-        command = 'git clone https://CcgUser:{access_token}@github.com/CcgAlberta/GslibRepository.git {target}'.format(access_token=access_token,target = temp_dir)
+        command = 'git clone https://github.com/CcgAlberta/GslibRepository.git {target}'.format(access_token=access_token,target = temp_dir)
 
         if 'win' in sys.platform:
             source_dir = os.path.join(temp_dir, 'Windows64')
         else:
             source_dir = os.path.join(temp_dir, 'Linux64')
-    else:
+    elif source.lower() == 'ccg':
         print('The software is available under CCG software term of use (http://www.ccgalberta.com/software-terms-of-use)')
         command = 'git clone https://CcgUser:{access_token}@github.com/CcgAlberta/CcgSoftware.git {target}'.format(access_token=access_token,target = temp_dir)
 
         print('The software is suited for Microsoft platform')
         source_dir = os.path.join(temp_dir, 'CcgFortranExecutable')
+    else:
+        raise ValueError('Wrong source was provided.')
         
     try:
         main_process = subprocess.Popen(command, cwd='.',

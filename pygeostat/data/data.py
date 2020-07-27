@@ -28,9 +28,9 @@ _CHECKS = {'dh': ['dh', 'drillhole', 'drill hole', 'dhid', 'drillholeid', 'drill
 		   'ifrom':  ['ifrom', 'from', 'from depth', 'ifrom(m)', 'from(m)', 'from depth(m)'],
 		   'ito': ['ito', 'to', 'to depth', 'ito(m)', 'to(m)',
 				   'To(m)', 'TO(m)', 'to depth(m)', 'To Depth(m)', 'TO DEPTH(m)'],
-		   'x': ['x', 'east', 'easting', 'x(m)', 'east(m)', 'easting(m)'],
-		   'y': ['y', 'north', 'northing', 'y(m)', 'north(m)', 'northing(m)'],
-		   'z': ['z', 'elev', 'elevation', 'z(m)', 'elev(m)', 'elevation(m)'],
+		   'x': ['x', 'east', 'easting', 'x(m)', 'east(m)', 'easting(m)', 'xlocation'],
+		   'y': ['y', 'north', 'northing', 'y(m)', 'north(m)', 'northing(m)', 'ylocation'],
+		   'z': ['z', 'elev', 'elevation', 'z(m)', 'elev(m)', 'elevation(m)', 'zlocation'],
 		   'cat': ['cat', 'category', 'categories', 'rt', 'rocktype', 'rock type', 'fac',
 				   'facies', 'lithofacies', 'lithology', 'Facies Code'],
 		   'weights': ['wt', 'wts', 'weights', 'weight', 'declusteringweight', 'declustering weight']}
@@ -1536,6 +1536,14 @@ def ExampleData(testfile, griddef=None, **kwargs):
 		* "location_plot": 2D data set to test location plot
 		* "3d_grid": 3D gridded data set
 		* "point2d_mv" : 2D multivariate data set
+		* "cluster": GSLIB datafile (data with declustering weights)
+		* "97data": GSLIB datafile (the first 97 rows of cluster datafile)
+		* "data": GSLIB datafile (2D data set of primary and secondary variable)
+		* "parta": GSLIB datafile (small 2D dataset part A)
+		* "partb": GSLIB datafile (small 2D dataset part B)
+		* "partc": GSLIB datafile (small 2D dataset part C)
+		* "true": GSLIB datafile (Primary secondary data pairs)
+		* "ydata": GSLIB datafile (2D spatial seondary data with some primary data)
 
 	"""
 
@@ -1555,7 +1563,15 @@ def ExampleData(testfile, griddef=None, **kwargs):
 		'variogram_model': 'varmodel.out',
 		'reservoir_boundary': 'reservoir_boundary.dat',
 		'reservoir_data': 'reservoir_data.dat',
-		'reservoir_surface': 'reservoir_surface.dat'
+		'reservoir_surface': 'reservoir_surface.dat',
+		'cluster': 'cluster.dat',
+		'97data': '97data.dat',
+		'data': 'data.dat',
+		'parta': 'parta.dat',
+		'partb': 'partb.dat',
+		'partc': 'partc.dat',
+		'true': 'true.dat',
+		'ydata': 'ydata.dat',
 	}
 	if testfile not in _testfiles:
 		raise ValueError("Invalida file name. Choose one of {}".format(list(_testfiles.keys())))

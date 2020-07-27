@@ -10,7 +10,7 @@ Pygeostat
 Introduction
 +++++++++++++++++++++++
 
-This is a Python package for geostatistical modeling. Pygeostat is aimed at preparing spatial data, scripting geostatistical workflows, modeling using tools developed at the Centre for Computational Geostatistics `(CCG) <http://www.ccgalberta.com>`_, and constructing visualizations to study spatial data, and geostatistical models. More information about installing and using pygeostat can be found in the `documentation <http://www.ccgalberta.com/pygeostat_public/welcome.html>`_.
+This is a Python package for geostatistical modeling. Pygeostat is aimed at preparing spatial data, scripting geostatistical workflows, modeling using tools developed at the Centre for Computational Geostatistics `(CCG) <http://www.ccgalberta.com>`_, and constructing visualizations to study spatial data, and geostatistical models. More information about installing and using pygeostat can be found in the `documentation <http://www.ccgalberta.com/pygeostat/welcome.html>`_.
 
 For lessons on geostatiscts visit `Geostatistic Lessons <http://geostatisticslessons.com/>`_.
 

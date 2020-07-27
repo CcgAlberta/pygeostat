@@ -21,6 +21,7 @@ Welcome to pygeostat, a Python package for geostatistical modeling. Pygeostat is
 * Export grid and point data files for visualization with Paraview (VTK format)
 * Simplified scripting of GSLIB programs with parallelization and crash detection/notification
 * Linear desurveying and compositing methods including automatic composite detection
+* A collection of example data files included in pygeostat installation :func:`gs.ExampleData() <pygeostat.data.data.ExampleData>`
 * Library of :ref:`plotting functions <plotting>`
 
 Indices and tables
