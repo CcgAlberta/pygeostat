@@ -240,3 +240,12 @@ def __remove_temp_dir(temp_dir):
         for file in files:
             os.chmod(path.join(root, file), stat.S_IRWXU)
     shutil.rmtree(temp_dir)
+
+def list_executables():
+  """
+  List installed GSLIB executables
+  """  
+  import pathlib
+  exec_dir = pathlib.Path(__file__).parent.parent.joinpath("executable")
+  exe_files = [f.name for f in exec_dir.glob("*.exe")]
+  return exe_files
