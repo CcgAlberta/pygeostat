@@ -61,10 +61,13 @@ class LocationPlotTest(BaseTest):
 		'''
 		Test the capability of plotting by passing variable name to get the color map
 		'''
-		
+		from matplotlib import pyplot as plt
+
 		output_file = os.path.join(self.out_dir, 'location_plot2.png')
+		_, ax = plt.subplots(1,1)
 		try:
 			_ = gs.location_plot(self.data, var='Phi', output_file = output_file)
+			_ = gs.location_plot(self.data, var='Phi', output_file = output_file, ax =ax)
 		except Exception as ex:
 			self.fail('Unable to test the location plot with passing the variable name \n{}'.format(str(ex)))
 
@@ -84,14 +87,18 @@ class LocationPlotTest(BaseTest):
 
 		self.assertEqual(os.path.isfile(output_file), True)
 
+
 	def test_plot_categorical(self):
 		'''
 		Test the capability of plotting along xz/yz orientation and use line plots based on drill hole id for a categorical variable
 		'''
+		from matplotlib import pyplot as plt
 		
 		output_file = os.path.join(self.out_dir, 'location_plot3.png')
+		_, ax = plt.subplots(1,1)
 		try:
 			_ = gs.location_plot(self.data, var='Lithofacies', orient='yz', aspect =5, plot_collar = True, output_file = output_file)
+			_ = gs.location_plot(self.data, var='Lithofacies', orient='yz', aspect =5, plot_collar = True, output_file = output_file, ax = ax)
 		except Exception as ex:
 			self.fail('Unable to test the location plot along yz/xz orientation for a categorical variable \n{}'.format(str(ex)))
 
@@ -110,12 +117,17 @@ class AccuracyPlotTest(BaseTest):
 		'''
 		Test the capability of plotting by passing only the data file
 		'''
+		from matplotlib import pyplot as plt
+
 		data = gs.ExampleData('accuracy_plot')
 		reals = data[list(data.columns[1:])].values
 		truth = data[list(data.columns)[0]].values
 		output_file = os.path.join(self.out_dir, 'accuracy_plot1.png')
+		_, ax = plt.subplots(1,1)
+
 		try:
 			gs.accuracy_plot(truth=truth, reals=reals, output_file = output_file)
+			gs.accuracy_plot(truth=truth, reals=reals, output_file = output_file, ax = ax)
 		except Exception as ex:
 			self.fail('Unable to test the accuracy plot with simple settings \n{}'.format(str(ex)))
 
@@ -136,11 +148,14 @@ class SlicePlotTest(BaseTest):
 		'''
 		Test the capability of plotting by passing only the data file
 		'''
-		
+		from matplotlib import pyplot as plt
 
 		output_file = os.path.join(self.out_dir, 'slice_plot1.png')
+		_, ax = plt.subplots(1,1)
+
 		try:
 			gs.slice_plot(self.data, griddef=self.data.griddef, orient='xy', cmap='viridis', output_file=output_file)
+			gs.slice_plot(self.data, griddef=self.data.griddef, orient='xy', cmap='viridis', output_file=output_file, ax =ax)
 		except Exception as ex:
 			self.fail('Unable to test the slice plot with simple settings \n{}'.format(str(ex)))
 
@@ -151,10 +166,14 @@ class SlicePlotTest(BaseTest):
 		'''
 		Test the capability of plotting by passing only the data file
 		'''
+		from matplotlib import pyplot as plt
 
 		output_file = os.path.join(self.out_dir, 'slice_plot2.png')
+		_, ax = plt.subplots(1,1)
+
 		try:
 			gs.slice_plot(self.data, orient='xy', cmap='viridis', output_file=output_file, slice_thickness=20)
+			gs.slice_plot(self.data, orient='xy', cmap='viridis', output_file=output_file, slice_thickness=20, ax =ax)
 		except Exception as ex:
 			self.fail('Unable to test the slice plot with simple settings \n{}'.format(str(ex)))
 
@@ -239,11 +258,14 @@ class HistogramPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a simple histogram and saving the plot
 		'''
+		from matplotlib import pyplot as plt
 
 		output_file = os.path.join(self.out_dir, 'histogram_plot1.png')
+		_, ax = plt.subplots(1,1)
 
 		try:
 			gs.histogram_plot(self.data, var="Phi", bins=30, output_file = output_file)
+			gs.histogram_plot(self.data, var="Phi", bins=30, output_file = output_file, ax = ax)
 		except Exception as ex:
 			self.fail('Unable to test the histogram plot with simple settings \n{}'.format(str(ex)))
 
@@ -254,11 +276,14 @@ class HistogramPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a histogram with density and custom colour and saving the plot
 		'''
-
+		from matplotlib import pyplot as plt
 		output_file = os.path.join(self.out_dir, 'histogram_plot2.png')
+
+		_, ax = plt.subplots(1,1)
 
 		try:
 			gs.histogram_plot(self.data, var="Phi", bins=30, color='#c2e1e5', sigfigs=5, log=True, density=True, output_file = output_file)
+			gs.histogram_plot(self.data, var="Phi", bins=30, color='#c2e1e5', sigfigs=5, log=True, density=True, output_file = output_file, ax = ax)
 		except Exception as ex:
 			self.fail('Unable to test the histogram plot with density and custom color \n{}'.format(str(ex)))
 
@@ -270,11 +295,13 @@ class HistogramPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a histogram fo idcf and custom stat location and saving the plot
 		'''
-
+		from matplotlib import pyplot as plt
 		output_file = os.path.join(self.out_dir, 'histogram_plot3.png')
+		_, ax = plt.subplots(1,1)
 
 		try:
 			gs.histogram_plot(self.data, var="Phi", icdf=True, color=3, lw=3.5, stat_xy=(1, 0.75), output_file = output_file)
+			gs.histogram_plot(self.data, var="Phi", icdf=True, color=3, lw=3.5, stat_xy=(1, 0.75), output_file = output_file, ax = ax)
 		except Exception as ex:
 			self.fail('Unable to test the histogram plot for icdf and custom stat location \n{}'.format(str(ex)))
 
@@ -337,10 +364,10 @@ class HistogramPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a histogram for categorical proportions
 		'''
-
+		from matplotlib import pyplot as plt
 		output_file = os.path.join(self.out_dir, 'histogram_plot6.png')
 
-
+		_, ax = plt.subplots(1,1)
 		try:
 			cats = [1, 2, 3, 4, 5]
 			colors = gs.catcmapfromcontinuous("Spectral", 5).colors
@@ -348,6 +375,7 @@ class HistogramPlotTest(BaseTest):
 			colordict =  {c: colors[i] for i, c in enumerate(cats)}
 
 			gs.histogram_plot(self.data, cat=True, color=colordict, bins=40, figsize=(8, 4), xlabel=False, output_file=output_file)
+			gs.histogram_plot(self.data, cat=True, color=colordict, bins=40, figsize=(8, 4), xlabel=False, output_file=output_file, ax = ax)
 
 		except Exception as ex:
 			self.fail('Unable to test the histogram plot for categorical proportions\n{}'.format(str(ex)))
@@ -399,7 +427,7 @@ class CorrelationMatrixPlotTest(BaseTest):
 		super().setUp()
 		dfl = gs.ExampleData("point3d_ind_mv")
 		data = dfl[dfl.variables]
-		self.data_cor = data.corr()
+		self.data_cor = data.corr() 
 
 
 	def test_simple_plot(self):
@@ -407,13 +435,13 @@ class CorrelationMatrixPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a simple correlation matrix
 		'''
-
+		from matplotlib import pyplot as plt
 		output_file = os.path.join(self.out_dir, 'correlation_matrix_plot1.png')
 
-
+		_, ax = plt.subplots(1,1)
 		try:
 			gs.correlation_matrix_plot(self.data_cor, output_file=output_file)
-
+			gs.correlation_matrix_plot(self.data_cor, output_file=output_file, ax =ax)
 		except Exception as ex:
 			self.fail('Unable to test the correlation matrix plot \n{}'.format(str(ex)))
 
@@ -423,15 +451,17 @@ class CorrelationMatrixPlotTest(BaseTest):
 	def test_simple_lower_matrix(self):
 
 		'''
-		Test the capability of plotting a simple correlation matrix
+		Test the capability of plotting lower part of a simple correlation matrix 
 		'''
+		from matplotlib import pyplot as plt
 
 		output_file = os.path.join(self.out_dir, 'correlation_matrix_plot2.png')
 
+		_, ax = plt.subplots(1,1)
 
 		try:
 			gs.correlation_matrix_plot(self.data_cor, lower_matrix=True, annotation=True, output_file=output_file)
-
+			gs.correlation_matrix_plot(self.data_cor, lower_matrix=True, annotation=True, output_file=output_file, ax = ax)
 		except Exception as ex:
 			self.fail('Unable to test the correlation matrix plot with only lower matrix option\n{}'.format(str(ex)))
 
@@ -449,12 +479,15 @@ class ScatterPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a scatter plot with probability density estimate
 		'''
+		from matplotlib import pyplot as plt
 
 		output_file = os.path.join(self.out_dir, 'scatter_plot1.png')
 
+		_, ax = plt.subplots(1,1)
 
 		try:
 			gs.scatter_plot(self.data[self.data.variables[0]], self.data[self.data.variables[1]], cmap='hot', cbar=True, output_file = output_file)
+			gs.scatter_plot(self.data[self.data.variables[0]], self.data[self.data.variables[1]], cmap='hot', cbar=True, output_file = output_file, ax =ax)
 
 		except Exception as ex:
 			self.fail('Unable to test the scatter plot \n{}'.format(str(ex)))
@@ -517,17 +550,20 @@ class QqPlotTest(BaseTest):
 		Test the capability of plotting a simple quantile by quantile comparison between two distributions
 		'''
 		import numpy as np
+		from matplotlib import pyplot as plt
 
 		output_file = os.path.join(self.out_dir, 'qq_plot1.png')
+		_, ax = plt.subplots(1,1)
 
 		try:
 			_ = gs.qq_plot(np.random.randn(1000),np.random.randn(1000), npoints=500, output_file=output_file)
+			_ = gs.qq_plot(np.random.randn(1000),np.random.randn(1000), npoints=500, output_file=output_file, ax =ax)
 
 		except Exception as ex:
 			self.fail('Unable to test the qq_plot \n{}'.format(str(ex)))
 
 		self.assertEqual(os.path.isfile(output_file), True)
-
+		
 
 class ProbabilityPlotTest(BaseTest):
 
@@ -539,13 +575,15 @@ class ProbabilityPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a CDF with probability scale
 		'''
+		from matplotlib import pyplot as plt
 
 		output_file = os.path.join(self.out_dir, 'probability_plot1.png')
 
+		_, ax = plt.subplots(1,1)
 		try:
 			data = gs.ExampleData('oilsands')
 			_ = gs.probability_plot(data.data['Fines'], logscale=False, output_file=output_file)
-
+			_ = gs.probability_plot(data.data['Fines'], logscale=False, output_file=output_file, ax =ax)
 		except Exception as ex:
 			self.fail('Unable to test the probability_plot \n{}'.format(str(ex)))
 
@@ -562,12 +600,15 @@ class ValidationPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a simple scatter plot to compare estimate vs truth
 		'''
+		from matplotlib import pyplot as plt 
 
 		output_file = os.path.join(self.out_dir, 'validation_plot1.png')
+		_, ax = plt.subplots(1,1)
 
 		try:
 			data = gs.ExampleData('3d_estimate')
 			_ = gs.validation_plot(data.data['Estimate'], data.data['True'], stat_blk='minimal', output_file = output_file)
+			_ = gs.validation_plot(data.data['Estimate'], data.data['True'], stat_blk='minimal', output_file = output_file, ax =ax)
 
 		except Exception as ex:
 			self.fail('Unable to test the validation_plot with simple settings\n{}'.format(str(ex)))
@@ -578,14 +619,17 @@ class ValidationPlotTest(BaseTest):
 		'''
 		Test the capability of plotting a simple scatter plot to compare estimate vs truth
 		'''
+		from matplotlib import pyplot as plt 
 
 		output_file = os.path.join(self.out_dir, 'validation_plot2.png')
+		_, ax =plt.subplots(1,1)
 
 		try:
 			mean = [0, 0]
 			cov = [[1, 0.95], [0.95, 1]]  # diagonal covariance
 			x, y = np.random.multivariate_normal(mean, cov, 5000).T
 			gs.validation_plot(x,y,vlim=(-3.5, 3.5) ,grid=True, stat_xy=(1, 0.68), output_file=output_file)
+			gs.validation_plot(x,y,vlim=(-3.5, 3.5) ,grid=True, stat_xy=(1, 0.68), output_file=output_file, ax =ax)
 
 		except Exception as ex:
 			self.fail('Unable to test the validation_plot \n{}'.format(str(ex)))

@@ -549,7 +549,6 @@ def setup_plot(ax, cbar=None, figsize=None, cax=None, aspect=None):
         cax: Matplotlib.ImageGrid.cbar_axes object
     '''
     from mpl_toolkits.axes_grid1 import ImageGrid
-    from mpl_toolkits.axes_grid1 import axes_divider
 
     if ax is None:
         # Setup up a new plot
@@ -568,24 +567,20 @@ def setup_plot(ax, cbar=None, figsize=None, cax=None, aspect=None):
     elif hasattr(ax, "cax"):
         cax = ax.cax
         fig = plt.gcf()
-    elif cbar and not isinstance(ax, axes_divider.LocatableAxes) and cax is None:
-        fig, cax = get_cbar_axis(ax, cax)
     elif cbar:
-        fig = plt.gcf()
-        if hasattr(ax, 'cax'):
-            cax = ax.cax
-        if cax is None:
-            raise ValueError("A colorbar axes `cax` must be passed as the passed `ax` cannot be"
-                             " divided.")
+        try:
+            fig, cax = get_cbar_axis(ax, cax)
+        except:
+            fig = plt.gcf()
+            if hasattr(ax, 'cax'):
+                cax = ax.cax
+            if cax is None:
+                raise ValueError("A colorbar axes `cax` must be passed as the passed `ax` cannot be"
+                                " divided.")
     else:
         fig = plt.gcf()
     return fig, ax, cax
 
-
-# ----------------------------------------------------------------------------------------------
-# This code was developed by RMS, October 2019, and ported to  pygeostat as maintenance
-# support for strange behavior experienced in matplotlib
-#
 _custom_cbar_width = 0.008
 _custom_cbar_pad = 0.008
 
