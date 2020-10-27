@@ -734,7 +734,11 @@ class DataFile:
 			raise ValueError('self.cat must be initialized!')
 		# Ensure that catdict provides a key for each category in the data
 		cats = self[self.cat]
-		cats = np.unique(cats[np.isfinite(cats)])
+		try:
+			cats = np.unique(cats[np.isfinite(cats)])
+		except TypeError as exc:
+			raise TypeError('Make sure the provided categorical column, "{}", contains numerical values'.format(self.cat)) from exc
+		
 		for cat in cats:
 			if cat not in catdict.keys():
 				raise ValueError('{} in self.cat, but not in catdict.keys()!'.format(cat))

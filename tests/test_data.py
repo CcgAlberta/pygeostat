@@ -67,6 +67,37 @@ class PygeostatDataFileTest(unittest.TestCase):
         except Exception:
             self.fail('Unable to write vtk output')
 
+    def test_set_catdict(self):
+        data = {'East': [1000, 1200], 'North': [2000, 2500], 'Elevation': [1,1], 'Categorical': [0,1]}
+        dat = gs.DataFile(data=data, dftype='point', cat='Categorical')
+
+        try:
+            dat.setcatdict({0: 'Category 1', 1: 'Category 2'})
+        except Exception:
+            self.fail('Unable to set the categorical dictionary')
+
+    def test_set_catdict_missing_category(self):
+        '''
+        A test to check a missing categorical code in a dictionary raises the correct exception
+        '''
+
+        data = {'East': [1000, 1200, 1500], 'North': [2000, 2500, 2600], 'Elevation': [1,1, 2], 'Categorical': [0,1,-99]}
+        dat = gs.DataFile(data=data, dftype='point', cat='Categorical')
+
+        with self.assertRaises(ValueError):
+            dat.setcatdict({0: 'Category 1', 1: 'Category 2'})
+
+    def test_set_catdict_typeissue(self):
+        '''
+        A test to check that provided non numeric codes can be handled by a proper error message
+        '''
+        data = {'East': [1000, 1200, 1500], 'North': [2000, 2500, 2600], 'Elevation': [1,1, 2], 'Categorical': [0,1,'-99']}
+        dat = gs.DataFile(data=data, dftype='point', cat='Categorical')
+
+        with self.assertRaises(TypeError):
+            dat.setcatdict({0: 'Category 1', 1: 'Category 2', '-99': 'Unknown'})
+
+
 class PygeostatGridDefFromString(unittest.TestCase):
     '''
      Test suite for pygeostat GridDef class with grid string
@@ -110,7 +141,7 @@ class PygeostatGridDefFromString(unittest.TestCase):
         assert self.grid.get_index3d(10.0, 5.0, 50.0) == (-1, -1, -1, False)
 
 
-class PygeostatGridDefFromArrayg(unittest.TestCase):
+class PygeostatGridDefFromArray(unittest.TestCase):
     '''
      Test suite for pygeostat GridDef class with grid array
     '''
