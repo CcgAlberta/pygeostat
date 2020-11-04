@@ -4,7 +4,7 @@ channels:
   - msys2
   - conda-forge
 dependencies:
-  - python 3.6.*
+  - python 3.7.*
   - conda 4.5.*
   - pip
   - pip:
@@ -13,12 +13,12 @@ dependencies:
     - pytest
     - pyevtk
     - numpy
-    - pandas==0.25.3
+    - pandas
     - scipy
     - scikit-learn
     - statsmodels
     - numba
-    - matplotlib==2.2.*
+    - matplotlib
     - h5py
     - pillow
     - jupyter

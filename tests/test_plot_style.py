@@ -9,7 +9,7 @@ __version__ = '1.0.0'
 import os, sys
 try:
     import pygeostat as gs
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..')))
     import pygeostat as gs
 import unittest

@@ -143,7 +143,6 @@ def correlation_matrix_plot(correlation_data, figsize=None, ax=None, cax=None, t
     from . utils import titleoverlap, _tickoverlap, get_contcbarargs
     from mpl_toolkits.axes_grid1 import ImageGrid
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    from mpl_toolkits.axes_grid1 import axes_divider
 
     # Sanity checks
     if lower_matrix and dendrogram:
@@ -215,7 +214,7 @@ def correlation_matrix_plot(correlation_data, figsize=None, ax=None, cax=None, t
             fig.delaxes(imggrid.cbar_axes[1])
         if cbar:
             cax = imggrid.cbar_axes[0]
-    elif (cbar or hierarchy) and not isinstance(ax, axes_divider.LocatableAxes):
+    elif (cbar or hierarchy):
         fig = plt.gcf()
         divider = make_axes_locatable(ax)
         if cbar:
@@ -258,6 +257,8 @@ def correlation_matrix_plot(correlation_data, figsize=None, ax=None, cax=None, t
         xticklocs = np.arange(nx - 1)
         yticklocs = np.arange(ny - 1)
         # Trim the labels
+        if isinstance(xlabels, list):
+            xlabels = xlabels[1:]
         if isinstance(ylabels, list):
             ylabels = ylabels[1:]
     else:

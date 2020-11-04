@@ -241,11 +241,15 @@ def __remove_temp_dir(temp_dir):
             os.chmod(path.join(root, file), stat.S_IRWXU)
     shutil.rmtree(temp_dir)
 
-def list_executables():
+
+def list_executable():
   """
-  List installed GSLIB executables
+  PRovides a list installed executable files under pygeostat
   """  
   import pathlib
+  
   exec_dir = pathlib.Path(__file__).parent.parent.joinpath("executable")
+  
   exe_files = [f.name for f in exec_dir.glob("*.exe")]
+  
   return exe_files
