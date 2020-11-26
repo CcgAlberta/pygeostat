@@ -104,6 +104,17 @@ class GmmUtility(object):
 
     Gaussian mixture model is considered an unsupervised machine learning technique to fit the multivariate distribution of observed data.
     GMM is usually fitted based on maximum expectations(EM) and based on maximizing log likelihood of joint distribution of all observations.
+
+    gmm_file(str):The filename of the output gmm_fit GSLIB program.
+    data(PD DataFrame): The input data to the gmm_fit GSLIB program.
+    variable_names(list of strs): A list of stings nvar long with the variable names from the input data to the gmm_fit GSLIB program.
+    mean_vector_list(list of floats): A list of mean_vectors nvar by n_components of the fit gmm.(Only required when gmm_file is not provided)
+    covariance_matrix_list(List of Matrix Floats): List of Matrix Floats that are nvar by nvar by n_components of the fit gmm.(Only required when gmm_file is not provided)
+    contribution_list(List of Contributions): List of n_components Contributions of the fit gmm.(Only required when gmm_file is not provided)
+
+    Please not it is recommended to use the GmmUtility with the output file from the gmm_fit GSLIB program.
+
+    The output of this function is used for the plotting functions.
     '''
 
     def __init__(self, gmm_file=None, data=None, variable_names=None, mean_vector_list=None, covariance_matrix_list=None, contribution_list=None):
@@ -260,15 +271,22 @@ class GmmUtility(object):
         else:
             return output
 
-    def summary_plot(self, figsize=None, cmap='viridis', pad=0, cbar=True, return_axes=False):
+    def summary_plot(self, figsize=None, cmap='viridis',title='Summary Plots',title_size = 30 ,pad=0, cbar=True, return_axes=False,fname=None):
         '''
         A method to provide summary univariate and bivariate distributions for GMM fitted model along with the provided data points.
+
+        figsize (tuple): Figure size (width, height).
+        cmap (str): valid Matplotlib colormap.
+        title (str): Title of Plot.
+        title_size (str or Int): Plot Title Size.
+        pad (tuple): padding between the summary plots. 
+        cbar (bool): Indicate if a colorbar should be plotted or not.
+        fname (str): File name to save plot
         '''
 
         if figsize is None:
             figsize = (self.n_var * 5, self.n_var * 4)
         fig, axes = plt.subplots(self.n_var, self.n_var, figsize=figsize)
-
         for i in range(self.n_var):
             for j in range(self.n_var):
                 if i < j:
@@ -296,6 +314,9 @@ class GmmUtility(object):
             fig.tight_layout(h_pad=pad, w_pad=pad)
         if return_axes:
             return axes
+        fig.suptitle(t=title,fontsize = title_size,y=1.03)
+        if fname!=None:
+            fig.savefig(fname)
 
     def __bivariate_plot(self, var_index, s=80, scatter=True, cmap='viridis', ax=None, figsize=(6, 6), clim=None, sigfigs=None, kernel_lower_percentile=50, cbar=True, cbar_label=True):
         '''
@@ -307,6 +328,8 @@ class GmmUtility(object):
 
         if (len(var_index) != 2):
             raise ValueError('var_index must have two elements')
+        
+        
 
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=figsize)
@@ -400,9 +423,18 @@ class GmmUtility(object):
             ax.set_xlabel(self.variable_names[var_index])
             ax.set_ylabel('pdf')
 
-    def bivariate_plot(self, var_index, cmap='viridis', figsize=(8, 8)):
+    def bivariate_plot(self, var_index, cmap='viridis',cbar=True ,title = 'Bivariate Plot',title_size = 30 ,figsize=(8, 8),fname=None):
         '''
         A method to provide a grided plot of bivariate and univariate.
+
+        figsize (tuple): Figure size (width, height).
+        cmap (str): valid Matplotlib colormap.
+        cbar (bool): Indicate if a colorbar should be plotted or not.
+        title (str): Title of Plot.
+        title_size (str or Int): Plot Title Size
+        var_index (list/array): list/array of indexs of the two variables you wish to plot.
+        fname (str): File name to save plot
+
         '''
 
         try:
@@ -420,8 +452,9 @@ class GmmUtility(object):
         main_ax = fig.add_subplot(grid[:-1, 1:])
         y_hist = fig.add_subplot(grid[:-1, 0], xticklabels=[], sharey=main_ax)
         x_hist = fig.add_subplot(grid[-1, 1:], yticklabels=[], sharex=main_ax)
+        
 
-        self.__bivariate_plot(var_index=var_index, cmap=cmap, ax=main_ax)
+        self.__bivariate_plot(var_index=var_index, cmap=cmap,cbar=cbar, ax=main_ax)
 
         # pdf on the attached axes (1)
         self.__univariate_plot(var_index=var_index[0], ax=x_hist, add_label=False)
@@ -437,6 +470,10 @@ class GmmUtility(object):
         y_hist.set_axis_off()
         y_hist.get_xaxis().set_visible(False)
         y_hist.get_yaxis().set_visible(False)
+        fig.suptitle(t=title,fontsize = title_size)
+
+        if fname!=None:
+            fig.savefig(fname)
 
     @staticmethod
     def get_moments(mean_list, cov_list, contrib_list):
@@ -498,9 +535,18 @@ class GmmUtility(object):
 
         return mu_m, var_m, skewness_m, kurtosis_m
 
-    def univariate_conditional_plot(self, conditioning_data, legend=True, return_moments=False, axes=None, cdf=True):
+    def univariate_conditional_plot(self, conditioning_data, legend=True, return_moments=False, axes=None, cdf=True,title='Univariate Conditional Plot',title_size = 30,fname=None):
         '''
         A method to plot univariate conditional PDF and CDF based on GMM contributions, conditional means and variances
+
+        legend (bool): Indicate if a legend should be plotted or not.
+        conditioning_data(list or array): nvar Long list/array. There should be nvar-1 conditioning data in the list/array and None value in the index of the desired variable.  
+        return_moments (bool): Indicate if a moments should be returned or not. 
+        ax (mpl.axis): Matplotlib axis to plot the figure.
+        cdf (bool): Indicate if a colorbar should be cdf or not.
+        title (str): Title of Plot.
+        title_size (str or Int): Plot Title Size 
+        fname (str): File name to save plot
         '''
 
         if axes is None:
@@ -557,7 +603,10 @@ class GmmUtility(object):
 
         if return_moments:
             return mu_m, var_m, skewness_m, kurtosis_m
-
+        fig.suptitle(t=title,fontsize = title_size)
+        if fname!=None:
+            fig.savefig(fname)
+        
     def univariate_conditional_pdf(self, conditioning_data, x=None, return_gmm_components=False):
         '''
         A method to calculate univariated conditional pdf for the fitted GMM and based on the provided conditioning data.
@@ -723,13 +772,13 @@ class GmmUtility(object):
             return cdf
 
     @staticmethod
-    def univariate_pdf_from_mixture_plot(mean_list, covariance_list, contribution_list, variable_name, ax=None, legend=True):
+    def univariate_pdf_from_mixture_plot(mean_list, covariance_list, contribution_list, variable_name, title = 'Univariate Pdf From Mixture Plot',title_size = 'large' ,ax=None, legend=True):
         '''
         A method to plot univariate pdf based on the mixtire info including list of mean values, covariance matrices and contributions
         '''
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=(6, 4))
-
+            fig.suptitle(t=title,fontsize = title_size)
         n_components = len(mean_list)
         x_pdf, pdf = GmmUtility.univariate_pdf_from_mixture(
             n_components, mean_list, covariance_list, contribution_list, return_x=True)
