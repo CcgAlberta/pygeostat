@@ -835,6 +835,28 @@ class ContourPlotTest(BaseTest):
 			self.fail('Unable to test the countour plot with simple settings \n{}'.format(str(ex)))
 
 		self.assertEqual(os.path.isfile(output_file), True)
+	
+	def test_gmm_plot(self):
+		'''
+		Test the GMM plotting
+		'''
+		try:
+			gmm_util = gs.GmmUtility(gmm_file=os.path.join(os.path.normpath(os.getcwd() + os.sep + os.pardir), r'pygeostat\pygeostat\data\example_data\gmm_fit.out'), 
+                      data=gs.ExampleData('point2d_mv').data, variable_names=['Var1', 'Var2','Var3'])
+		except Exception as ex:
+			self.fail('Unable to test GmmUtility \n{}'.format(str(ex)))
+		try:
+			gmm_util.bivariate_plot(var_index=[1,2], cmap='viridis',title='Bivariate Plot')
+		except Exception as ex:
+			self.fail('Unable to test bivariate_plot \n{}'.format(str(ex)))
+		try:
+			gmm_util.summary_plot(pad=0.1)
+		except Exception as ex:
+			self.fail('Unable to test summary_plot \n{}'.format(str(ex)))
+		try:
+			gmm_util.univariate_conditional_plot(conditioning_data=[0, 0,None])
+		except Exception as ex:
+			self.fail('Unable to test univariate_conditional_plot \n{}'.format(str(ex)))
 
 if __name__ == '__main__':
 	subprocess.call([sys.executable, '-m', 'unittest', str(__file__), '-v'])

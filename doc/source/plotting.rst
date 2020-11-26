@@ -224,3 +224,25 @@ Exporting Images
 Set Plot Style
 ***********************
 .. autofunction:: pygeostat.plotting.set_plot_style
+
+GMM Visualizing
+***********************
+A set of tools for GMM Visualization
+
+GmmUtility Class
+=============
+.. autoclass:: pygeostat.plotting.GmmUtility
+
+Summary Plot
+++++++++++++
+.. automethod::  pygeostat.plotting.GmmUtility.summary_plot
+
+Bivariate Plot
+++++++++++++++
+
+.. automethod::  pygeostat.plotting.GmmUtility.bivariate_plot
+
+Univariate Conditional Plot
++++++++++++++++++++++++++++
+
+.. automethod::  pygeostat.plotting.GmmUtility.univariate_conditional_plot

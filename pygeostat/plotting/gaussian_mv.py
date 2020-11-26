@@ -103,18 +103,60 @@ class GmmUtility(object):
     A class to facilitate data analysis and visualization for Gaussian Mixture Model (GMM).
 
     Gaussian mixture model is considered an unsupervised machine learning technique to fit the multivariate distribution of observed data.
+
     GMM is usually fitted based on maximum expectations(EM) and based on maximizing log likelihood of joint distribution of all observations.
 
-    gmm_file(str):The filename of the output gmm_fit GSLIB program.
-    data(PD DataFrame): The input data to the gmm_fit GSLIB program.
-    variable_names(list of strs): A list of stings nvar long with the variable names from the input data to the gmm_fit GSLIB program.
-    mean_vector_list(list of floats): A list of mean_vectors nvar by n_components of the fit gmm.(Only required when gmm_file is not provided)
-    covariance_matrix_list(List of Matrix Floats): List of Matrix Floats that are nvar by nvar by n_components of the fit gmm.(Only required when gmm_file is not provided)
-    contribution_list(List of Contributions): List of n_components Contributions of the fit gmm.(Only required when gmm_file is not provided)
+    Parameters:
+        gmm_file(str):The filename of the output gmm_fit GSLIB program.
+        data(PD DataFrame): The input data to the gmm_fit GSLIB program.
+        variable_names(list of strs): A list of stings nvar long with the variable names from the input data to the gmm_fit GSLIB program.
+        mean_vector_list(list of floats): A list of mean_vectors nvar by n_components of the fit gmm.(Only required when gmm_file is not provided)
+        covariance_matrix_list(List of Matrix Floats): List of Matrix Floats that are nvar by nvar by n_components of the fit gmm.(Only required when gmm_file is not provided)
+        contribution_list(List of Contributions): List of n_components Contributions of the fit gmm.(Only required when gmm_file is not provided)
 
     Please not it is recommended to use the GmmUtility with the output file from the gmm_fit GSLIB program.
 
     The output of this function is used for the plotting functions.
+
+    Examples:
+        Run a GMM_Fit and call the GmmUtility Class:
+
+        .. code-block:: python
+
+            #Import Pygeostat
+            import pygeostat as gs
+
+            #Import Data
+            dfl = gs.ExampleData('point2d_mv')
+
+            #Call GMM_Fit program
+            gmm = gs.Program(program='gmm_fit')
+
+            #Run GMM_Fit program
+            parstr = """    Parameters for GMM_EM
+                        *********************
+
+            START OF PARAMETERS:
+            {file}                - file with data
+            3 3 4 5               - Number of variables and columns
+            -998 1e21             - trimming limits
+            gmm_fit.out           - output file
+            7                    - number of components
+            0.0001                - regularization constant (treat instability)
+            100                   - maximum number of iterations for EM algorithm
+            14641                 - seed number
+            0                     - fit only homotopic data (1=yes; 0=no)
+
+            =================================================================
+            This program fit a Gaussian mixture to the data based on the EM (Expected maximum liklihood)
+            algorithm.
+            """
+            gmm.run(parstr=parstr.format(file=dfl.flname), 
+                    liveoutput=False)
+
+        .. code-block:: python
+
+            gmm_util = gs.GmmUtility(gmm_file='gmm_fit.out', data=dfl.data,variable_names=['Var1', 'Var2','Var3'])
     '''
 
     def __init__(self, gmm_file=None, data=None, variable_names=None, mean_vector_list=None, covariance_matrix_list=None, contribution_list=None):
@@ -274,14 +316,53 @@ class GmmUtility(object):
     def summary_plot(self, figsize=None, cmap='viridis',title='Summary Plots',title_size = 30 ,pad=0, cbar=True, return_axes=False,fname=None):
         '''
         A method to provide summary univariate and bivariate distributions for GMM fitted model along with the provided data points.
+        
+        Parameters:
+            figsize (tuple): Figure size (width, height).
+            cmap (str): valid Matplotlib colormap.
+            title (str): Title of Plot.
+            title_size (str or Int): Plot Title Size.
+            pad (tuple): padding between the summary plots. 
+            cbar (bool): Indicate if a colorbar should be plotted or not.
+            fname (str): File name to save plot
 
-        figsize (tuple): Figure size (width, height).
-        cmap (str): valid Matplotlib colormap.
-        title (str): Title of Plot.
-        title_size (str or Int): Plot Title Size.
-        pad (tuple): padding between the summary plots. 
-        cbar (bool): Indicate if a colorbar should be plotted or not.
-        fname (str): File name to save plot
+        **Example:**
+
+            .. plot:: 
+
+                #Import Pygeostat
+                import pygeostat as gs
+
+                #Import Data
+                dfl = gs.ExampleData('point2d_mv')
+
+                #Call GMM_Fit program
+                gmm = gs.Program(program='gmm_fit')
+
+                #Run GMM_Fit program
+                parstr = """    Parameters for GMM_EM
+                            *********************
+
+                START OF PARAMETERS:
+                {file}                - file with data
+                3 3 4 5               - Number of variables and columns
+                -998 1e21             - trimming limits
+                gmm_fit.out           - output file
+                7                    - number of components
+                0.0001                - regularization constant (treat instability)
+                100                   - maximum number of iterations for EM algorithm
+                14641                 - seed number
+                0                     - fit only homotopic data (1=yes; 0=no)
+
+                =================================================================
+                This program fit a Gaussian mixture to the data based on the EM (Expected maximum liklihood)
+                algorithm.
+                """
+                gmm.run(parstr=parstr.format(file=dfl.flname),liveoutput=False)
+
+                gmm_util = gs.GmmUtility(gmm_file='gmm_fit.out', data=dfl.data,variable_names=['Var1', 'Var2','Var3'])
+
+                gmm_util.bivariate_plot(var_index=[1,2], cmap='viridis',title='Bivariate Plot')
         '''
 
         if figsize is None:
@@ -427,14 +508,52 @@ class GmmUtility(object):
         '''
         A method to provide a grided plot of bivariate and univariate.
 
-        figsize (tuple): Figure size (width, height).
-        cmap (str): valid Matplotlib colormap.
-        cbar (bool): Indicate if a colorbar should be plotted or not.
-        title (str): Title of Plot.
-        title_size (str or Int): Plot Title Size
-        var_index (list/array): list/array of indexs of the two variables you wish to plot.
-        fname (str): File name to save plot
+        Parameters:
+            figsize (tuple): Figure size (width, height).
+            cmap (str): valid Matplotlib colormap.
+            cbar (bool): Indicate if a colorbar should be plotted or not.
+            title (str): Title of Plot.
+            title_size (str or Int): Plot Title Size
+            var_index (list/array): list/array of indexs of the two variables you wish to plot.
+            fname (str): File name to save plot
 
+        **Example:**
+
+            .. plot:: 
+
+                #Import Pygeostat
+                import pygeostat as gs
+
+                #Import Data
+                dfl = gs.ExampleData('point2d_mv')
+
+                #Call GMM_Fit program
+                gmm = gs.Program(program='gmm_fit')
+
+                #Run GMM_Fit program
+                parstr = """    Parameters for GMM_EM
+                            *********************
+
+                START OF PARAMETERS:
+                {file}                - file with data
+                3 3 4 5               - Number of variables and columns
+                -998 1e21             - trimming limits
+                gmm_fit.out           - output file
+                7                    - number of components
+                0.0001                - regularization constant (treat instability)
+                100                   - maximum number of iterations for EM algorithm
+                14641                 - seed number
+                0                     - fit only homotopic data (1=yes; 0=no)
+
+                =================================================================
+                This program fit a Gaussian mixture to the data based on the EM (Expected maximum liklihood)
+                algorithm.
+                """
+                gmm.run(parstr=parstr.format(file=dfl.flname),liveoutput=False)
+
+                gmm_util = gs.GmmUtility(gmm_file='gmm_fit.out', data=dfl.data,variable_names=['Var1', 'Var2','Var3'])
+
+                gmm_util.summary_plot(pad=0.1)
         '''
 
         try:
@@ -535,18 +654,57 @@ class GmmUtility(object):
 
         return mu_m, var_m, skewness_m, kurtosis_m
 
-    def univariate_conditional_plot(self, conditioning_data, legend=True, return_moments=False, axes=None, cdf=True,title='Univariate Conditional Plot',title_size = 30,fname=None):
+    def univariate_conditional_plot(self, conditioning_data, legend=True, return_moments=False, axes=None, cdf=True,title='Univariate Conditional Plot',title_size = 20,fname=None):
         '''
         A method to plot univariate conditional PDF and CDF based on GMM contributions, conditional means and variances
 
-        legend (bool): Indicate if a legend should be plotted or not.
-        conditioning_data(list or array): nvar Long list/array. There should be nvar-1 conditioning data in the list/array and None value in the index of the desired variable.  
-        return_moments (bool): Indicate if a moments should be returned or not. 
-        ax (mpl.axis): Matplotlib axis to plot the figure.
-        cdf (bool): Indicate if a colorbar should be cdf or not.
-        title (str): Title of Plot.
-        title_size (str or Int): Plot Title Size 
-        fname (str): File name to save plot
+        Parameters:
+            legend (bool): Indicate if a legend should be plotted or not.
+            conditioning_data(list or array): nvar Long list/array. There should be nvar-1 conditioning data in the list/array and None value in the index of the desired variable.  
+            return_moments (bool): Indicate if a moments should be returned or not. 
+            ax (mpl.axis): Matplotlib axis to plot the figure.
+            cdf (bool): Indicate if a colorbar should be cdf or not.
+            title (str): Title of Plot.
+            title_size (str or Int): Plot Title Size 
+            fname (str): File name to save plot
+
+        **Example:**
+
+            .. plot:: 
+
+                #Import Pygeostat
+                import pygeostat as gs
+
+                #Import Data
+                dfl = gs.ExampleData('point2d_mv')
+
+                #Call GMM_Fit program
+                gmm = gs.Program(program='gmm_fit')
+
+                #Run GMM_Fit program
+                parstr = """    Parameters for GMM_EM
+                            *********************
+
+                START OF PARAMETERS:
+                {file}                - file with data
+                3 3 4 5               - Number of variables and columns
+                -998 1e21             - trimming limits
+                gmm_fit.out           - output file
+                7                     - number of components
+                0.0001                - regularization constant (treat instability)
+                100                   - maximum number of iterations for EM algorithm
+                14641                 - seed number
+                0                     - fit only homotopic data (1=yes; 0=no)
+
+                =================================================================
+                This program fit a Gaussian mixture to the data based on the EM (Expected maximum liklihood)
+                algorithm.
+                """
+                gmm.run(parstr=parstr.format(file=dfl.flname),liveoutput=False)
+
+                gmm_util = gs.GmmUtility(gmm_file='gmm_fit.out', data=dfl.data,variable_names=['Var1', 'Var2','Var3'])
+
+                gmm_util.univariate_conditional_plot(conditioning_data=[0, 0,None])
         '''
 
         if axes is None:
