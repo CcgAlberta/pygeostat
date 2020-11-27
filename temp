@@ -1,0 +1,17 @@
+Parameters for GMM_EM
+*********************
+
+START OF PARAMETERS:
+missingeq.out                - file with data
+2 5 6          - Number of variables and columns
+-998 1e21             - trimming limits
+Output\gmm_fit.out               - output file
+6          - number of components
+0.0                   - regularization constant (treat instability)
+1000  - maximum number of iterations for EM algorithm
+14641                 - seed number
+0                     - fit only homotopic data (1=yes; 0=no)
+
+=================================================================
+This program fit a Gaussian mixture to the data based on the EM (Expected maximum liklihood)
+algorithm.

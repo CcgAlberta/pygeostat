@@ -181,9 +181,15 @@ def get_executable(source='gslib', access_token=None, clean=False):
             source_dir = os.path.join(temp_dir, 'Linux64')
     elif source.lower() == 'ccg':
         print('The software is available under CCG software term of use (http://www.ccgalberta.com/software-terms-of-use)')
-        command = 'git clone https://CcgUser:{access_token}@github.com/CcgAlberta/CcgSoftware.git {target}'.format(access_token=access_token,target = temp_dir)
+        if 'win' in sys.platform:
+            command = 'git clone https://CcgUser:{access_token}@github.com/CcgAlberta/CcgSoftware.git {target}'.format(access_token=access_token,target = temp_dir)
 
-        print('The software is suited for Microsoft platform')
+            print('The software is suited for Microsoft platform')
+        else:
+            command = 'git clone https://CcgUser:{access_token}@github.com/CcgAlberta/CcgSoftware_Linux.git {target}'.format(access_token=access_token,target = temp_dir)
+
+            print('The software is suited for Linux platform')
+
         source_dir = os.path.join(temp_dir, 'CcgFortranExecutable')
     else:
         raise ValueError('Wrong source was provided.')

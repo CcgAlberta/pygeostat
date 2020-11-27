@@ -29,3 +29,4 @@ from .probability_plot import probability_plot
 from .qq_plot import qq_plot
 from .subplots import *
 from .contour_plot import contour_plot
+from .gaussian_mv import *
