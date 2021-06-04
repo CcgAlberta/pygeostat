@@ -1207,7 +1207,7 @@ class DataFile:
 			databuffer (float or 3-tuple): buffer between the data and the edge of the model,
 				optionally for each direction
 			nblk (int or 3-tuple): provides (nx, ny, nz). If blksize is not None,
-				nblk must be None. Set nz to None or 1 if the grid is 2-D. An int may also be provided,
+				nblk must be None. Set nz to None if the grid is 2-D. An int may also be provided,
 				where nx = ny = nz = int is assumed.
 
 		Returns:
@@ -1249,26 +1249,32 @@ class DataFile:
 							  "One is specified and the other is inferred!"))
 		elif nblk is not None:
 			# nblk is the constant, so check its input
-			if isinstance(nblk, list):
-				nblk = tuple(nblk)
-			if len(nblk) != 3:
-				raise ValueError("ERROR: nblk should be an integer or a length 3 tuple!")
-			nx, ny, nz = nblk[0], nblk[1],  nblk[2]
-			if nz is None:
+			if isinstance(nblk, tuple) or isinstance(nblk, list):
+				if len(nblk) != 3:
+					raise ValueError(("ERROR: nblk should be an integer or a length 3 tuple!"))
+				else:
+					nx, ny, nz = nblk[0], nblk[1],  nblk[2]
+			else:
+				nx = nblk
+				ny = nblk
+				nz = nblk
+			nx = int(nx); ny = int(ny) 
+			if nz is not None: nz = int(nz)
+			if nz is None or nz is 0:
 				nz = 1
-			if nz == 1:
 				twod = True
 		else:
 			# blksize is the constant, so check its input
-			if isinstance(blksize, list):
-				blksize = tuple(blksize)
-			if len(blksize) != 3:
-				raise ValueError("ERROR: blksize should be an integer or a length 3 tuple!")
+			if isinstance(blksize, tuple) or isinstance(blksize, list):
+				if len(blksize) != 3:
+					raise ValueError(("ERROR: blksize should be a float or a length 3 tuple!"))
+				else:
+					xsiz, ysiz, zsiz = blksize[0], blksize[1],  blksize[2]
 			else:
-				# Convert to a tuple for convenience
-				blksize = (blksize)*3
-			xsiz, ysiz, zsiz = blksize[0], blksize[1],  blksize[2]
-			if zsiz is None or zsiz == 1:
+				xsiz = blksize
+				ysiz = blksize
+				zsiz = blksize
+			if zsiz is None or zsiz == 0:
 				twod = True
 				zsiz = 1.0
 		# Make sure either 1 or 3 values passed to the buffer.
