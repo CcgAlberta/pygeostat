@@ -149,7 +149,7 @@ class PygeostatDataFile_infergriddef_Test(unittest.TestCase):
             df2d.infergriddef(blksize = [50,60,4])
 
         with self.assertRaises(ValueError):
-            df3d.infergriddef(blksize = 75)
+            df2d.infergriddef(blksize = 75)
 
         self.compare(df2d.infergriddef(blksize = [50,60,None]),  
                      gs.GridDef('''24   25.0    50.0  
