@@ -1207,7 +1207,7 @@ class DataFile:
 			databuffer (float or 3-tuple): buffer between the data and the edge of the model,
 				optionally for each direction
 			nblk (int or 3-tuple): provides (nx, ny, nz). If blksize is not None,
-				nblk must be None. Set nz to None if the grid is 2-D. An int may also be provided,
+				nblk must be None. Set nz to None or 1 if the grid is 2-D. An int may also be provided,
 				where nx = ny = nz = int is assumed.
 
 		Returns:
@@ -1299,7 +1299,7 @@ class DataFile:
 		# get the min's and max's
 		xmin, xmax = (min(self.data[self.x]) - bx), (max(self.data[self.x]) + bx)
 		ymin, ymax = (min(self.data[self.y]) - by), (max(self.data[self.y]) + by)
-		if not twod:
+		if not twod or self.z is not None:
 			zmin, zmax = (min(self.data[self.z]) - bz), (max(self.data[self.z]) + bz)
 		else:
 			zmin, zmax = (0.0, 1.0)
@@ -1316,7 +1316,7 @@ class DataFile:
 			# Since it's the distance of the grid extents (not the min/max centroid)
 			xsiz = (xmax - xmin) / nx
 			ysiz = (ymax - ymin) / ny
-			if not twod:
+			if not twod or self.z is not None:
 				zsiz = (zmax - zmin) / nz
 			else:
 				zsiz = 1.0
@@ -1326,7 +1326,7 @@ class DataFile:
 			# Infer the number of blocks
 			nx = math.ceil((xmax - xmin) / xsiz)
 			ny = math.ceil((ymax - ymin) / ysiz)
-			if not twod:
+			if not twod or self.z is not None:
 				nz = math.ceil((zmax - zmin) / zsiz)
 			else:
 				nz = 1
