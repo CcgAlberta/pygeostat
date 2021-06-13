@@ -1249,26 +1249,32 @@ class DataFile:
 							  "One is specified and the other is inferred!"))
 		elif nblk is not None:
 			# nblk is the constant, so check its input
-			if isinstance(nblk, list):
-				nblk = tuple(nblk)
-			if len(nblk) != 3:
-				raise ValueError("ERROR: nblk should be an integer or a length 3 tuple!")
-			nx, ny, nz = nblk[0], nblk[1],  nblk[2]
-			if nz is None:
+			if isinstance(nblk, tuple) or isinstance(nblk, list):
+				if len(nblk) != 3:
+					raise ValueError(("ERROR: nblk should be an integer or a length 3 tuple!"))
+				else:
+					nx, ny, nz = nblk[0], nblk[1],  nblk[2]
+			else:
+				nx = nblk
+				ny = nblk
+				nz = nblk
+			nx = int(nx); ny = int(ny) 
+			if nz is not None: nz = int(nz)
+			if nz is None or nz is 0:
 				nz = 1
-			if nz == 1:
 				twod = True
 		else:
 			# blksize is the constant, so check its input
-			if isinstance(blksize, list):
-				blksize = tuple(blksize)
-			if len(blksize) != 3:
-				raise ValueError("ERROR: blksize should be an integer or a length 3 tuple!")
+			if isinstance(blksize, tuple) or isinstance(blksize, list):
+				if len(blksize) != 3:
+					raise ValueError(("ERROR: blksize should be a float or a length 3 tuple!"))
+				else:
+					xsiz, ysiz, zsiz = blksize[0], blksize[1],  blksize[2]
 			else:
-				# Convert to a tuple for convenience
-				blksize = (blksize)*3
-			xsiz, ysiz, zsiz = blksize[0], blksize[1],  blksize[2]
-			if zsiz is None or zsiz == 1:
+				xsiz = blksize
+				ysiz = blksize
+				zsiz = blksize
+			if zsiz is None or zsiz == 0:
 				twod = True
 				zsiz = 1.0
 		# Make sure either 1 or 3 values passed to the buffer.
@@ -1293,7 +1299,7 @@ class DataFile:
 		# get the min's and max's
 		xmin, xmax = (min(self.data[self.x]) - bx), (max(self.data[self.x]) + bx)
 		ymin, ymax = (min(self.data[self.y]) - by), (max(self.data[self.y]) + by)
-		if not twod:
+		if not twod or self.z is not None:
 			zmin, zmax = (min(self.data[self.z]) - bz), (max(self.data[self.z]) + bz)
 		else:
 			zmin, zmax = (0.0, 1.0)
@@ -1310,7 +1316,7 @@ class DataFile:
 			# Since it's the distance of the grid extents (not the min/max centroid)
 			xsiz = (xmax - xmin) / nx
 			ysiz = (ymax - ymin) / ny
-			if not twod:
+			if not twod or self.z is not None:
 				zsiz = (zmax - zmin) / nz
 			else:
 				zsiz = 1.0
@@ -1320,7 +1326,7 @@ class DataFile:
 			# Infer the number of blocks
 			nx = math.ceil((xmax - xmin) / xsiz)
 			ny = math.ceil((ymax - ymin) / ysiz)
-			if not twod:
+			if not twod or self.z is not None:
 				nz = math.ceil((zmax - zmin) / zsiz)
 			else:
 				nz = 1

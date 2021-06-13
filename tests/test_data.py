@@ -98,6 +98,91 @@ class PygeostatDataFileTest(unittest.TestCase):
             dat.setcatdict({0: 'Category 1', 1: 'Category 2', '-99': 'Unknown'})
 
 
+class PygeostatDataFileInfergriddefTest(unittest.TestCase):
+    '''
+     Test suite for pygeostat infergriddef of data file class
+    '''
+    def setUp(self):
+        warnings.simplefilter('ignore', category=ImportWarning)
+
+    def compare(self, griddef1, griddef2):
+        assert griddef1.nx   == griddef2.nx 
+        assert griddef1.ny   == griddef2.ny 
+        assert griddef1.nz   == griddef2.nz 
+        assert griddef1.xmn  == griddef2.xmn 
+        assert griddef1.ymn  == griddef2.ymn 
+        assert griddef1.zmn  == griddef2.zmn
+        assert griddef1.xsiz == griddef2.xsiz 
+        assert griddef1.ysiz == griddef2.ysiz
+        self.assertEqual(griddef1.zsiz,  griddef2.zsiz) 
+           
+    def test_infergriddef(self):
+        df2d = gs.ExampleData("point2d_ind")
+        df3d = gs.ExampleData("point3d_ind_mv")
+        #where xsiz = ysiz = zsiz, a float can also be provided.    
+        self.compare(df3d.infergriddef(blksize = 75),  
+                     df3d.infergriddef(blksize = [75,75,75]))
+
+        #where nx = ny = nz, an int can also be provided.
+        self.compare(df3d.infergriddef(nblk = 60) , 
+                     df3d.infergriddef(nblk = [60,60,60]))
+          
+        #for 3D data, infergriddef() must return a 3D grid definition even if zsiz is given as None or 0 or 1.
+        self.compare(df3d.infergriddef(blksize = [50,60,1]),
+                     gs.GridDef('''20  135.0  50.0 
+                                   19  1230.0 60.0 
+                                   82  310.5  1.0'''))
+
+        self.compare(df3d.infergriddef(blksize = [50,60,1]),
+                     df3d.infergriddef(blksize = [50,60,None]))
+
+        self.compare(df3d.infergriddef(blksize = [50,60,1]),
+                     df3d.infergriddef(blksize = [50,60,0]))             
+                           
+        # nz given as None or 0 or 1 returns a 2D grid that covers the vertical extent of a 3D dataset.
+        self.compare(df3d.infergriddef(nblk = [50,60,1]),
+                     gs.GridDef('''50  119.8   19.6 
+                                   60  1209.1  18.2 
+                                   1   350.85  81.7'''))
+
+        self.compare(df3d.infergriddef(nblk = [50,60,1]),
+                     df3d.infergriddef(nblk = [50,60,None]))
+
+        self.compare(df3d.infergriddef(nblk = [50,60,1]),
+                     df3d.infergriddef(nblk = [50,60,0]))
+
+
+        #if nblk is not integer,infergriddef(), must convert it to int and provide correct grid definition 
+        _nblk = [12.3, 5.7, 10.11]
+        self.compare(df3d.infergriddef(nblk=_nblk),
+                     df3d.infergriddef(nblk=[int(i)  for i in _nblk]))
+
+        # If data is 2-D, zsiz must be provided as None. Otherwise it must raise exception.
+        with self.assertRaises(ValueError):
+            df2d.infergriddef(blksize = [50,60,4])
+
+        with self.assertRaises(ValueError):
+            df2d.infergriddef(blksize = 75)
+
+        self.compare(df2d.infergriddef(blksize = [50,60,None]),  
+                     gs.GridDef('''24   25.0    50.0  
+                                   19   1230.0  60.0 
+                                   1    0.5     1.0'''))   
+
+        #If data is 2-D, nz must be provided as None. Otherwise it must raise exception.
+        with self.assertRaises(ValueError):
+            df2d.infergriddef(nblk = [50,60,1])       
+
+        with self.assertRaises(ValueError):
+            df2d.infergriddef(nblk = 60)    
+
+        self.compare(df2d.infergriddef(nblk = [50,60,None]),  
+                gs.GridDef('''50   11.9    23.8 
+                              60   1209.1  18.2 
+                              1    0.5     1.0'''))
+
+
+
 class PygeostatGridDefFromString(unittest.TestCase):
     '''
      Test suite for pygeostat GridDef class with grid string
