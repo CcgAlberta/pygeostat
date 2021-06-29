@@ -41,3 +41,13 @@ Structural Modeling
 .. raw:: html
 
      <div class="field-item even" property="content:encoded"><iframe width="100%" height="600" src="_static/StructuralModeling.html" frameborder="0" allowFullScreen="true"></iframe></div>
+
+
+|
+
+GMM Visualization
+***********************
+
+.. raw:: html
+
+     <div class="field-item even" property="content:encoded"><iframe width="100%" height="600" src="_static/GMM.html" frameborder="0" allowFullScreen="true"></iframe></div>
