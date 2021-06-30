@@ -112,7 +112,7 @@ class DataFile:
 			data_file = gs.DataFile(flname='../data/3DDecor.dat', griddef=griddef)
 
 			# To view grid definition string
-			print(data_file.griddef())
+			print(data_file.griddef)
 			# Access some Grid Deffinition attributes
 			data_file.griddef.count() # returns number of blocks in grid
 			data_file.griddef.extents() # returns an array of the extents for all directions
@@ -1235,7 +1235,52 @@ class DataFile:
 
 			>>> print(griddef)
 
+		Examples:
+
+			For 3D data, infergriddef() returns a 3D grid definition even if zsiz is given as None or 0 or 1:
+
+			.. code-block:: python
+
+				df3d = gs.ExampleData("point3d_ind_mv")
+				a = df3d.infergriddef(blksize = [50,60,1])
+				b = df3d.infergriddef(blksize = [50,60,None])
+				c = df3d.infergriddef(blksize = [50,60,0])
+				#a,b,c are returned as Pygeostat GridDef:
+				#					20 135.0 50.0 
+				#					19 1230.0 60.0 
+				#					82 310.5 1.0
+
+			For 3D data, nz given as None or 0 or 1 returns a 2D grid that covers the vertical extent of the 3D data:
+
+			.. code-block:: python				
+
+				d = df3d.infergriddef(nblk = [50,60,1])
+				e = df3d.infergriddef(nblk = [50,60,None])
+				f = df3d.infergriddef(nblk = [50,60,0])
+				#d,e,f are returned as Pygeostat GridDef:
+				#					50 119.8 19.6 
+				#					60 1209.1 18.2 
+				#					1 350.85 81.7
+
+			Where xsiz = ysiz = zsiz, a float can also be provided, or where nx = ny = nz, an int can also be provided:
+
+			.. code-block:: python
+
+				df3d.infergriddef(blksize = 75)
+				df3d.infergriddef(blksize = [75,75,75])#returns the same as its above line	
+
+				df3d.infergriddef(nblk = 60)
+				df3d.infergriddef(nblk = [60,60,60])#returns the same as its above line	
+
+       		If data is 2-D, zsiz or nz must be provided as None. Otherwise it raise exception:
+
+	   		.. code-block:: python
+
+				df2d = gs.ExampleData("point2d_ind")
+				df2d.infergriddef(nblk = 60)
+				df2d.infergriddef(blksize = [50,60,1])
 		"""
+		
 		from .grid_definition import GridDef
 		from ..datautils.utils import round_sigfig
 		import math
