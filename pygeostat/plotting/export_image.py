@@ -185,7 +185,7 @@ def export_image(output_file=None, fltype=None, pad=0.03, dpi=300, custom=None, 
             output_file = [output_file]
         for fl in output_file:
             outf, ext = os.path.splitext(fl)
-            if ext is not '':
+            if ext != '':
                 exts.append(ext.replace(".", ""))
             output_files.append(outf)
         if len(exts) > 0 and fltype is None:

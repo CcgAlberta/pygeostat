@@ -27,10 +27,10 @@ def printerr(text, width=80, errtype=None):
 
     if isinstance(errtype, str):
         errtype.lower()
-    if errtype is 'error':
+    if errtype == 'error':
         text = 'ERROR: ' + text
         subsequent_indent = "       "
-    elif errtype is 'warning':
+    elif errtype == 'warning':
         text = 'WARNING: ' + text
         subsequent_indent = "         "
     else:

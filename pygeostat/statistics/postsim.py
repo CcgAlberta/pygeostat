@@ -129,7 +129,7 @@ def postsim_multfiles(file_base_or_list, output_name, Nr=None, file_ending=None,
                         file_ending = 'csv'
                     elif fltype.lower() == 'gsb':
                         file_ending = 'gsb'
-                    elif fltype.lower() == 'h5' or fltype.lower() is 'hdf5':
+                    elif fltype.lower() == 'h5' or fltype.lower() == 'hdf5':
                         file_ending = 'h5'
                     else:
                         raise KeyError('Either file_ending or fltype is needed')
@@ -235,7 +235,7 @@ def postsim_multfiles(file_base_or_list, output_name, Nr=None, file_ending=None,
         iotools.write_csv(postsim, output_name, variables=columns)
     elif output_fltype.lower() == 'gsb':
         iotools.write_gsb(postsim, output_name, tvar='Nr', variables=columns)
-    elif output_fltype.lower() == 'h5' or fltype.lower() is 'hdf5':
+    elif output_fltype.lower() == 'h5' or fltype.lower() == 'hdf5':
         iotools.write_h5(postsim, output_name, variables=columns)
     else:
         raise NotImplementedError('output_fltype did not match any of the implemented filetypes')

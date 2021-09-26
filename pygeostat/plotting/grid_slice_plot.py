@@ -174,11 +174,11 @@ def grid_slice_plot(data, griddef = None, super_xlabel=True, super_ylabel=True, 
 
     di = ori[1]
     if end_slice is None or end_slice > getattr(griddef, 'n' + di):
-        if ori is 'xy':
+        if ori == 'xy':
             end_slice = griddef.nz
-        elif ori is 'xz':
+        elif ori == 'xz':
             end_slice = griddef.ny
-        elif ori is 'yz':
+        elif ori == 'yz':
             end_slice = griddef.nx
 
     if end_slice <= 0:
@@ -327,21 +327,21 @@ def grid_slice_plot(data, griddef = None, super_xlabel=True, super_ylabel=True, 
         unit = ' ({})'.format(unit)
     if super_xlabel:
         if not isinstance(super_xlabel, str):
-            if ori is 'xy':
+            if ori == 'xy':
                 super_xlabel = Parameters['plotting.xname'] + unit
-            elif ori is 'xz':
+            elif ori == 'xz':
                 super_xlabel = Parameters['plotting.xname'] + unit
-            elif ori is 'yz':
+            elif ori == 'yz':
                 super_xlabel = Parameters['plotting.yname'] + unit
         plt.draw()  
         fig.text(xmid, ymin, super_xlabel, va='top', ha='center')
     if super_ylabel:
         if not isinstance(super_ylabel, str):
-            if ori is 'xy':
+            if ori == 'xy':
                 super_ylabel = Parameters['plotting.yname'] + unit
-            elif ori is 'xz':
+            elif ori == 'xz':
                 super_ylabel = Parameters['plotting.zname'] + unit
-            elif ori is 'yz':
+            elif ori == 'yz':
                 super_ylabel = Parameters['plotting.zname'] + unit
         plt.draw()
         fig.text(xmin, ymid, super_ylabel, ha='right', rotation=90, va='center')

@@ -44,7 +44,7 @@ def insert_real_idx(data, num_real=0, bindex=True, real_column='Realization',
     # Calculate Number of Realizations and the size of the realizations
     # ---------------
     if data.griddef is None:
-        if num_real is not 0:
+        if num_real != 0:
             real_size = len(data.data.index) / num_real
             # The next step I make sure we have enough rows in our dataframe. is this necessary?
     elif data.griddef is not None:

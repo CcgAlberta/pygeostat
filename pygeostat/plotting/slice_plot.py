@@ -256,7 +256,7 @@ def slice_plot(data, griddef=None, var=None, catdata=None, pointdata=None, point
 	# Set-up plot if no axis is supplied using the ImageGrid method if required or the regular way
 	fig, ax, cax = setup_plot(ax, cbar=cbar, cax=cax, figsize=figsize)
 	# Handle interpolation in aspect has changed
-	if aspect is not 'equal' and interp is 'none':
+	if aspect != 'equal' and interp == 'none':
 		if catdata:
 			interp = 'hermite'
 		else:
