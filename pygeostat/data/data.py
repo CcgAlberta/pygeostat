@@ -1305,7 +1305,7 @@ class DataFile:
 				nz = nblk
 			nx = int(nx); ny = int(ny) 
 			if nz is not None: nz = int(nz)
-			if nz is None or nz is 0:
+			if nz is None or nz == 0:
 				nz = 1
 				twod = True
 		else:

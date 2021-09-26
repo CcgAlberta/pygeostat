@@ -104,7 +104,7 @@ def corrmatstr(corrmat, fmt):
     # Convert the correlation matrix to a string
     if not isinstance(corrmat, pd.DataFrame):
         corrmat = pd.DataFrame(data=corrmat)
-    if fmt is 'supersec':
+    if fmt == 'supersec':
         if isinstance(corrmat, pd.DataFrame):
             corrmat = corrmat.as_matrix()
         ind = np.triu_indices(len(corrmat), 1)
@@ -115,7 +115,7 @@ def corrmatstr(corrmat, fmt):
                 corrstr = corrstr + "%s " % corrmat[ind][i]
                 i += 1
             corrstr = corrstr + "\n"
-    elif (fmt is 'usgsim') or fmt:
+    elif (fmt == 'usgsim') or fmt:
         corrstr = ""
         for i in range(0, len(corrmat)):
             string = (' '.join(map(str, corrmat.ix[i, :])))
@@ -232,15 +232,15 @@ def slicescatter(data, orient, slice_number, slicetol, griddef=None, x=None, y=N
     # Sanity checks
     if not any([isinstance(data, pd.DataFrame), isinstance(data, DataFile)]):
         raise ValueError("The parameter data must be either a gs.DataFile or a pd.DataFrame")
-    if orient is 'xy':
+    if orient == 'xy':
             if any([x is None, y is None]):
                 raise ValueError("`orient` is set to `'xy'` yet the column ID for `x` and `y` has"
                                  " not been set and could not be automatically retrieved.")
-    elif orient is 'xz':
+    elif orient == 'xz':
         if any([x is None, z is None]):
             raise ValueError("`orient` is set to `'xz'` yet the column ID for `x` and `z` has"
                              " not been set and could not be automatically retrieved.")
-    elif orient is 'yz':
+    elif orient == 'yz':
         if any([y is None, z is None]):
             raise ValueError("`orient` is set to `'yz'` yet the column ID for `y` and `z` has"
                              " not been set and could not be automatically retrieved.")
@@ -249,19 +249,19 @@ def slicescatter(data, orient, slice_number, slicetol, griddef=None, x=None, y=N
     if not isinstance(griddef, GridDef):
         raise ValueError("A valid gs.GridDef was not passed")
     # Slice the data
-    if orient is 'xy':
+    if orient == 'xy':
         if griddef.nz > 1:
             pointview = data[data[z] >= (griddef.get_slice_coordinate('xy', slice_number) - slicetol *
                                          griddef.zsiz)]
             pointview = pointview[pointview[z] <=
                                   (griddef.get_slice_coordinate('xy', slice_number) + slicetol * griddef.zsiz)]
-    elif orient is 'xz':
+    elif orient == 'xz':
         if griddef.ny > 1:
             pointview = data[data[y] >= (griddef.get_slice_coordinate('xz', slice_number) - slicetol *
                                          griddef.ysiz)]
             pointview = pointview[pointview[y] <=
                                   (griddef.get_slice_coordinate('xz', slice_number) + slicetol * griddef.ysiz)]
-    elif orient is 'yz':
+    elif orient == 'yz':
         if griddef.nx > 1:
             pointview = data[data[x] >= (griddef.get_slice_coordinate('yz', slice_number) - slicetol *
                                          griddef.xsiz)]

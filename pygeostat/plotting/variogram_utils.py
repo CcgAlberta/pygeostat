@@ -104,10 +104,10 @@ def get_uniquevarids(data, mode='print', source=None):
     # Get the number of variables
     nvarios = len(vario_index.unique())
     nvar = len(vario_num.unique()) // ndir
-    if source is 'varmodel' or nvarios == 1 or nvarios == ndir:
+    if source == 'varmodel' or nvarios == 1 or nvarios == ndir:
         nvar = 1
         nreal = 1
-    elif source is 'varsim':
+    elif source == 'varsim':
         nreal = vario_num[vario_num == 1].count() // nlegs
     else:
         nreal = vario_num[vario_num == 1].count() // nlegs // ndir
@@ -124,12 +124,12 @@ def get_uniquevarids(data, mode='print', source=None):
     for j in range(1, nvar + 1):
         for k in range(0, ndir):
             varids[i] = list(range(i, nvarios + 1)[::(nvar * ndir)])
-            if mode is 'print':
+            if mode == 'print':
                 print("Variogram ID: %s ... Variable: %s, Azimuth %s, Dip %s"
                       % (i, j, dirs[k][0], dirs[k][1]))
             i += 1
     # Return some variables if in the right mode
-    if mode is 'ref':
+    if mode == 'ref':
         return varids, dirs
 
 

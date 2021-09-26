@@ -1088,7 +1088,7 @@ def _spatial_labels(ax, orient, griddef=None, slice_number=0, title=None, xlabel
         if d3:
             if orient in ['xz', 'yz']:
                 cross = griddef.get_slice_coordinate(orient, slice_number)
-                if crossd is 'y':
+                if crossd == 'y':
                     crossd = Parameters['plotting.yabbrev']
                 else:
                     crossd = Parameters['plotting.xabbrev']
