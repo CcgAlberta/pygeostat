@@ -47,7 +47,7 @@ class DataFile:
 	Parameters:
 		flname (str): Path (or name) of file to read
 		readfl (bool): True if the data file should be read on class initialization
-		fltype (str): Type of data file: either ``csv``, ``gslib`` or ``hdf5``
+		fltype (str): Type of data file: either ``csv``, ``gslib`` or ``hdf5``, or ``gsb``
 		dftype (str): Data file type as either 'point' or 'grid' used for writing out VTK files
 			for visualization
 		data (pandas.DataFrame): Pandas dataframe containing array of data values
