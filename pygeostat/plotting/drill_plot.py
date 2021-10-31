@@ -99,7 +99,6 @@ def drill_plot(z, var, cat=None, categorical_dictionary=None, lw=2, line_color='
 		gs.drill_plot(data['Elevation'], data['Lithofacies'], categorical_dictionary=cat_dict)
 
 	'''
-
 	from matplotlib.ticker import FormatStrFormatter
 	import matplotlib.patches as mpatches
 	import matplotlib.pyplot as plt

@@ -75,12 +75,19 @@ def rmfile(filenames, verbose=False):
 def get_executable(source='gslib', access_token=None, clean=False):
 
     '''
-    Gets a collection of executable files from a protected repository using an access token. Note that in order to use this function, git needs to be installed on the target computer.
+    Gets a collection of executable files from a protected repository using 
+    an access token. Note that in order to use this function, git needs to 
+    be installed on the target computer.
     
     Parameters:
         source (str): gslib or CCG as the source of software.
-        access_token (str): An access token to authorize access to the target private repository for CCG software. Access token is available for CCG members and can be found at CCG knowledge base. 
-        clean (bool): Option to clean the executable directory prior to upload the files from the target private repository. Note that choosing this option will delete the existing executable files.
+        access_token (str): An access token to authorize access to the target
+        private repository for CCG software. Access token is available for 
+        CCG members and can be found at CCG knowledge base. 
+        
+        clean (bool): Option to clean the executable directory prior to 
+        upload the files from the target private repository. Note that choosing 
+        this option will delete the existing executable files.
 
     **Examples**
 
