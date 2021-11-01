@@ -22,7 +22,7 @@ from .. pygeostat_parameters import Parameters
 def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=None, h5datasets=None,
              columns=None, ireal=1, griddef=None, tmin=None):
     '''
-    Reads in a GSLIB-style Geo-EAS data file, CSV, or HDF5 data files.
+    Reads in a GSLIB-style Geo-EAS data file, CSV, GSB, or HDF5 data files.
 
     Parameters:
         flname (str): Path (or name) of file to read.
@@ -56,6 +56,7 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
         >>> data.data = pygeostat.read_gslib(flname)
         >>> data.data = pygeostat.read_csv(flname)
         >>> data.data = pygeostat.read_h5(flname, h5path='')
+        >>> data.data = pygeostat.read_gsb(flname, ireal=1)
         >>> data.data = pygeostat.open_hdf5(flname)
 
     '''
@@ -70,6 +71,8 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
             fltype = 'csv'
         elif extention in ['.h5', '.hdf5', '.hd5']:
             fltype = 'hdf5'
+        elif flname.lower().endswith('gsb') or flname.endswith('GSB'):
+            fltype = 'GSB'
         else:
             # Otherwise just assume GSLIB for now but this may change
             fltype = 'gslib'
@@ -88,6 +91,9 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
             # Note that tmin isn't implemented for h5 yet, due to my inexperience
             # with this underlying module/format
             data = read_h5(flname=flname, h5path=h5path, datasets=h5datasets)
+
+    elif fltype == 'gsb':
+        data = read_gsb(flname=flname, ireal=ireal, tmin=tmin)
     else:
         print('File type unsupported! Try "gslib", "csv" or "hdf5"')
 
@@ -894,3 +900,198 @@ def readvarg(vargflname, vargnum):
         return vargs[0]
     else:
         return vargs
+
+
+
+
+def isbinary(file):
+    """
+    From http://stackoverflow.com/a/7392391/5545005
+    Its hard to understand what's going on here.. but it seems to work for gsb files ....
+    H5 has a handy check but this fills the gap for gsb files when trying to read ascii
+    """
+    textchars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7f})
+
+    def is_binary_string(bytes):
+        return bool(bytes.translate(None, textchars))
+    return is_binary_string(open(file, 'rb').read(1024))
+
+
+def read_gsb(flname, ireal=-1, tmin=None, null=None):
+    '''Reads in a CCG GSB (GSLIB-Binary) file.
+
+    Parameters:
+        flname (str): Path (or name) of file to read.
+
+    Keyword Args:
+        ireal (int): 1-indexed realization number to read (reads 1 at a time), -1 to read all
+        tmin (float): values less than this number are convernted to NaN, since NaN's are
+            natural handled within matplotlib, pandas, numpy, etc. If None, set to
+            pygeostat.Parameters['data.tmin'].
+        null (float): when the gsb array has a keyout, on reconstruction this value fills the array
+            in keyed out locations. If `None` taken from Parameters['data.null']
+
+    Returns:
+        data (pandas.DataFrame): Pandas DataFrame object with input data.
+
+    .. codeauthor:: Jared Deutsch 2016-02-19
+    '''
+    from ..fortran import pygsb as pygsb
+    # Can the file be opened?
+    _test_file_open(flname)
+
+    if not isbinary(flname):
+        raise ValueError('The file %s appears to be non-binary formatted ' % flname)
+
+    # Load required header information
+    nvar, nx, ny, nz, nreal, errorvalue = pygsb.pyreadgsbheader(flname)
+    if errorvalue != 0:
+        raise AssertionError("Error reading GSB header!, Error #{}".format(errorvalue))
+
+    # RMB - fixing an observed bug, which occurs if any of the dimensions are zero
+    if nx == 0:
+        nx = 1
+    if ny == 0:
+        ny = 1
+    if nz == 0:
+        nz = 1
+    if ireal == 0:
+        raise ValueError(('ireal shoud be greater than 1 (read a specified 1-index realization)'
+                          'or -1 (read all realizations)'))
+    if null is None:
+        null = Parameters.get('data.null')
+    if null is None:
+        null = -999.99  # matching the GSB fortran defaults
+    # Get the data
+    nxyz = nx * ny * nz
+    if ireal <= -1:
+        errorvalue, reals, vnames = pygsb.pyreadgsbdata(flname, nvar, nxyz, 1, null)
+        for ireal in range(1, nreal):
+            errorvalue, values, vnames = pygsb.pyreadgsbdata(
+                flname, nvar, nxyz, ireal + 1, null)
+            reals = np.append(reals, values, axis=1)
+    else:
+        errorvalue, reals, vnames = pygsb.pyreadgsbdata(flname, nvar, nxyz, ireal, null)
+    if errorvalue != 0:
+        raise AssertionError("Error reading GSB data!, Error #{}".format(errorvalue))
+
+    # Clean up column names and trimmed data
+    vnames = [''.join([v.decode("utf-8") for v in vname]).strip() for vname in vnames]
+
+    # Convert to pandas dataframe
+    data = pd.DataFrame(data=reals.transpose(), columns=vnames)
+
+    # Replace values below tmin with nan
+    data = _data_trim(data, tmin)
+
+    # Only return the DataFrame
+    return data
+
+
+def write_gsb(data, flname, tvar, nreals=1, variables=None, griddef=None, fmt=0):
+    """
+    Writes out a GSB (GSLIB-Binary) style data file. NaN values of tvar are compressed
+    in the output with no tmin now provided.
+
+    Parameters:
+        data (pygeostat.DataFile or pandas.DataFrame): data to write out
+        flname (str): Path (or name) of file to write out.
+        tvar (str): Variable to trim by or None for no trimming. Note that all variables are
+            trimmed in the data file (for compression) when this variable is trimmed.
+        nreals (int): number of realizations in data
+
+    Keyword Args:
+        griddef (pygeostat.griddef.GridDef): This is required if the data is gridded and you
+            want other gsb programs to read it
+        fmt (int): if 0 then will write out all variables as float 64. Otherwise should be
+            an list with a length equal to number of variables and with the following format codes
+            1=int32, 2=float32, 3=float64
+        variables (List(str)): List of variables to write out if only a subset is desired.
+
+    .. codeauthor:: Jared Deutsch 2016-02-19, modified by Ryan Barnett 2018-04-12
+    """
+    from .data import DataFile as DataFile
+    from ..fortran import pygsb as pygsb
+    null = Parameters.get('data.null', None)
+    data = _data_fillnan(data, null)
+    # If variables is none, then get the columns
+    # Also configure the data for output
+    if not isinstance(data, DataFile):
+        if variables is None:
+            variables = data.columns.tolist()
+        datamat = np.array(data[variables].values).transpose()
+    else:
+        if griddef is None:
+            if data.griddef is not None:
+                griddef = data.griddef
+        if variables is None:
+            variables = data.data.columns.tolist()
+        else:
+            if isinstance(variables, str):
+                variables = [variables]
+        datamat = np.array(data.data[variables].values).transpose()
+    # format
+    if fmt == 0 or fmt is None:
+        vkinds = [3 for x in range(len(variables))]
+    elif not isinstance(fmt, list):
+        raise ValueError("fmt needs to be a list. You passed a %s" % type(fmt))
+    else:
+        vkinds = []
+        for f in fmt:
+            vkinds.append(f)
+    # Dimensioning
+    nvar = len(variables)
+    if griddef is not None:
+        nx = griddef.nx
+        ny = griddef.ny
+        nz = griddef.nz
+        if np.size(datamat, 1) != griddef.count() * nreals:
+            raise ValueError("the passed data has the wrong  number of elements for nx, ny, nz, "
+                             "nreal: %i %i %i %i" % (nx, ny, nz, nreals))
+    else:
+        if nreals == 1:
+            nx = len(data[variables[0]])
+            ny = 1
+            nz = 1
+        else:
+            nx = np.size(datamat, 1) / nreals
+            ny = 1
+            nz = 1
+
+    # Trimming
+    if isinstance(tvar, str):
+        tvar = variables.index(tvar) + 1
+        if tvar <= 0:
+            raise ValueError("Could not trimming variable {} in variable list {}".format(tvar,
+                                                                                         variables))
+    elif tvar is None:
+        tvar = 1
+    elif isinstance(tvar, bool):
+        if tvar:
+            tvar = 1
+        else:
+            tvar = 0
+    elif tvar == 0:
+        tvar = 1
+    else:
+        raise ValueError("Invalid trimming variable {}".format(tvar))
+
+    # Character conversion of strings
+    cvariables = []
+    for varname in [var.ljust(64) for var in variables]:
+        cvariables.append([v for v in varname])
+
+    tmin = Parameters.get('data.tmin', None)
+    if tmin is None:
+        tmin = -1e21
+    # Can the file be opened?
+    try:
+        _test_file_open(flname)
+    except FileNotFoundError:
+        pass  # this case is okay .. I guess we're just checking if we can open it?
+    # Save out the data
+    errorvalue = pygsb.pywritegsbdata(gsbfl=flname, datamat=datamat, vnames=cvariables, nvar=nvar,
+                                      nreal=nreals, nx=nx, ny=ny, nz=nz, tmin=tmin,
+                                      tmax=1.0e21, tvar=tvar, vkinds=vkinds)
+    if errorvalue != 0:
+        raise AssertionError("Error writing GSB data!, Error #{}".format(errorvalue))
