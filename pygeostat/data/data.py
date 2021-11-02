@@ -47,7 +47,7 @@ class DataFile:
 	Parameters:
 		flname (str): Path (or name) of file to read
 		readfl (bool): True if the data file should be read on class initialization
-		fltype (str): Type of data file: either ``csv``, ``gslib`` or ``hdf5``
+		fltype (str): Type of data file: either ``csv``, ``gslib`` or ``hdf5`` or ``gsb``
 		dftype (str): Data file type as either 'point' or 'grid' used for writing out VTK files
 			for visualization
 		data (pandas.DataFrame): Pandas dataframe containing array of data values
@@ -772,7 +772,7 @@ class DataFile:
 		return flname, variables, sep, fltype
 
 	def write_file(self, flname, title=None, variables=None, fmt=None, sep=None, fltype=None, data=None, h5path=None, griddef=None,
-				null=None):
+				null=None, tvar=None, nreals=1):
 		"""Writes out a GSLIB-style, VTK, CSV, Excel (XLSX), HDF5 data file.
 
 		Parameters:
@@ -789,6 +789,8 @@ class DataFile:
 				option!
 			h5path (str): The h5 group path to write data to (H5 filetype)
 			griddef (obj): a gslib griddef object
+            tvar (str): Name of variable to use for compression when NaNs exist within it
+            nreals (int): number of realizations you are writing out (needed for GSB)
 			null (float): If a number is provided, NaN numbers are converted to this value
 				prior to writing. May be useful since NaN's are more easily handled
 				within python and pandas than null values, but are not valid
@@ -805,6 +807,7 @@ class DataFile:
 			>>> gs.write_csv(gs.DataFile or pd.DataFrame)
 			>>> gs.write_hdf5(gs.DataFile or pd.DataFrame)
 			>>> gs.write_vtk(gs.DataFile or pd.DataFrame)
+			>>> gs.write_gsb(gs.DataFile or pd.DataFrame)
 
 			The following calls are equivalent:
 
@@ -833,6 +836,8 @@ class DataFile:
 				fltype = 'hvtk'
 			elif flname.endswith('.hd5') or flname.endswith('.hdf5') or flname.endswith('.h5'):
 				fltype = 'hdf5'
+			elif flname.endswith('.gsb'):
+				fltype = 'gsb'
 			else:
 				raise ValueError(" Output file type (fltype) cannot be inferred!")
 		# Check the arguments and for any info not passed thats already assigned
@@ -883,6 +888,11 @@ class DataFile:
 			if flname.endswith('hvtk'):
 				flname = flname.replace('.hvtk', '.xdmf')
 			iotools.write_hvtk(self.data, flname, self.griddef, variables=variables)
+		elif fltype == 'gsb':
+			if not isinstance(fmt, list):
+				fmt = 0
+				iotools.write_gsb(self.data, flname, tvar=tvar, variables=variables,
+                              nreals=nreals, fmt=fmt, griddef=griddef)
 		else:
 			printerr('Unsupported File type. Try with either "gslib"'
 					 '"csv", "xlsx", "excel", "hdf5", or "vtk"', errtype='error')
