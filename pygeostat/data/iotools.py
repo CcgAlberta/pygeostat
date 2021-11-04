@@ -220,9 +220,9 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
         ireal (int): 1-indexed realization number to read (reads 1 at a time), -1 to read all
         tmin (float): values less than this number are convernted to NaN, since NaN's are
             natural handled within matplotlib, pandas, numpy, etc. If None, set to
-            pygeostat.gsParams['data.tmin'].
+            pygeostat.Parameters['data.tmin'].
         null (float): when the gsb array has a keyout, on reconstruction this value fills the array
-            in keyed out locations. If `None` taken from gsParams['data.null']
+            in keyed out locations. If `None` taken from Parameters['data.null']
 
     Returns:
         data (pandas.DataFrame): Pandas DataFrame object with input data.
@@ -252,7 +252,7 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
         raise ValueError(('ireal shoud be greater than 1 (read a specified 1-index realization)'
                           'or -1 (read all realizations)'))
     if null is None:
-        null = gsParams.get('data.null')
+        null = Parameters.get('data.null')
     if null is None:
         null = -999.99  # matching the GSB fortran defaults
     # Get the data
@@ -437,7 +437,7 @@ def write_gsb(data, flname, tvar, nreals=1, variables=None, griddef=None, fmt=0)
     """
     from .data import DataFile as DataFile
     from ..fortran import pygsb as pygsb
-    null = gsParams.get('data.null', None)
+    null = Parameters.get('data.null', None)
     data = _data_fillnan(data, null)
     # If variables is none, then get the columns
     # Also configure the data for output
@@ -506,7 +506,7 @@ def write_gsb(data, flname, tvar, nreals=1, variables=None, griddef=None, fmt=0)
     for varname in [var.ljust(64) for var in variables]:
         cvariables.append([v for v in varname])
 
-    tmin = gsParams.get('data.tmin', None)
+    tmin = Parameters.get('data.tmin', None)
     if tmin is None:
         tmin = -1e21
     # Can the file be opened?
