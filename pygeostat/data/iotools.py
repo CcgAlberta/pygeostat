@@ -22,7 +22,7 @@ from .. pygeostat_parameters import Parameters
 def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=None, h5datasets=None,
              columns=None, ireal=1, griddef=None, tmin=None):
     '''
-    Reads in a GSLIB-style Geo-EAS data file, CSV, or HDF5 data files.
+    Reads in a GSLIB-style Geo-EAS data file, CSV, GSB or HDF5 data files.
 
     Parameters:
         flname (str): Path (or name) of file to read.
@@ -56,6 +56,7 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
         >>> data.data = pygeostat.read_gslib(flname)
         >>> data.data = pygeostat.read_csv(flname)
         >>> data.data = pygeostat.read_h5(flname, h5path='')
+        >>> data.data = pygeostat.read_gsb(flname)
         >>> data.data = pygeostat.open_hdf5(flname)
 
     '''
@@ -413,7 +414,7 @@ def write_csv(data, flname, variables=None,
                 data[variables].to_excel(flname, header=True, index=False,
                                          float_format=fmt)
                                          
-def write_gsb(data, flname, tvar, nreals=1, variables=None, griddef=None, fmt=0):
+def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, fmt=0):
     """
     Writes out a GSB (GSLIB-Binary) style data file. NaN values of tvar are compressed
     in the output with no tmin now provided.
