@@ -197,7 +197,18 @@ def read_csv(flname, headeronly=False, tmin=None):
     data = _data_trim(data, tmin=tmin)
     # Only return the DataFrame
     return data
-    
+
+
+def compile_pygsb():
+    import os
+    import subprocess
+    cwd1 = os.path.abspath(os.path.join(os.path.dirname(__file__), '../fortran'))
+    if not os.path.isfile(os.path.join(cwd1,'pygsb.pyd')):
+        compiler = 'gnu'
+        subprocess.call('python compile.py -clean pygsb', cwd=cwd1)
+        subprocess.call('python compile.py -compiler={} pygsb'.format(compiler), cwd=cwd1)
+  
+
 def isbinary(file):
     """
     From http://stackoverflow.com/a/7392391/5545005
@@ -230,6 +241,7 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
 
     .. codeauthor:: Jared Deutsch 2016-02-19
     '''
+    compile_pygsb()
     from ..fortran import pygsb as pygsb
     # Can the file be opened?
     _test_file_open(flname)
@@ -437,6 +449,7 @@ def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, f
     .. codeauthor:: Jared Deutsch 2016-02-19, modified by Ryan Barnett 2018-04-12
     """
     from .data import DataFile as DataFile
+    compile_pygsb()
     from ..fortran import pygsb as pygsb
     null = Parameters.get('data.null', None)
     data = _data_fillnan(data, null)
