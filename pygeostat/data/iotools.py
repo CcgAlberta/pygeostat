@@ -22,7 +22,7 @@ from .. pygeostat_parameters import Parameters
 def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=None, h5datasets=None,
              columns=None, ireal=1, griddef=None, tmin=None):
     '''
-    Reads in a GSLIB-style Geo-EAS data file, CSV, or HDF5 data files.
+    Reads in a GSLIB-style Geo-EAS data file, CSV, GSB or HDF5 data files.
 
     Parameters:
         flname (str): Path (or name) of file to read.
@@ -56,6 +56,7 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
         >>> data.data = pygeostat.read_gslib(flname)
         >>> data.data = pygeostat.read_csv(flname)
         >>> data.data = pygeostat.read_h5(flname, h5path='')
+        >>> data.data = pygeostat.read_gsb(flname)
         >>> data.data = pygeostat.open_hdf5(flname)
 
     '''
@@ -196,7 +197,18 @@ def read_csv(flname, headeronly=False, tmin=None):
     data = _data_trim(data, tmin=tmin)
     # Only return the DataFrame
     return data
-    
+
+
+def compile_pygsb():
+    import os
+    import subprocess
+    cwd1 = os.path.abspath(os.path.join(os.path.dirname(__file__), '../fortran'))
+    if not os.path.isfile(os.path.join(cwd1,'pygsb.pyd')):
+        compiler = 'gnu'
+        subprocess.call('python compile.py -clean pygsb', cwd=cwd1)
+        subprocess.call('python compile.py -compiler={} pygsb'.format(compiler), cwd=cwd1)
+  
+
 def isbinary(file):
     """
     From http://stackoverflow.com/a/7392391/5545005
@@ -229,6 +241,7 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
 
     .. codeauthor:: Jared Deutsch 2016-02-19
     '''
+    compile_pygsb()
     from ..fortran import pygsb as pygsb
     # Can the file be opened?
     _test_file_open(flname)
@@ -413,7 +426,7 @@ def write_csv(data, flname, variables=None,
                 data[variables].to_excel(flname, header=True, index=False,
                                          float_format=fmt)
                                          
-def write_gsb(data, flname, tvar, nreals=1, variables=None, griddef=None, fmt=0):
+def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, fmt=0):
     """
     Writes out a GSB (GSLIB-Binary) style data file. NaN values of tvar are compressed
     in the output with no tmin now provided.
@@ -436,6 +449,7 @@ def write_gsb(data, flname, tvar, nreals=1, variables=None, griddef=None, fmt=0)
     .. codeauthor:: Jared Deutsch 2016-02-19, modified by Ryan Barnett 2018-04-12
     """
     from .data import DataFile as DataFile
+    compile_pygsb()
     from ..fortran import pygsb as pygsb
     null = Parameters.get('data.null', None)
     data = _data_fillnan(data, null)

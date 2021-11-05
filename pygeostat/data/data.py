@@ -809,6 +809,10 @@ class DataFile:
 			>>> gs.write_vtk(gs.DataFile or pd.DataFrame)
 			>>> gs.write_gsb(gs.DataFile or pd.DataFrame)
 
+		Note: 
+		The GSB format is not specifically intended for general users of pygeostat. Some CCG programs use GSB that 
+		is a compressed GSLIB-like binary data format that greatly reduces the computational expense.
+
 			The following calls are equivalent:
 
 			>>> data_file.write_file('testgslib.out')
