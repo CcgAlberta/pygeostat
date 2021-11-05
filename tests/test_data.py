@@ -16,7 +16,7 @@ except (ImportError, ModuleNotFoundError):
 import unittest
 import warnings
 import subprocess
-
+import numpy as np
 
 class PygeostatDataFileTest(unittest.TestCase):
     '''
@@ -30,7 +30,7 @@ class PygeostatDataFileTest(unittest.TestCase):
     def tearDown(self):
         for file in os.listdir('.'):
             _, extention = os.path.splitext(file)
-            if extention in ['.vtk', '.h5', '.vtu']:
+            if extention in ['.vtk', '.h5', '.vtu', '.gsb']:
                 os.remove(file)
 
     def test_file_not_found(self):
@@ -42,6 +42,37 @@ class PygeostatDataFileTest(unittest.TestCase):
         self.assertEqual(dat.x.lower(), 'east')
         self.assertEqual(dat.y.lower(), 'north')
         self.assertEqual(dat.z.lower(), 'elevation')
+
+
+    def test_write_read_gsb(self):
+        data = gs.ExampleData('point3d_ind_mv')
+        try:
+            gs.write_gsb(data, 'test1.gsb')
+        except Exception:
+            self.fail('Unable to write gsb output')
+        
+        try:
+            data.write_file('test2.gsb')
+        except Exception:
+            self.fail('Unable to write gsb output')  
+        
+        import os
+        assert os.path.isfile('test1.gsb'), 'file does not exist'
+        assert os.path.isfile('test1.gsb'), 'file does not exist'
+        
+        try:
+            data1 = gs.read_gsb('test1.gsb')
+        except Exception:
+            self.fail('Unable to read the gsb file')    
+                    
+        try:
+            data2 = gs.DataFile('test2.gsb')
+        except Exception:
+            self.fail('Unable to read the gsb file')      
+        
+        assert np.all(data1 == data.data)
+        assert np.all(data2.data == data.data)
+
 
     def test_read_csv(self):
         try:
