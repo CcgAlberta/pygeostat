@@ -72,7 +72,7 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
         elif extention in ['.h5', '.hdf5', '.hd5']:
             fltype = 'hdf5'
         elif flname.lower().endswith('gsb') or flname.endswith('GSB'):
-            fltype = 'GSB'
+            fltype = 'gsb'
         else:
             # Otherwise just assume GSLIB for now but this may change
             fltype = 'gslib'
