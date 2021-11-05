@@ -71,6 +71,8 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
             fltype = 'csv'
         elif extention in ['.h5', '.hdf5', '.hd5']:
             fltype = 'hdf5'
+        elif flname.lower().endswith('gsb') or flname.endswith('GSB'):
+            fltype = 'GSB'
         else:
             # Otherwise just assume GSLIB for now but this may change
             fltype = 'gslib'
@@ -89,6 +91,8 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
             # Note that tmin isn't implemented for h5 yet, due to my inexperience
             # with this underlying module/format
             data = read_h5(flname=flname, h5path=h5path, datasets=h5datasets)
+    elif fltype == 'gsb':
+        data = read_gsb(flname=flname, ireal=ireal, tmin=tmin)
     else:
         print('File type unsupported! Try "gslib", "csv" or "hdf5"')
 
