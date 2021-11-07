@@ -146,12 +146,13 @@ Read CSV
 ++++++++
 .. autofunction:: pygeostat.data.iotools.read_csv
 
-
 Read GSLIB Python
 ++++++++++++++++++++++++++
 .. autofunction:: pygeostat.data.iotools.read_gslib
 
-
+Read GSB
+++++++++
+.. autofunction:: pygeostat.data.iotools.read_gsb
 
 Write GSLIB Python
 +++++++++++++++++++++++++++
@@ -161,6 +162,9 @@ Write CSV
 +++++++++
 .. autofunction:: pygeostat.data.iotools.write_csv
 
+Write GSB
++++++++++
+.. autofunction:: pygeostat.data.iotools.write_gsb
 
 Write VTK
 +++++++++
