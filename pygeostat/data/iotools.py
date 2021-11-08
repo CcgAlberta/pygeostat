@@ -207,11 +207,20 @@ def compile_pygsb():
     import os
     import subprocess
     cwd1 = os.path.abspath(os.path.join(os.path.dirname(__file__), '../fortran'))
+    
     if not os.path.isfile(os.path.join(cwd1,'pygsb.pyd')):
         compiler = 'gnu'
         subprocess.call('python compile.py -clean pygsb', cwd=cwd1)
         subprocess.call('python compile.py -compiler={} pygsb'.format(compiler), cwd=cwd1)
-  
+    else:
+        try:
+            from ..fortran import pygsb as pygsb
+
+        except ImportError:
+            compiler = 'gnu'
+            subprocess.call('python compile.py -clean pygsb', cwd=cwd1)
+            subprocess.call('python compile.py -compiler={} pygsb'.format(compiler), cwd=cwd1)
+       
 
 def isbinary(file):
     """
