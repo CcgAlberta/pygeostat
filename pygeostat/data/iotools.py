@@ -59,6 +59,10 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
         >>> data.data = pygeostat.read_gsb(flname)
         >>> data.data = pygeostat.open_hdf5(flname)
 
+    Examples:
+		>>> data.data = gs.read_gsb('testgsb.gsb')
+		>>> data = gs.DataFile('testgsb.gsb')
+
     '''
     # Infer filetype if none specified based on the file extention
     if fltype is None:
