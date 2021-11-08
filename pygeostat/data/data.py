@@ -816,14 +816,17 @@ class DataFile:
 			The following calls are equivalent:
 
 			>>> data_file.write_file('testgslib.out')
+			>>> data_file.write_file('testgsb.gsb')
 
 			is equivalent to:
 
 			>>> gs.write_gslib(data_file, 'testgslib.out')
+			>>> gs.write_gsb(data_file, 'testgsb.gsb')
 
 			and similar to:
 
 			>>> gs.write_gslib(data_file.data, 'testgslib.out')
+			>>> gs.write_gsb(data_file.data, 'testgsb.gsb')
 
 		"""
 		from .grid_definition import GridDef
