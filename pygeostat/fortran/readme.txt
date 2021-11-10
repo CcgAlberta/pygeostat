@@ -8,7 +8,7 @@ From Python:
 From commandline:
 - open a cmd prompt in `/pygeostat/fortran/`
 - run:
- >  python compile.py -compiler=gnu all
+ >  python compile.py -compiler=gnu pygsb
 
 
 Alternatively:

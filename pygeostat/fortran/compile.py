@@ -25,13 +25,12 @@ FILEDIR = os.path.dirname(os.path.realpath(__file__))
 THISSCRIPT = os.path.abspath(__file__)
 try:
     call("rm", stderr=PIPE, stdout=PIPE)
-except Exception:
+except FileNotFoundError:
     RMCALL = FILEDIR + '/resource/rm/rm.exe'
 PYPATH = sys.executable[0:sys.executable.rfind('python.exe')].replace('\\', '/')
 PYVERSION = str(sys.version_info[0]) + str(sys.version_info[1])
 LIBPYTHON = PYPATH + 'libs/Python' + PYVERSION + '.lib'
 DLLPYTHON = PYPATH + 'python' + PYVERSION + '.dll'
-
 
 def quote(string):
     " surround the string quotes "
@@ -502,45 +501,46 @@ def relinkgnu(mode, exflags, modulename, sourcefiles, includes=None, opt="O2", w
         _updatestatus("{} success!".format(modulename))
 
 
-def build_lapack(compiler, force_compile=False, verbose=True):
-    """A small utility to build the lapack library that is required in some of the .pyd builds.
 
-    Parameters
-    ----------
-        compiler: str
-            'intel' or 'gnu'
-        force_compile: bool
-            If `True` will force compile even if lapack library is already built
-        verbose: bool
-            'all' prints all output, 'min' only prints a message if it starts compiling
-            lapack, `none` prints only if error is found
+# def build_lapack(compiler, force_compile=False, verbose=True):
+    # """A small utility to build the lapack library that is required in some of the .pyd builds.
 
-    .. codeauthor:: Tyler Acorn March 08, 2017
-    """
-    lapack_folder = FILEDIR + '/resource/'
-    script = 'compile_lapack.py'
-    if compiler.lower() == 'intel':
-        if not os.path.isfile(lapack_folder + 'lapack_solve_intel.lib') or force_compile:
-            if verbose.lower() in ['all', 'min']:
-                print('Compiling Lapack for Intel')
-            lapackcall = ["python", script, compiler.lower()]
-            _buildcall(lapackcall, os.environ, verbose=verbose, builddir=lapack_folder)
-        # Check to make sure the library is there
-        if not os.path.isfile(lapack_folder + 'lapack_solve_intel.lib'):
-            _updatestatus('Error: lapack library for INTEL was not build')
-            sys.exit(1)
-    elif compiler.lower() == 'gnu' or os.path.isdir(compiler):
-        if not os.path.isfile(lapack_folder + 'lapack_solve.a') or force_compile:
-            if verbose.lower() in ['all', 'min']:
-                print('Compiling Lapack for GNU')
-            lapackcall = ["python", script, compiler.lower()]
-            _buildcall(lapackcall, os.environ, verbose=verbose, builddir=lapack_folder)
-        # Check to make sure the library is there
-        if not os.path.isfile(lapack_folder + 'lapack_solve.a'):
-            _updatestatus('Error: lapack library for GNU was not build')
-            sys.exit(1)
-    else:
-        raise Exception('choose either "intel" or "gnu" compiler')
+    # Parameters
+    # ----------
+        # compiler: str
+            # 'intel' or 'gnu'
+        # force_compile: bool
+            # If `True` will force compile even if lapack library is already built
+        # verbose: bool
+            # 'all' prints all output, 'min' only prints a message if it starts compiling
+            # lapack, `none` prints only if error is found
+
+    # .. codeauthor:: Tyler Acorn March 08, 2017
+    # """
+    # lapack_folder = FILEDIR + '/resource/'
+    # script = 'compile_lapack.py'
+    # if compiler.lower() == 'intel':
+        # if not os.path.isfile(lapack_folder + 'lapack_solve_intel.lib') or force_compile:
+            # if verbose.lower() in ['all', 'min']:
+                # print('Compiling Lapack for Intel')
+            # lapackcall = ["python", script, compiler.lower()]
+            # _buildcall(lapackcall, os.environ, verbose=verbose, builddir=lapack_folder)
+        # # Check to make sure the library is there
+        # if not os.path.isfile(lapack_folder + 'lapack_solve_intel.lib'):
+            # _updatestatus('Error: lapack library for INTEL was not build')
+            # sys.exit(1)
+    # elif compiler.lower() == 'gnu' or os.path.isdir(compiler):
+        # if not os.path.isfile(lapack_folder + 'lapack_solve.a') or force_compile:
+            # if verbose.lower() in ['all', 'min']:
+                # print('Compiling Lapack for GNU')
+            # lapackcall = ["python", script, compiler.lower()]
+            # _buildcall(lapackcall, os.environ, verbose=verbose, builddir=lapack_folder)
+        # # Check to make sure the library is there
+        # if not os.path.isfile(lapack_folder + 'lapack_solve.a'):
+            # _updatestatus('Error: lapack library for GNU was not build')
+            # sys.exit(1)
+    # else:
+        # raise Exception('choose either "intel" or "gnu" compiler')
 
 
 def _buildcall(buildstr, env, verbose=True, builddir=None):
@@ -667,47 +667,38 @@ def assert_environment(compiler):
         env = None
         try:
             call("gfortran", stderr=PIPE, stdout=PIPE)
-            if PYVERSION == "27":
-                p = Popen("gfortran -v", stderr=PIPE, stdout=PIPE)
-                gfortinfo = p.communicate()[0]
-            else:
-                from subprocess import getoutput
-                gfortinfo = getoutput("gfortran -v")
-            if "cygwin" in gfortinfo:  # currently binaries built with cygwin gfortran are no good..
-                print("WARNING: found `cygwin` compilers which are not currently supported.. "
-                      "looking for MinGW from Anaconda")
-                raise FileNotFoundError
+            #if PYVERSION == "27":
+            #    p = Popen("gfortran -v", stderr=PIPE, stdout=PIPE)
+            #    gfortinfo = p.communicate()[0]
+            #else:
+            #    from subprocess import getoutput
+            #    gfortinfo = getoutput("gfortran -v")
+            #if "cygwin" in gfortinfo:  # currently binaries built with cygwin gfortran are no good..
+            #    print("WARNING: found `cygwin` compilers which are not currently supported.. "
+            #          "looking for MinGW from Anaconda")
+            #    raise FileNotFoundError
         except FileNotFoundError:
             if not os.path.isdir(PYPATH + "MinGW/bin"):
                 print("WARNING: could not find `mingw` ... installing ... ")
                 try:
-                    _buildcall("conda install -c msys2 m2w64-gcc-fortran -y", os.environ)
+                    cwd = os.path.abspath(os.path.join(os.path.dirname(__file__), '../fortran'))
+                    install = 'conda install -c msys2 m2w64-gcc-fortran -y'
+                    remove = 'conda remove m2w64-gcc-fortran -y'
+                    # clean installation. Seems redundant if no pygsb is found.
+                    _buildcall(remove, os.environ)
+                    _buildcall(install, os.environ)                  
                 except FileNotFoundError:
-                    _buildcall("pip install mingw -y", os.environ)
+                    # usually you shouldn't reach this point
+                    raise ValueError("Could not automatically install gcc. Consider installing "
+                                     "a gfortran compiler with tools such as mingw, pip "
+                                     "or conda")             
+                # one final assert to make sure gfortran is callable
+                try:
+                    call("gfortran", stderr=PIPE, stdout=PIPE)
                 except FileNotFoundError:
                     raise ValueError("Could not automatically install mingw. Consider installing "
-                                     "a gfortran compiler with tools such as mingw, pip "
-                                     "or conda")
-                # if we made it here, mingw is installed, but the bin is not on the path, so we
-                # inject it to the top of the path so it is found first
-                os.environ["PATH"] = PYPATH + "MinGW/bin;" + os.environ["PATH"]
-            else:
-                print("FOUND: `mingw` compilers at " + PYPATH + "MinGW/bin \n"
-                      "consider adding this folder to the path!")
-                os.environ["PATH"] = PYPATH + "MinGW/bin;" + os.environ["PATH"]
-            # one final assert to make sure gfortran is callable
-            try:
-                call("gfortran", stderr=PIPE, stdout=PIPE)
-            except FileNotFoundError:
-                raise ValueError("Could not automatically install mingw. Consider installing "
-                                 "a gfortran compiler with tools such as cygwin, mingw")
-        else:
-            try:
-                call("gcc", stderr=PIPE, stdout=PIPE)
-            except FileNotFoundError:
-                raise ValueError("Found a fortran compiler, but couldnt automatically find an "
-                                 "associated `gcc` compiler... Consider installing "
-                                 "compiler tools with cygwin or mingw")
+                                     "a gfortran compiler with tools such as cygwin, mingw")
+
         env = os.environ.copy()
     elif compiler == "intel":  # the compiler was 'intel'
         try:
@@ -918,7 +909,9 @@ if __name__ == '__main__':
         else:
             print("specfied compiler or compiler path not understood: {}".format(args.compiler))
         # assert lapack is built after asserting the environment
-        build_lapack(args.compiler, args.forcelapack, verbose="all")
+        
+        # deactivated function
+        #build_lapack(args.compiler, args.forcelapack, verbose="all")
 
         buildkeys = allkeys if args.modulename == "all" else [args.modulename]
         # actually call the build functions

@@ -59,6 +59,10 @@ def read_file(flname, fltype=None, headeronly=False, delimiter=r'\s*', h5path=No
         >>> data.data = pygeostat.read_gsb(flname)
         >>> data.data = pygeostat.open_hdf5(flname)
 
+    Examples:
+		>>> data.data = gs.read_gsb('testgsb.gsb')
+		>>> data = gs.DataFile('testgsb.gsb')
+
     '''
     # Infer filetype if none specified based on the file extention
     if fltype is None:
@@ -202,6 +206,7 @@ def read_csv(flname, headeronly=False, tmin=None):
     # Only return the DataFrame
     return data
 
+
 def check_pyd(pyd='pygsb'):
     '''
     Check existence of .pyd file before calling the compile script
@@ -228,8 +233,8 @@ def check_pyd(pyd='pygsb'):
         except ImportError:
             print('compiling ' + pyd + ' and executing ...')
             subprocess.run(comp, cwd=cwd)    
-            print('Finished')            
-
+            print('Finished')  
+ 
 def isbinary(file):
     """
     From http://stackoverflow.com/a/7392391/5545005
@@ -262,9 +267,7 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
 
     .. codeauthor:: Jared Deutsch 2016-02-19
     '''
-
     check_pyd()
-    
     from ..fortran import pygsb as pygsb
     # Can the file be opened?
     _test_file_open(flname)
@@ -371,7 +374,6 @@ def write_gslib(data, flname, title=None, variables=None,
             to data.null. If data.Null is None, set to pygeostat.Parameters['data.null'].
 
     """
-
     from .data import DataFile as DataFile
     data = _data_fillnan(data, null)
     # If a DataFile is used, check the arguments
@@ -449,7 +451,7 @@ def write_csv(data, flname, variables=None,
             else:
                 data[variables].to_excel(flname, header=True, index=False,
                                          float_format=fmt)
-    
+                                         
 def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, fmt=0):
     """
     Writes out a GSB (GSLIB-Binary) style data file. NaN values of tvar are compressed
@@ -473,9 +475,7 @@ def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, f
     .. codeauthor:: Jared Deutsch 2016-02-19, modified by Ryan Barnett 2018-04-12
     """
     from .data import DataFile as DataFile
-    
     check_pyd()
-
     from ..fortran import pygsb as pygsb
     null = Parameters.get('data.null', None)
     data = _data_fillnan(data, null)

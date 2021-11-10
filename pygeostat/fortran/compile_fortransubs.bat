@@ -13,7 +13,7 @@
 ::                    pass #raise NotImplementedError("Only MS compiler supported with gfortran on win64")
 
 call python compile.py -clean all
-call python compile.py -compiler=gnu all
+call python compile.py -compiler=gnu pygsb
 :: call f2py -c -m --compiler=mingw32 --fcompiler=gnu95 covasubs covasubs.for
 :: call f2py -c -m --compiler=mingw32 --fcompiler=gnu95 dgm dgm.for
 :: call f2py -c -m --compiler=mingw32 --fcompiler=gnu95 histcorrect random.f90 normaldist.f90 sortem.f90 histcorrect.f90
