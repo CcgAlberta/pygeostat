@@ -120,3 +120,4 @@ venv.bak/
 examples/temp
 CleanUp.bat
 *.json
+pygeostat/fortran/tmp

@@ -42,7 +42,7 @@ setup(name='pygeostat',
       ],  
 	  package_data={'': ['*.for', '*.bat', '*.f90', '*.f', 'rm.exe',
                     'libintl3.dll', 'libiconv2.dll',
-                    'exdata/*.*', 'exes/*.exe', 'License.txt'], 'pygeostat': ['data/example_data/*', 'executable/*.txt']},
+                    'License.txt'], 'pygeostat': ['data/example_data/*', 'executable/*.txt']},
       include_package_data=True,
       zip_safe=False)
 

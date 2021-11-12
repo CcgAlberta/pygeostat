@@ -208,6 +208,9 @@ def read_csv(flname, headeronly=False, tmin=None):
 
 
 def compile_pygsb():
+    '''Compiles 'pygeostat/fortran/src/pygsb.f90' using 'pygeostat/fortran/compile.py'
+       and tries to import pygsb.pyd
+    '''
     import os
     import subprocess
     cwd1 = os.path.abspath(os.path.join(os.path.dirname(__file__), '../fortran'))
@@ -217,14 +220,19 @@ def compile_pygsb():
         subprocess.call('python compile.py -clean pygsb', cwd=cwd1)
         subprocess.call('python compile.py -compiler={} pygsb'.format(compiler), cwd=cwd1)
     else:
+    # Ensure the right version of .pyd exists.     
         try:
             from ..fortran import pygsb as pygsb
-
         except ImportError:
             compiler = 'gnu'
             subprocess.call('python compile.py -clean pygsb', cwd=cwd1)
             subprocess.call('python compile.py -compiler={} pygsb'.format(compiler), cwd=cwd1)
-       
+    try:
+        from ..fortran import pygsb as pygsb
+    except ImportError:
+        raise ImportError("Could not import 'pygsb' from 'pygeostat.fortran'('pygsb.f90' did not compile to create 'pygsb.pyd'. Consider installing a gfortran compiler with tools such as mingw.")
+    return pygsb
+
 
 def isbinary(file):
     """
@@ -258,8 +266,7 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
 
     .. codeauthor:: Jared Deutsch 2016-02-19
     '''
-    compile_pygsb()
-    from ..fortran import pygsb as pygsb
+    pygsb = compile_pygsb()
     # Can the file be opened?
     _test_file_open(flname)
 
@@ -466,8 +473,7 @@ def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, f
     .. codeauthor:: Jared Deutsch 2016-02-19, modified by Ryan Barnett 2018-04-12
     """
     from .data import DataFile as DataFile
-    compile_pygsb()
-    from ..fortran import pygsb as pygsb
+    pygsb = compile_pygsb()
     null = Parameters.get('data.null', None)
     data = _data_fillnan(data, null)
     # If variables is none, then get the columns
