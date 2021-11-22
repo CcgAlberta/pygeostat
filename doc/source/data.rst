@@ -150,6 +150,10 @@ Read GSLIB Python
 ++++++++++++++++++++++++++
 .. autofunction:: pygeostat.data.iotools.read_gslib
 
+Fortran Compile for GSB
+++++++++++++++++++++++++++
+.. autofunction:: pygeostat.data.iotools.compile_pygsb
+
 Read GSB
 ++++++++
 .. autofunction:: pygeostat.data.iotools.read_gsb

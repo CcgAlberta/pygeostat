@@ -208,8 +208,27 @@ def read_csv(flname, headeronly=False, tmin=None):
 
 
 def compile_pygsb():
-    '''Compiles 'pygeostat/fortran/src/pygsb.f90' using 'pygeostat/fortran/compile.py'
-       and tries to import pygsb.pyd
+    '''
+    Compiles 'pygeostat/fortran/src/pygsb.f90' using 'pygeostat/fortran/compile.py'
+    and tries to import pygsb.pyd
+
+    Note:
+        How to install a gfortran compiler:
+
+        - Install chocolatey from:
+
+            chocolatey.org/install
+
+        (chocolatey is a package manager that let you install software using command prompt and PowerShell)
+        
+        - After installing chocolatey, then install the ‘gnu Fortran compiler’ by writing the below in a PowerShell:
+
+            choco install mingw --version 8.1
+
+            choco install visualstudio2019community
+
+            choco install visualstudio2019-workload-vctools
+
     '''
     import os
     import subprocess
@@ -230,7 +249,7 @@ def compile_pygsb():
     try:
         from ..fortran import pygsb as pygsb
     except ImportError:
-        raise ImportError("Could not import 'pygsb' from 'pygeostat.fortran'('pygsb.f90' did not compile to create 'pygsb.pyd'. Consider installing a gfortran compiler with tools such as mingw.")
+        raise ImportError("Could not import 'pygsb' from 'pygeostat.fortran'('pygsb.f90' did not compile to create 'pygsb.pyd'. Consider installing a gfortran compiler with tools such as mingw (see documnetation to help you how install the Fortran compiler).")
     return pygsb
 
 
@@ -449,7 +468,8 @@ def write_csv(data, flname, variables=None,
             else:
                 data[variables].to_excel(flname, header=True, index=False,
                                          float_format=fmt)
-                                         
+
+
 def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, fmt=0):
     """
     Writes out a GSB (GSLIB-Binary) style data file. NaN values of tvar are compressed
