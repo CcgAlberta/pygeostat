@@ -1294,8 +1294,8 @@ class DataFile:
 	   		.. code-block:: python
 
 				df2d = gs.ExampleData("point2d_ind")
-				df2d.infergriddef(nblk = 60)
-				df2d.infergriddef(blksize = [50,60,1])
+				df2d.infergriddef(nblk = [60, 60, None])
+				df2d.infergriddef(blksize = [50,60,None])
 		"""
 		
 		from .grid_definition import GridDef
