@@ -228,6 +228,7 @@ def compile_pygsb():
             choco install visualstudio2019community
 
             choco install visualstudio2019-workload-vctools
+        - When  installing "mingw" through "chocolatey", ensure that the path of the "mingw" 's "bin" folder is added to the environment variables path.
 
     '''
     import os
