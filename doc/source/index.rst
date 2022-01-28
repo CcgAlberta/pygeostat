@@ -15,7 +15,6 @@ Table of Contents
    :maxdepth: 4
 
    welcome.rst
-   gettingstarted.rst
    installation.rst
    data.rst
    griddef.rst
