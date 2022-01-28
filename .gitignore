@@ -115,7 +115,6 @@ venv.bak/
 *.vtu
 *.vtr
 *.png
-!doc/source/figures/PlottingGallery/*
 examples/temp
 CleanUp.bat
 *.json
