@@ -39,8 +39,7 @@ def accuracy_plot(truth=None, reals=None, mik_thresholds=None, acctype='sim', pr
 			A pandas dataframe/series or numpy array can be passed
 		reals: Tidy (long-form) 2D data where a single column contains values from a single
 			realizations and each row contains the simulated values from a single truth location.
-			A pandas dataframe or numpy matrix can be passed. "reals" has the same number of data points as "truth", 
-			that is , each row of "reals" corresponds to the true value in the same row of "truth".
+			A pandas dataframe or numpy matrix can be passed
 		mik_thresholds (np.ndarray): 1D array of the z-vals ``mik_thresholds`` corresponding to the
 			probabilities defined in reals for each location
 		acctype (str): Currently ``sim`` and ``mik`` are valid. if ``mik_thresholds`` is passed the
@@ -72,7 +71,7 @@ def accuracy_plot(truth=None, reals=None, mik_thresholds=None, acctype='sim', pr
 
 	Returns:
 		ax (ax): Matplotlib Axes object with the cross validation plot
-	
+
 	Examples:
 
 
