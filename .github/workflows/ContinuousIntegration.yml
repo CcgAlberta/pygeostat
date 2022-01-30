@@ -19,7 +19,7 @@ jobs:
       runs-on: [windows-latest]
       strategy:
           matrix:
-              python-version: [3.6, 3.7, 3.8]
+              python-version: [3.7, 3.8, 3.9]
               matplotlib_version: [2.2.*, 3.0.*, 3.2.*]
               pandas_version: [0.25.*, 1.0.*, 1.1.*]
 
