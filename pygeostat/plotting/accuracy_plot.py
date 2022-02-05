@@ -38,7 +38,8 @@ def accuracy_plot(truth=None, reals=None, mik_thresholds=None, acctype='sim', pr
 		truth: Tidy (long-form) 1D data where a single column containing the true values.
 			A pandas dataframe/series or numpy array can be passed
 		reals: Tidy (long-form) 2D data where a single column contains values from a single
-			realizations and each row contains the simulated values from a single truth location.
+			realizations and each row contains the simulated values from a single truth location. “reals” has the same 
+			number of data points as “truth”, that is , each row of “reals” corresponds to the true value in the same row of “truth”.
 			A pandas dataframe or numpy matrix can be passed
 		mik_thresholds (np.ndarray): 1D array of the z-vals ``mik_thresholds`` corresponding to the
 			probabilities defined in reals for each location
@@ -72,10 +73,19 @@ def accuracy_plot(truth=None, reals=None, mik_thresholds=None, acctype='sim', pr
 	Returns:
 		ax (ax): Matplotlib Axes object with the cross validation plot
 
+
+	Note: 
+		The simulated values in each row of “reals” are used to calculate an empirical CDF using the standard method of 
+		the midpoint of a histogram bin and the CDF is constructed using all points (as done in GSLIB). When "mik_thresholds" is None, 
+		“reals” contains the simulated values from which a cdf should be computed. Otherwise the “reals” contains the distribution values, 
+		F(mik_thresholds), for each location (each row of the data file).
+
+
 	Examples:
 
 
-	A simple call using truth and realization data:
+	A simple call using truth and realization data: in this example, the first column of data_file is "truth" 
+	and the rest of columns are "reals".
 
 	.. plot::
 

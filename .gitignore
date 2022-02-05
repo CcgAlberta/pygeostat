@@ -114,7 +114,6 @@ venv.bak/
 *.h5
 *.vtu
 *.vtr
-*.png
 !doc/source/figures/*
 !doc/source/figures/PlottingGallery/*
 examples/temp
