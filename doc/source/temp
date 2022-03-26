@@ -2,7 +2,7 @@ Parameters for GMM_EM
 *********************
 
 START OF PARAMETERS:
-C:\Users\zhadavan\ZH\ZahraGEOSTAT\CodesOnZOfficeComputer\January28_2022_forkedpygeostat\pygeostat\data\example_data\point2d_mv.dat                - file with data
+C:\Users\zhadavan\Desktop\ALAN\pygeostat\data\example_data\point2d_mv.dat                - file with data
 3 3 4 5               - Number of variables and columns
 -998 1e21             - trimming limits
 gmm_fit.out           - output file

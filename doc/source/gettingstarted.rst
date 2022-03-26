@@ -27,3 +27,19 @@ A series of introductory tutorials to begin learning Python (https://docs.python
    
 .. image:: ./figures/GettingStarted/3.png
    :align: left
+
+
+	Examples:
+
+Some Exapmles of using Python standard libraries for resource modelling: 
+	Swath plot:
+
+.. plot::
+
+   import pygeostat as gs
+   datafl = gs.ExampleData('3d_estimate').data
+   data = datafl[['x', 'y', 'z','True', 'Estimate']]
+   # swath plot
+   for orient in ['x','y','z']:
+      swath = data.groupby(orient)[['True', 'Estimate']].mean()
+      swath.plot(title = f'{orient.upper()} Axis Swath Plot')
