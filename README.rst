@@ -5,7 +5,7 @@ Pygeostat
 
 |integration_test| |docs| |PyPi| 
 
-|Python36| |Python37| |Python38|
+|Python37| |Python38| |Python39|
 
 Introduction
 +++++++++++++++++++++++
@@ -34,11 +34,6 @@ Refer to `www.ccgalberta.com <http://www.ccgalberta.com>`_
 .. |PyPi| image:: https://badge.fury.io/py/pygeostat.svg
     :target: https://badge.fury.io/py/pygeostat
 
-.. |Python36| image:: https://img.shields.io/badge/python-3.6-blue.svg
-    :target: https://www.python.org/downloads/release/python-360
-    :alt: Python Version
-    :scale: 100%
-
 .. |Python37| image:: https://img.shields.io/badge/python-3.7-red.svg
     :target: https://www.python.org/downloads/release/python-370
     :alt: Python Version
@@ -46,5 +41,10 @@ Refer to `www.ccgalberta.com <http://www.ccgalberta.com>`_
 
 .. |Python38| image:: https://img.shields.io/badge/python-3.8-black.svg
     :target: https://www.python.org/downloads/release/python-380
+    :alt: Python Version
+    :scale: 100%
+
+.. |Python39| image:: https://img.shields.io/badge/python-3.9-blue.svg
+    :target: https://www.python.org/downloads/release/python-390
     :alt: Python Version
     :scale: 100%
