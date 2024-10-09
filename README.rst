@@ -14,10 +14,18 @@ This is a Python package for geostatistical modeling. Pygeostat is aimed at prep
 
 For lessons on geostatiscts visit `Geostatistic Lessons <http://geostatisticslessons.com/>`_.
 
+Resource Modeling Solutions Platform (`RMSP <https://resourcemodelingsolutions.com/rmsp/>`_) is a python package for modern geostatitical modeling. Contact Resource Modeling Solutions about a commercial or academic license.
+
+|rmsp_log|
 
 Contact:
 +++++++++++++++++++
 Refer to `www.ccgalberta.com <http://www.ccgalberta.com>`_
+
+.. |rmsp_log| image:: https://geostatisticslessons.com/images/icons/resource_modeling_solutions_logo.png
+    :alt: RMS
+    :target: https://resourcemodelingsolutions.com/
+    :width: 500px
 
 .. |pygeostatlogo| image:: http://www.ccgalberta.com/pygeostat/_images/pygeostat_logo.png
 
