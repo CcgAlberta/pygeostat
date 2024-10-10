@@ -21,7 +21,12 @@ For a full featured commercial alternative to pygeostat, see [RMSP](https://reso
 <picture align="center">
   <source media="(prefers-color-scheme: light)" srcset="https://resourcemodelingsolutions.com/static/ec83077e0259aa9925747a9199614def/127cf/Resource-Modeling-Solutions-Home-Page-Logo-RGB.webp">
   <img alt="RMS Logo" src="https://resourcemodelingsolutions.com/static/93cbdd9bde3a60780e21d4ae1c501d18/127cf/Resource-Modeling-Solutions-Home-Page-Logo-KO.webp" width="500px">
-</picture> 
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://resourcemodelingsolutions.com/static/93cbdd9bde3a60780e21d4ae1c501d18/127cf/Resource-Modeling-Solutions-Home-Page-Logo-KO.webp">
+  <source media="(prefers-color-scheme: light)" srcset="https://resourcemodelingsolutions.com/static/ec83077e0259aa9925747a9199614def/127cf/Resource-Modeling-Solutions-Home-Page-Logo-RGB.webp">
+</picture>
 
 Contact Resource Modeling Solutions about a commercial or academic license.
 
