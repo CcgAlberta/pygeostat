@@ -7,7 +7,7 @@
 
 ||
 | --- |
-| [![CI - Test](https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master)]( https://github.com/CcgAlberta/pygeostat) |
+| [![CI - Test](https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master)]( https://github.com/CcgAlberta/pygeostat) [![Docs](https://github.com/CcgAlberta/pygeostat/workflows/Documentation/badge.svg?branch=master)](https://www.ccgalberta.com/pygeostat/welcome.html) [![PyPi](https://badge.fury.io/py/pygeostat.svg)]([https://www.ccgalberta.com/pygeostat/welcome.htm](https://badge.fury.io/py/pygeostat)l)|
 
 |integration_test| |docs| |PyPi| 
 
