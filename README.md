@@ -15,7 +15,7 @@
 
 This is a Python package for geostatistical modeling. Pygeostat is aimed at preparing spatial data, scripting geostatistical workflows, modeling using tools developed at the Centre for Computational Geostatistics ([CCG](http://www.ccgalberta.com)), and constructing visualizations to study spatial data, and geostatistical models. More information about installing and using pygeostat can be found in the [documentation](http://www.ccgalberta.com/pygeostat/welcome.html).
 
-For lessons on geostatiscts visit [Geostatistic Lessons](http://geostatisticslessons.com/).
+For lessons on geostatiscts visit [Geostatistics Lessons](http://geostatisticslessons.com/).
 
 For a full featured commercial alternative to pygeostat, see [RMSP](https://resourcemodelingsolutions.com/rmsp/) from [Resource Modeling Solutions](https://resourcemodelingsolutions.com). 
 <picture align="center">
