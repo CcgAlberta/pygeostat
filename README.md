@@ -19,8 +19,8 @@ For lessons on geostatiscts visit [Geostatistics Lessons](http://geostatisticsle
 
 For a full featured commercial alternative to pygeostat, see [RMSP](https://resourcemodelingsolutions.com/rmsp/) from [Resource Modeling Solutions](https://resourcemodelingsolutions.com). 
 <picture align="center">
-  <source media="(prefers-color-scheme: dark)" srcset="https://geostatisticslessons.com/images/icons/resource_modeling_solutions_logo.png">
-  <img alt="RMS Logo" src="https://geostatisticslessons.com/images/icons/resource_modeling_solutions_logo.png" width="500px">
+  <source media="(prefers-color-scheme: dark)" srcset="https://resourcemodelingsolutions.com/static/ec83077e0259aa9925747a9199614def/127cf/Resource-Modeling-Solutions-Home-Page-Logo-RGB.webp">
+  <img alt="RMS Logo" src="https://resourcemodelingsolutions.com/static/93cbdd9bde3a60780e21d4ae1c501d18/127cf/Resource-Modeling-Solutions-Home-Page-Logo-KO.webp" width="500px">
 </picture> 
 
 Contact Resource Modeling Solutions about a commercial or academic license.
