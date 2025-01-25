@@ -3,12 +3,12 @@ probscale
 pytest
 pyevtk
 numpy
-pandas>=0.25.3
+pandas
 scipy
 scikit-learn
 statsmodels
 numba
-matplotlib>=2.2.*
+matplotlib
 h5py
 pillow
 tqdm
