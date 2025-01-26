@@ -33,7 +33,7 @@ setup(name='pygeostat',
                                                  'pygeostat.fortran.resource.LAPACK',
                                                  'pygeostat.fortran.resource.LAPACK.ALL',
                                                  'pygeostat.fortran.resource.rm'],
-      python_requires='>3.5',
+      python_requires='>=3.10',
       install_requires=install_requires,
       classifiers=[
           "Programming Language :: Python :: 3",
