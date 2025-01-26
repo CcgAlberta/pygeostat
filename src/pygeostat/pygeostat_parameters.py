@@ -12,7 +12,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import six
 import os
-from collections import MutableMapping
+from collections.abc import MutableMapping
 import warnings
 
 # Validation functions for parameters
