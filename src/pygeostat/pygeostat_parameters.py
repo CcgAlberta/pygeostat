@@ -910,9 +910,9 @@ class PlotStyle(Parameters):
 		import warnings
 
 		if Parameters['config.ignore_mpl_warnings']:
-			warnings.filterwarnings("ignore", category=cbook.MatplotlibDeprecationWarning)
+			warnings.filterwarnings("ignore", category=cbook.VisibleDeprecationWarning)
 		else:
-			warnings.filterwarnings('default', category=cbook.MatplotlibDeprecationWarning)
+			warnings.filterwarnings('default', category=cbook.VisibleDeprecationWarning)
 
 		# Required in order to restore mlp rcParams
 		self._old_rcParams = self.mpl.rcParams.copy()
