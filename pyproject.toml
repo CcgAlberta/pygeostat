@@ -1,0 +1,19 @@
+[project]
+name = "pygeostat"
+version = "2.0.0"
+description = "Python interface for geostatistics"
+readme = "README.md"
+license = { text = "MIT" } 
+authors = [
+    { name = "Jared Deutsch" },
+    { name = "Matthew Deutsch" },
+    { name = "Ryan Martin" },
+    { name = "Warren Black" },
+    { name = "Tyler Acorn" },
+    { name = "Mostafa Hadavand", email = "hadavand@ualberta.ca" },
+    { name = "Ryan Barnett" }
+]
+maintainers = [
+    { name = "Ronny A. Hernandez Mora", email = "ronnyale:w@ualberta.ca" }
+]
+
