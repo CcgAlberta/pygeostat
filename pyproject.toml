@@ -20,7 +20,7 @@ maintainers = [
     {name = "pygeostat development team", email = "hadavand@ualberta.ca"},
 ]
 description = "Python interface for geostatistics"
-readme = "README.rst"
+readme = "README.md"
 keywords = ["geostatistics"]
 license = {text = "MIT"}
 classifiers = [
@@ -29,13 +29,14 @@ classifiers = [
     "Operating System :: Microsoft",
     "Programming Language :: Python :: 3",
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 
 [project.urls]
 Documentation = "https://www.ccgalberta.com/pygeostat/welcome.html"
 Source = "https://github.com/CcgAlberta/pygeostat"
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = [
     "pygeostat",
     "pygeostat.*",
