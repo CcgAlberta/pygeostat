@@ -38,6 +38,7 @@ jobs:
           pip install pytest codecov pytest-cov
 
       - name: Add src to PYTHONPATH
+        shell: bash
         run: |
           echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src" >> $GITHUB_ENV
 
