@@ -39,6 +39,5 @@ jobs:
 
       - name: Test with pytest
         run: |
-          python -m pytest tests/ -v --durations=5 --cov=pygeostat 
-
+          pytest -ra -v ./tests/ --durations=5 -x --trace --cov
 
