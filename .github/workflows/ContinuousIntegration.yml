@@ -35,7 +35,7 @@ jobs:
           pip install matplotlib==${{ matrix.matplotlib_version }}
           pip install pandas==${{ matrix.pandas_version }}
           pip install -e .[dev]
-          pip install codecov pytest-cov
+          pip install pytest codecov pytest-cov
 
       - name: Test with pytest
         run: |
