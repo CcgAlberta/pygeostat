@@ -841,7 +841,10 @@ class ContourPlotTest(BaseTest):
 		Test the GMM plotting
 		'''
 		try:
-			gmm_util = gs.GmmUtility(gmm_file=os.path.join(os.path.normpath(os.getcwd() + os.sep + os.pardir), r'pygeostat\pygeostat\data\example_data\gmm_fit.out'), 
+			gmm_file = os.path.join(os.path.dirname(os.getcwd()), 
+                        'pygeostat', 'src', 'pygeostat', 'data', 'example_data', 'gmm_fit.out')
+			gmm_file = os.path.normpath(gmm_file)
+			gmm_util = gs.GmmUtility(gmm_file=gmm_file,
                       data=gs.ExampleData('point2d_mv').data, variable_names=['Var1', 'Var2','Var3'])
 		except Exception as ex:
 			self.fail('Unable to test GmmUtility \n{}'.format(str(ex)))

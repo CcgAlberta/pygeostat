@@ -416,10 +416,10 @@ def write_gslib(data, flname, title=None, variables=None,
         # GSLIB separated data
         if isinstance(data, DataFile):
             data.data[variables].to_csv(outfl, header=False, index=False, sep=sep,
-                                        float_format=fmt, line_terminator='\n')
+                                        float_format=fmt, lineterminator='\n')
         else:
             data[variables].to_csv(outfl, header=False, index=False, sep=sep,
-                                   float_format=fmt, line_terminator='\n')
+                                   float_format=fmt, lineterminator='\n')
 
 
 def write_csv(data, flname, variables=None,
@@ -455,10 +455,10 @@ def write_csv(data, flname, variables=None,
             # CSV using pandas native CSV writer
             if isinstance(data, DataFile):
                 data.data[variables].to_csv(outfl, header=True, index=False, sep=sep,
-                                            float_format=fmt, line_terminator='\n')
+                                            float_format=fmt, lineterminator='\n')
             else:
                 data[variables].to_csv(outfl, header=True, index=False, sep=sep,
-                                       float_format=fmt, line_terminator='\n')
+                                       float_format=fmt, lineterminator='\n')
         elif (fltype.lower() == 'xlsx') or (fltype.lower() == 'excel'):
             # Excel file writer - only xlsx is supported naturally in pygeostat,
             # but XLWT could be used if XLS files needed to be created
