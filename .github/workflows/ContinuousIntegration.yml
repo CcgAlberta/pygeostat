@@ -37,10 +37,6 @@ jobs:
           pip install -e src/
           pip install pytest codecov pytest-cov
 
-      - name: Verify package installation
-        run: |
-          pip list | findstr pygeostat
-
       - name: Add src to PYTHONPATH
         run: |
           echo "PYTHONPATH=$PYTHONPATH:$(pwd)/src" >> $GITHUB_ENV
