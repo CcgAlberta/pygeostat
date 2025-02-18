@@ -384,7 +384,7 @@ def correlation_matrix_plot(correlation_data, figsize=None, ax=None, cax=None, t
             clrmap = mpl.cm.ScalarMappable(norm=clrnorm, cmap=cmap)
         for y in range(plot_data.shape[0]):
             for x in range(plot_data.shape[1]):
-                if isinstance(plot_data[y, x], np.float):
+                if isinstance(plot_data[y, x], float):
                     # try:
                     #     color = clrmap.to_rgba(plot_data[y, x])
                     # except (KeyError, ValueError):
