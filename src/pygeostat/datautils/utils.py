@@ -161,7 +161,7 @@ def slice_grid(data, griddef, orient, slice_number, slice_thickness=None, tmin=N
     if slice_thickness is not None:
         slicerange = np.arange(slice_number - slice_thickness, slice_number + slice_thickness)
         nslice = len(slicerange)
-        slices = np.zeros((nslice, *view.shape), dtype=np.float)
+        slices = np.zeros((nslice, *view.shape), dtype=float)
         for isl, slno in enumerate(slicerange):
             if orient == 'xy':
                 slices[isl, :, :] = data[slno, :, :]

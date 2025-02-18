@@ -5,7 +5,7 @@
 Installation
 ============
 
-Note that pygeostat requires Python 3.6+. Pygeostat will likely require modification to work with
+Note that pygeostat requires Python 3.7+. Pygeostat will likely require modification to work with
 any other version of python. Pygeostat is also dependent on the suite of curated python
 packages provided with the Anaconda Python distribution. It is recommended to install this
 prior to pygeostat installation.

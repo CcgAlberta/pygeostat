@@ -8,8 +8,10 @@
 |||
 | --- | --- |
 | Package | [![CI - Test](https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master)]( https://github.com/CcgAlberta/pygeostat) [![Docs](https://github.com/CcgAlberta/pygeostat/workflows/Documentation/badge.svg?branch=master)](https://www.ccgalberta.com/pygeostat/welcome.html) [![PyPi](https://badge.fury.io/py/pygeostat.svg)]([https://www.ccgalberta.com/pygeostat/welcome.htm](https://badge.fury.io/py/pygeostat))|
-| Versions | [![Python36](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360) [![Python37](https://img.shields.io/badge/python-3.7-red.svg)](https://www.python.org/downloads/release/python-370) [![Python3.8](https://img.shields.io/badge/python-3.8-black.svg)](https://www.python.org/downloads/release/python-380)|
+| Versions | [![Python3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100) [![Python3.11](https://img.shields.io/badge/python-3.11-red.svg)](https://www.python.org/downloads/release/python-3110) |
 
+:warning: This package is being updated. Expect frequent changes to the code and functionality.
+Latest stable release can be found [here](https://github.com/CcgAlberta/pygeostat/releases/tag/v1.1.1)
 
 ## Introduction
 
