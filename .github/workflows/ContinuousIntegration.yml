@@ -38,5 +38,5 @@ jobs:
 
       - name: Test with pytest
         run: |
-          pytest -ra -v ./tests/ --durations=5 -x --trace --cov
+          python -m pytest -ra -v ./tests/ --durations=5 -x --trace --cov
 
