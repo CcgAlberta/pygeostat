@@ -31,6 +31,18 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+docs = [
+    "sphinx",
+    "nbsphinx",
+    "sphinx-rtd-theme"
+]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+
 [project.urls]
 Documentation = "https://www.ccgalberta.com/pygeostat/welcome.html"
 Source = "https://github.com/CcgAlberta/pygeostat"
