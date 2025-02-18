@@ -62,6 +62,18 @@ dev = [
     "sphinx-rtd-theme>=3.0.2",
 ]
 
+[project.optional-dependencies]
+docs = [
+    "sphinx",
+    "nbsphinx",
+    "sphinx-rtd-theme"
+]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+
 [project.urls]
 Documentation = "https://www.ccgalberta.com/pygeostat/welcome.html"
 Source = "https://github.com/CcgAlberta/pygeostat"
