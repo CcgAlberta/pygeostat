@@ -13,9 +13,7 @@ on:
       - "**"
 
 jobs:
-
   IntegrationTest:
-
       runs-on: [windows-latest]
       strategy:
           matrix:
@@ -24,19 +22,22 @@ jobs:
               pandas_version: [1.5.*, 2.0.*, 2.1.*]
 
       steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install matplotlib==${{ matrix.matplotlib_version }}
           pip install pandas==${{ matrix.pandas_version }}
-          pip install -r requirements.txt
+          pip install -e .
           pip install codecov pytest-cov
-      - name: Test with unittest
+
+      - name: Test with pytest
         run: |
           pytest -ra -v ./tests/ --durations=5 -x --trace --cov
     
