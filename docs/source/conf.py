@@ -61,7 +61,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'pygeostat'
-copyright = '2015-2020, Center for Computational Geostatistics'
+copyright = '2015-2025, Center for Computational Geostatistics'
 author = 'pygeostat Core Team'
 
 # The version info for the project you're documenting, acts as replacement for
