@@ -47,8 +47,13 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.graphviz',
     'sphinx.ext.inheritance_diagram',
-    'nbsphinx'
+    'nbsphinx',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.autosummary'
 ]
+
+# TODO: Check if this works:
+autosummary_generate = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['templates']
@@ -84,7 +89,7 @@ release = version
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -128,16 +133,38 @@ todo_include_todos = False
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'alabaster'
+#html_theme = 'alabaster'
+html_theme = 'pydata_sphinx_theme'
 
+html_theme_options = {
+    "github_url": "https://github.com/CcgAlberta/pygeostat",
+    "use_edit_page_button": False,
+    "show_prev_next": False,
+    "navigation_depth": 3,
+    "navbar_align": "left",
+    "logo": {
+        "image_light": "pygeostat_logo_notxt.png",
+        "image_dark": "pygeostat_logo_notxt.png",
+    },
+    "navbar_start": ["navbar-logo"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["navbar-icon-links", "theme-switcher"],
+    "primary_sidebar_end": ["sidebar-ethical-ads"],
+    "secondary_sidebar_items": ["page-toc", "edit-this-page", "sourcelink"],
+    # This defines the actual navigation items
+    "header_links_before_dropdown": 6,  # Number of links before More dropdown
+    "external_links": [
+        {"name": "Issues", "url": "https://github.com/CcgAlberta/pygeostat/issues"}
+    ],
+}
 
 # JLD Read the docs theme instead
 # on_rtd is whether we are on readthedocs.org
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+#on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+#if not on_rtd:  # only import and set the theme if we're building docs locally
+#    import sphinx_rtd_theme
+#    html_theme = 'sphinx_rtd_theme'
+#    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # otherwise, readthedocs.org uses their theme by default, so no need to specify it
 
 
