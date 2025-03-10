@@ -10,44 +10,47 @@ This section contains a collection of examples on using pygeostat for different 
 Introduction
 ***********************
 
-.. raw:: html
-
-     <div class="field-item even" property="content:encoded"><iframe width="100%" height="600" src="_static/Introduction.html" frameborder="0" allowFullScreen="true"></iframe></div>
-
+.. toctree::
+   :maxdepth: 2
+   
+   examples/Introduction
 |
 
 Kriging
 ***********************
 
-.. raw:: html
-
-     <div class="field-item even" property="content:encoded"><iframe width="100%" height="600" src="_static/Kriging2.html" frameborder="0" allowFullScreen="true"></iframe></div>
+.. toctree::
+   :maxdepth: 2
+   
+   examples/kriging1
+   examples/kriging2
 
 |
 
 Boundary Modeling
 ***********************
 
-.. raw:: html
-
-     <div class="field-item even" property="content:encoded"><iframe width="100%" height="600" src="_static/BoundaryModeling.html" frameborder="0" allowFullScreen="true"></iframe></div>
-
+.. toctree::
+   :maxdepth: 2
+   
+   examples/BoundaryModeling
 
 |
 
 Structural Modeling
 ***********************
 
-.. raw:: html
-
-     <div class="field-item even" property="content:encoded"><iframe width="100%" height="600" src="_static/StructuralModeling.html" frameborder="0" allowFullScreen="true"></iframe></div>
-
+.. toctree::
+   :maxdepth: 2
+   
+   examples/StructuralModeling
 
 |
 
 GMM Visualization
 ***********************
 
-.. raw:: html
-
-     <div class="field-item even" property="content:encoded"><iframe width="100%" height="600" src="_static/GMM.html" frameborder="0" allowFullScreen="true"></iframe></div>
+.. toctree::
+   :maxdepth: 2
+   
+   examples/GMM

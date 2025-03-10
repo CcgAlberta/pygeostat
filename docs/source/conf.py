@@ -16,11 +16,15 @@
 
 import sys
 import os
-import shlex
+from pathlib import Path
+
+# Base paths definition
+DOC_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = DOC_DIR.parent
 
 # Make sure the source is found
-sys.path.insert(0, "../..")
-sys.path.insert(0, "../../pygeostat")
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "pygeostat"))
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -43,6 +47,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.graphviz',
     'sphinx.ext.inheritance_diagram'
+    'nbsphinx'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -89,7 +94,7 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build']
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -163,19 +168,27 @@ plot_rcparams = {"savefig.bbox": "tight"}
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = './figures/pygeostat_logo_notxt.png'
+html_logo = str(DOC_DIR / 'source' / 'figures' / 'pygeostat_logo_notxt.png')
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
-html_favicon = './figures/favicon.ico'
+html_favicon = str(DOC_DIR / 'source' / 'figures' / 'favicon.ico')
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-extra_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..\..\examples'))
-html_static_path = ['static', extra_path]
-html_static_path.append(os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'.\figures\PlottingGallery')))
+html_static_path = ['static']
+
+# This is to add the examples directory if exists to the static path
+examples_dir = DOC_DIR / 'examples'
+if examples_dir.exists():
+    html_static_path.append(str(examples_dir))
+
+# Also to add the plotting gallery to static path
+plotting_gallery = DOC_DIR / 'source' / 'figures' / 'PlottingGallery'
+if plotting_gallery.exists():
+    html_static_path.append(str(plotting_gallery))
 
 # html_extra_path = []
 
@@ -240,16 +253,16 @@ html_show_sphinx = False
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'pygeostatdoc'
+#htmlhelp_basename = 'pygeostatdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
-    # 'papersize': 'letterpaper',
+    'papersize': 'letterpaper',
 
     # The font size ('10pt', '11pt' or '12pt').
-    # 'pointsize': '10pt',
+    'pointsize': '10pt',
 
     # Additional stuff for the LaTeX preamble.
     # 'preamble': '',
@@ -322,3 +335,7 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
+
+# Options for the notebooks
+nbsphinx_execute = 'never'
+nbsphinx_allow_errors = True
