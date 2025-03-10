@@ -13,7 +13,7 @@ Introduction
 .. toctree::
    :maxdepth: 2
    
-   examples/Introduction
+   ../../examples/Introduction
 |
 
 Kriging
@@ -22,8 +22,8 @@ Kriging
 .. toctree::
    :maxdepth: 2
    
-   examples/kriging1
-   examples/kriging2
+   ../../examples/kriging1
+   ../../examples/kriging2
 
 |
 
@@ -33,7 +33,7 @@ Boundary Modeling
 .. toctree::
    :maxdepth: 2
    
-   examples/BoundaryModeling
+   ../../examples/BoundaryModeling
 
 |
 
@@ -43,7 +43,7 @@ Structural Modeling
 .. toctree::
    :maxdepth: 2
    
-   examples/StructuralModeling
+   ../../examples/StructuralModeling
 
 |
 
@@ -53,4 +53,4 @@ GMM Visualization
 .. toctree::
    :maxdepth: 2
    
-   examples/GMM
+   ../../examples/GMM
