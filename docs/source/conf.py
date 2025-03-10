@@ -46,7 +46,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.graphviz',
-    'sphinx.ext.inheritance_diagram'
+    'sphinx.ext.inheritance_diagram',
     'nbsphinx'
 ]
 
