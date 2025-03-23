@@ -1,0 +1,133 @@
+/* Custom CSS for pygeostat package*/
+
+/* Main content styling */
+.bd-content {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* Code block styling */
+div.highlight pre {
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    padding: 0.5em;
+    margin-bottom: 1.5em;
+    border-radius: 3px;
+}
+
+/* Function and class signature styling */
+dt.sig {
+    background-color: #f8f8f8;
+    border-left: 3px solid #2878A2;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+/* API Reference styling */
+dl.class, dl.function, dl.method {
+    margin-bottom: 30px;
+}
+
+dl.class > dt, dl.function > dt, dl.method > dt {
+    margin-bottom: 10px;
+    padding: 3px 5px;
+    font-weight: bold;
+}
+
+/* Header styling */
+h1, h2 {
+    border-bottom: 1px solid #eaecef;
+    padding-bottom: 0.3em;
+}
+
+/* Sidebar styling */
+.bd-sidebar {
+    border-right: 1px solid #eaecef;
+}
+
+/* Table styling */
+table.docutils {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5em;
+}
+
+table.docutils td, table.docutils th {
+    padding: 8px;
+    border: 1px solid #ddd;
+}
+
+table.docutils tr:nth-child(even) {
+    background-color: #f8f8f8;
+}
+
+/* More prominent links */
+a {
+    color: #2878A2;
+}
+
+a:hover {
+    color: #1f5c7e;
+    text-decoration: underline;
+}
+
+/* Improved list styling */
+ul.simple {
+    margin-bottom: 1.5em;
+}
+
+ul.simple li {
+    margin-bottom: 0.5em;
+}
+
+/* Grid card styling (for homepage) */
+.sd-card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.sd-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+}
+
+.sd-card-title {
+    color: #2878A2;
+    font-weight: bold;
+}
+
+/* Notebook styling */
+.nbinput .prompt, .nboutput .prompt {
+    display: none;
+}
+
+div.nbinput.container div.prompt, div.nboutput.container div.prompt {
+    display: none;
+}
+
+div.nbinput.container, div.nboutput.container {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 1em;
+}
+
+div.nbinput.container {
+    background-color: #f8f8f8;
+}
+
+/* API function/class boxes */
+dl.py.function, dl.py.class, dl.py.method, dl.py.attribute {
+    background-color: #f8f8f8;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+/* Make the API reference look like scikit-learn */
+.classifier:before {
+    content: " :: ";
+}
+
+.classifier {
+    font-style: italic;
+}
