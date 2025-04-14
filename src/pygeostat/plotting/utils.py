@@ -500,35 +500,65 @@ def get_supaxislocs(fig, nrow, ncol, figsize, pad):
 
     return xmin, xmid, ymin, ymid, ymax
 
-
 def _get_cmap(cmap, catdata, ncat):
-    '''Determine the colormap based on the catdata boolean, cmap value and Parameters.
-    Used by location_plot'''
-
+    '''
+    Determine the colormap based on categorical data flag, provided colormap 
+    name, and parameters.
+    Used by location_plot and other plotting functions.
+    
+    Parameters
+    ----------
+    cmap : str, matplotlib.colors.Colormap, or None
+        Name of colormap or colormap object
+    catdata : bool or None
+        Flag indicating if data is categorical
+    ncat : int
+        Number of categories (used for categorical data)
+        
+    Returns
+    -------
+    matplotlib.colors.Colormap
+        The selected colormap
+    '''
     from . cmaps import avail_palettes, avail_cmaps
     from matplotlib.colors import LinearSegmentedColormap
+    
     if catdata:
+        # Get default categorical colormap if none provided
         if cmap is None:
             cmap = Parameters['plotting.cmap_cat']
             if isinstance(cmap, dict):
                 cmap = list(cmap.values())
                 cmap = LinearSegmentedColormap.from_list('cmap_cat', cmap, N=len(cmap))
-        if not isinstance(cmap, mpl.colors.ListedColormap):
+        
+        if not isinstance(cmap, mpl.colors.Colormap):
             if cmap in avail_palettes:
+                # Use pygeostat's custom palette
                 cmap = get_palette(cmap, ncat)
             else:
                 cmap = catcmapfromcontinuous(cmap, ncat)
+    
+    # Handle continuous data case
     else:
         if cmap is None:
             cmap = Parameters['plotting.cmap']
-        if not isinstance(cmap, mpl.colors.ListedColormap):
+            
+        if not isinstance(cmap, mpl.colors.Colormap):
             if cmap in avail_cmaps:
+                # Use pygeostat's custom colormap
                 cmap = get_cmap(cmap)
-            elif cmap in plt.colormaps():
-                cmap = plt.cm.get_cmap(cmap)
             else:
-                pass  # this causes MPL to raise an exception and give a list of valid cmaps
+                try:
+                    cmap = mpl.colormaps[cmap]
+                except (KeyError, TypeError):
+                    pass
+    
     return cmap
+
+
+
+
+
 
 
 def setup_plot(ax, cbar=None, figsize=None, cax=None, aspect=None):
