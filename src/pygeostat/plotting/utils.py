@@ -310,32 +310,54 @@ def get_cmap(colormap):
 
 def catcmapfromcontinuous(contcmap, ncats, offset=0.5):
     """
-    Use the continuous colormap to get a set of categorical values returned in the
-    proper format for the other plotting routines in pygeostat from ListedColormap()
-
-    Parameters:
-        contcmap (str): valid matplotlib continuous colormap string, like 'jet' or 'spectral'
-        ncats (int): number of categories passed to the function
-        offset (float): offsets the colors so as they are not the end member colors
-
-    Returns:
-        cmap (cmap): Matplotlib colormap
-
-    .. codeauthor:: pygeostat development team 2016-05-18
+    Create a categorical colormap from a continuous colormap.
+    
+    Takes a continuous colormap and samples it at regular intervals to create 
+    a categorical colormap with the specified number of categories.
+    
+    Parameters
+    ----------
+    contcmap : str or matplotlib.colors.Colormap
+        Valid matplotlib continuous colormap string or colormap object
+    ncats : int
+        Number of categories to create in the resulting colormap
+    offset : float, default=0.5
+        Offset value to avoid using extreme end colors of the colormap
+        
+    Returns
+    -------
+    matplotlib.colors.ListedColormap
+        A categorical colormap with ncats colors
+        
+    Notes
+    -----
+    The offset parameter (default 0.5) helps avoid the extreme colors at the 
+    ends of the colormap, which are often too light or too dark.
     """
-
     from . cmaps import avail_cmaps
+    from matplotlib.colors import ListedColormap
+    import matplotlib as mpl
 
     if contcmap in avail_cmaps:
+        # Use custom pygeostat colormap
         cm = get_cmap(contcmap)
     else:
-        cm = plt.cm.get_cmap(contcmap)
+        try:
+            cm = mpl.colormaps[contcmap]
+        except (KeyError, TypeError):
+            raise ValueError(f"Colormap '{contcmap}' not found in matplotlib or pygeostat colormaps")
+    
     colors = []
     for num in range(ncats):
-        colors.append(cm((num + offset) / (ncats)))
+        position = (num + offset) / ncats
+        colors.append(cm(position))
 
-    cmap = ListedColormap(colors, name=contcmap)
-    return cmap
+    return ListedColormap(colors, name=f"{contcmap}_categorical_{ncats}")
+
+
+
+
+
 
 
 def get_label(data):
