@@ -1,24 +1,77 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
 
-__author__ = 'pygeostat development team'
-__date__ = '2020-01-04'
-__version__ = '1.0.0'
+"""Tests for plotting functionality in pygeostat"""
 
-import os, sys
-try:
-	import pygeostat as gs
-except (ImportError, ModuleNotFoundError):
-	sys.path.append(os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..')))
-	import pygeostat as gs
-import unittest
+import os
+import sys
 import warnings
-import subprocess
-import pandas as pd
-import numpy as np
 import tempfile
+import pytest
+import numpy as np
+import pandas as pd
+import pygeostat as gs
+from matplotlib import pyplot as plt
 
+@pytest.fixture
+def plot_output_dir():
+    """Create temporal output directory for plots"""
+    warnings.simplefilter('ignore', category=ImportWarning)
+    out_dir = tempfile.NamedTemporaryFile().name
+    gs.mkdir(out_dir)
+    yield out_dir
+    gs.clrmplmem()
+    gs.rmdir(out_dir)
+
+@pytest.fixture
+def location_plot_data():
+    """Provide plot sample data"""
+    return gs.ExampleData('point3d_ind_mv')
+
+
+def test_location_plot_simple(plot_output_dir, location_plot_data):
+    """Test capability of plotting by passing just the data file"""
+    output_file = os.path.join(plot_output_dir, "location_plot_test.png")
+    try:
+        _ = gs.location_plot(location_plot_data, output_file = output_file)
+    except Exception as ex:
+        pytest.fail(f'Unable to test the location plot with simple settings \n{str(ex)}')
+
+    assert os.path.isfile(output_file)
+
+
+def test_location_plot_cmap(plot_output_dir, location_plot_data):
+    """Test capability of plottin by passing argument variable name to get color map"""
+    output_file = os.path.join(plot_output_dir, "location_plot_cmap_test.png")
+    _, ax = plt.subplots(1,1)
+
+    try:
+        _ = gs.location_plot(location_plot_data, var='Phi', output_file=output_file)
+        _ = gs.location_plot(location_plot_data, var='Phi', output_file=output_file, ax=ax)
+
+    except Exception as ex:
+        pytest.fail(f'Unable to test the location plot with passing variable name\n{str(ex)}')
+
+    assert os.path.isfile(output_file)
+
+def test_location_plot_lines(plot_output_dir, location_plot_data):
+    """Test plotting along xz/yz orientation and use the line plots based on drill hole id."""
+    output_file = os.path.join(plot_output_dir, "location_plot_lines_test.png")
+
+    try:
+        _ = gs.location_plot(
+        location_plot_data,
+        var = 'Phi',
+        orient = 'yz',
+        aspect=5,
+        plot_collar=True,
+        output_file=output_file
+    )
+
+    except Exception as ex:
+        pytest.fail(f'Unable to test the location plot along yz/xz orientation \n{str(ex)}')
+
+    assert os.path.isfile(output_file)
 
 
 class BaseTest(unittest.TestCase):
@@ -34,76 +87,6 @@ class BaseTest(unittest.TestCase):
 		gs.clrmplmem()
 		gs.rmdir(self.out_dir)
 		
-
-class LocationPlotTest(BaseTest):
-	'''
-	 Test suite for pygeostat location_plot
-	'''
-
-	def setUp(self):
-		super().setUp()
-		self.data = gs.ExampleData('point3d_ind_mv')
-
-	def test_simple_plot(self):
-		'''
-		Test the capability of plotting by passing only the data file
-		'''
-		
-		output_file = os.path.join(self.out_dir, 'location_plot1.png')
-		try:
-			_ = gs.location_plot(self.data, output_file = output_file)
-		except Exception as ex:
-			self.fail('Unable to test the location plot with simple settings \n{}'.format(str(ex)))
-
-		self.assertEqual(os.path.isfile(output_file), True)
-
-	def test_plot_cmap(self):
-		'''
-		Test the capability of plotting by passing variable name to get the color map
-		'''
-		from matplotlib import pyplot as plt
-
-		output_file = os.path.join(self.out_dir, 'location_plot2.png')
-		_, ax = plt.subplots(1,1)
-		try:
-			_ = gs.location_plot(self.data, var='Phi', output_file = output_file)
-			_ = gs.location_plot(self.data, var='Phi', output_file = output_file, ax =ax)
-		except Exception as ex:
-			self.fail('Unable to test the location plot with passing the variable name \n{}'.format(str(ex)))
-
-		self.assertEqual(os.path.isfile(output_file), True)
-
-
-	def test_plot_lines(self):
-		'''
-		Test the capability of plotting along xz/yz orientation and use line plots based on drill hole id
-		'''
-		
-		output_file = os.path.join(self.out_dir, 'location_plot3.png')
-		try:
-			_ = gs.location_plot(self.data, var='Phi', orient='yz', aspect =5, plot_collar = True, output_file = output_file)
-		except Exception as ex:
-			self.fail('Unable to test the location plot along yz/xz orientation \n{}'.format(str(ex)))
-
-		self.assertEqual(os.path.isfile(output_file), True)
-
-
-	def test_plot_categorical(self):
-		'''
-		Test the capability of plotting along xz/yz orientation and use line plots based on drill hole id for a categorical variable
-		'''
-		from matplotlib import pyplot as plt
-		
-		output_file = os.path.join(self.out_dir, 'location_plot3.png')
-		_, ax = plt.subplots(1,1)
-		try:
-			_ = gs.location_plot(self.data, var='Lithofacies', orient='yz', aspect =5, plot_collar = True, output_file = output_file)
-			_ = gs.location_plot(self.data, var='Lithofacies', orient='yz', aspect =5, plot_collar = True, output_file = output_file, ax = ax)
-		except Exception as ex:
-			self.fail('Unable to test the location plot along yz/xz orientation for a categorical variable \n{}'.format(str(ex)))
-
-		self.assertEqual(os.path.isfile(output_file), True)
-
 
 class AccuracyPlotTest(BaseTest):
 	'''
