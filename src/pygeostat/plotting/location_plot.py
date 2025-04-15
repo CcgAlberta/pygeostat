@@ -327,7 +327,7 @@ def location_plot(data, x=None, y=None, z=None, var=None, dhid = None, catdata=N
 				if var in data.columns:
 					collar_var = group[var][group[var].index.min()]
 					norm = plt.cm.colors.Normalize(*vlim)
-					_cmap = plt.cm.get_cmap(cmap)
+					_cmap = plt.colormaps.get_cmap(cmap)
 					collar_var = [_cmap(norm(collar_var))]
 					plot = ax.scatter(x_points, y_points, c=collar_var, cmap=cmap, vmin=vlim[0], vmax=vlim[1], s=s,
 							marker=collar_marker, **kwargs)
