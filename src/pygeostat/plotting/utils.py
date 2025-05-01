@@ -514,10 +514,18 @@ def get_supaxislocs(fig, nrow, ncol, figsize, pad):
     ymax = ymax + pad
     #  Get the limit of the xticklabels
     iax = ncol * (nrow - 1)
-    bbox = axes[iax].xaxis.get_ticklabel_extents(renderer)[0]
+    #bbox = axes[iax].xaxis.get_ticklabel_extents(renderer)[0]
+    #ymin = (bbox.ymin / figsize[1] / dpi) - pad
+    ##  Get the x limit of the yticklabels
+    #bbox = axes[0].yaxis.get_ticklabel_extents(renderer)[0]
+    #xmin = (bbox.xmin / figsize[0] / dpi) - pad
+    
+    # New implementation due to deprecation in matplotlib
+    bbox = axes[iax].get_tightbbox(renderer)
     ymin = (bbox.ymin / figsize[1] / dpi) - pad
-    #  Get the x limit of the yticklabels
-    bbox = axes[0].yaxis.get_ticklabel_extents(renderer)[0]
+    
+    # For left margin
+    bbox = axes[0].get_tightbbox(renderer)
     xmin = (bbox.xmin / figsize[0] / dpi) - pad
 
     return xmin, xmid, ymin, ymid, ymax
