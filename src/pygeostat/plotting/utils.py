@@ -310,32 +310,54 @@ def get_cmap(colormap):
 
 def catcmapfromcontinuous(contcmap, ncats, offset=0.5):
     """
-    Use the continuous colormap to get a set of categorical values returned in the
-    proper format for the other plotting routines in pygeostat from ListedColormap()
-
-    Parameters:
-        contcmap (str): valid matplotlib continuous colormap string, like 'jet' or 'spectral'
-        ncats (int): number of categories passed to the function
-        offset (float): offsets the colors so as they are not the end member colors
-
-    Returns:
-        cmap (cmap): Matplotlib colormap
-
-    .. codeauthor:: pygeostat development team 2016-05-18
+    Create a categorical colormap from a continuous colormap.
+    
+    Takes a continuous colormap and samples it at regular intervals to create 
+    a categorical colormap with the specified number of categories.
+    
+    Parameters
+    ----------
+    contcmap : str or matplotlib.colors.Colormap
+        Valid matplotlib continuous colormap string or colormap object
+    ncats : int
+        Number of categories to create in the resulting colormap
+    offset : float, default=0.5
+        Offset value to avoid using extreme end colors of the colormap
+        
+    Returns
+    -------
+    matplotlib.colors.ListedColormap
+        A categorical colormap with ncats colors
+        
+    Notes
+    -----
+    The offset parameter (default 0.5) helps avoid the extreme colors at the 
+    ends of the colormap, which are often too light or too dark.
     """
-
     from . cmaps import avail_cmaps
+    from matplotlib.colors import ListedColormap
+    import matplotlib as mpl
 
     if contcmap in avail_cmaps:
+        # Use custom pygeostat colormap
         cm = get_cmap(contcmap)
     else:
-        cm = plt.cm.get_cmap(contcmap)
+        try:
+            cm = mpl.colormaps[contcmap]
+        except (KeyError, TypeError):
+            raise ValueError(f"Colormap '{contcmap}' not found in matplotlib or pygeostat colormaps")
+    
     colors = []
     for num in range(ncats):
-        colors.append(cm((num + offset) / (ncats)))
+        position = (num + offset) / ncats
+        colors.append(cm(position))
 
-    cmap = ListedColormap(colors, name=contcmap)
-    return cmap
+    return ListedColormap(colors, name=f"{contcmap}_categorical_{ncats}")
+
+
+
+
+
 
 
 def get_label(data):
@@ -492,43 +514,81 @@ def get_supaxislocs(fig, nrow, ncol, figsize, pad):
     ymax = ymax + pad
     #  Get the limit of the xticklabels
     iax = ncol * (nrow - 1)
-    bbox = axes[iax].xaxis.get_ticklabel_extents(renderer)[0]
+    #bbox = axes[iax].xaxis.get_ticklabel_extents(renderer)[0]
+    #ymin = (bbox.ymin / figsize[1] / dpi) - pad
+    ##  Get the x limit of the yticklabels
+    #bbox = axes[0].yaxis.get_ticklabel_extents(renderer)[0]
+    #xmin = (bbox.xmin / figsize[0] / dpi) - pad
+    
+    # New implementation due to deprecation in matplotlib
+    bbox = axes[iax].get_tightbbox(renderer)
     ymin = (bbox.ymin / figsize[1] / dpi) - pad
-    #  Get the x limit of the yticklabels
-    bbox = axes[0].yaxis.get_ticklabel_extents(renderer)[0]
+    
+    # For left margin
+    bbox = axes[0].get_tightbbox(renderer)
     xmin = (bbox.xmin / figsize[0] / dpi) - pad
 
     return xmin, xmid, ymin, ymid, ymax
 
-
 def _get_cmap(cmap, catdata, ncat):
-    '''Determine the colormap based on the catdata boolean, cmap value and Parameters.
-    Used by location_plot'''
-
+    '''
+    Determine the colormap based on categorical data flag, provided colormap 
+    name, and parameters.
+    Used by location_plot and other plotting functions.
+    
+    Parameters
+    ----------
+    cmap : str, matplotlib.colors.Colormap, or None
+        Name of colormap or colormap object
+    catdata : bool or None
+        Flag indicating if data is categorical
+    ncat : int
+        Number of categories (used for categorical data)
+        
+    Returns
+    -------
+    matplotlib.colors.Colormap
+        The selected colormap
+    '''
     from . cmaps import avail_palettes, avail_cmaps
     from matplotlib.colors import LinearSegmentedColormap
+    
     if catdata:
+        # Get default categorical colormap if none provided
         if cmap is None:
             cmap = Parameters['plotting.cmap_cat']
             if isinstance(cmap, dict):
                 cmap = list(cmap.values())
                 cmap = LinearSegmentedColormap.from_list('cmap_cat', cmap, N=len(cmap))
-        if not isinstance(cmap, mpl.colors.ListedColormap):
+        
+        if not isinstance(cmap, mpl.colors.Colormap):
             if cmap in avail_palettes:
+                # Use pygeostat's custom palette
                 cmap = get_palette(cmap, ncat)
             else:
                 cmap = catcmapfromcontinuous(cmap, ncat)
+    
+    # Handle continuous data case
     else:
         if cmap is None:
             cmap = Parameters['plotting.cmap']
-        if not isinstance(cmap, mpl.colors.ListedColormap):
+            
+        if not isinstance(cmap, mpl.colors.Colormap):
             if cmap in avail_cmaps:
+                # Use pygeostat's custom colormap
                 cmap = get_cmap(cmap)
-            elif cmap in plt.colormaps():
-                cmap = plt.cm.get_cmap(cmap)
             else:
-                pass  # this causes MPL to raise an exception and give a list of valid cmaps
+                try:
+                    cmap = mpl.colormaps[cmap]
+                except (KeyError, TypeError):
+                    pass
+    
     return cmap
+
+
+
+
+
 
 
 def setup_plot(ax, cbar=None, figsize=None, cax=None, aspect=None):

@@ -311,8 +311,11 @@ def location_plot(data, x=None, y=None, z=None, var=None, dhid = None, catdata=N
 	figx, figy, _ = _spatial_orient2fig(orient, x, y, z)
 
 	if orient.lower() == 'xy' or not dhid:
-		plot = ax.scatter(pointx, pointy, c=pointvar, cmap=cmap, vmin=vlim[0],
-						vmax=vlim[1], s=s, marker=marker, **kwargs)
+		if pointvar is not None and len(pointvar) > 0:
+			plot = ax.scatter(pointx, pointy, c=pointvar, cmap=cmap, vmin=vlim[0],
+					 vmax=vlim[1], s=s, marker=marker, **kwargs)
+		else:
+			plot = ax.scatter(pointx, pointy)
 	else: # Plot lines if the dhid was inferred/provided and the orientation is xz or yz
 		drill_plot_format = True
 		data_temp = pd.DataFrame({figx:pointx, figy: pointy, var:pointvar, dhid: point_dh})
@@ -327,7 +330,7 @@ def location_plot(data, x=None, y=None, z=None, var=None, dhid = None, catdata=N
 				if var in data.columns:
 					collar_var = group[var][group[var].index.min()]
 					norm = plt.cm.colors.Normalize(*vlim)
-					_cmap = plt.cm.get_cmap(cmap)
+					_cmap = plt.colormaps.get_cmap(cmap)
 					collar_var = [_cmap(norm(collar_var))]
 					plot = ax.scatter(x_points, y_points, c=collar_var, cmap=cmap, vmin=vlim[0], vmax=vlim[1], s=s,
 							marker=collar_marker, **kwargs)
@@ -395,9 +398,9 @@ def location_plot(data, x=None, y=None, z=None, var=None, dhid = None, catdata=N
 		# cax = grid.cbar_axes[0]
 		# Plot the colorbar
 		if drill_plot_format:
-			cbar = plt.colorbar(lc, cax=cax, ticks=ticklocs)
+			cbar = lc.axes.figure.colorbar(lc, cax=cax, ticks=ticklocs)
 		else:
-			cbar = fig.colorbar(plot, cax=cax, ticks=ticklocs)
+			cbar = plot.figure.colorbar(plot, cax=cax, ticks=ticklocs)
 		# Configure the color bar
 		cbar.ax.set_yticklabels(ticklabels, ha='left')
 		cbar.ax.tick_params(axis='y', pad=2)
