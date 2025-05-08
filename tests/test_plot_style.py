@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from _pytest.capture import capfd
 import pytest
 import warnings
 
@@ -35,6 +36,30 @@ def test_update_key(plot_style):
         if original_value is not None:
             plot_style.update({'axes.grid': original_value})
 
+def test_update_invalid_key(plot_style):
+    """Test updating plot style parameters with invalid keys raises KeyError."""
+    with pytest.raises(KeyError):
+        plot_style.update({'FakeParameters': 0})
+
+
+def test_set_default_plot_style(plot_style):
+    """Test setting system default plot styles."""
+    try:
+        plot_style.set_systemdefault()
+    except Exception as e:
+        pytest.fail(f"Setting system defaults failed with: {str(e)}")
+
+
+def test_get_default_plot_style(plot_style, capfd):
+    """Test getting the default plot style."""
+    #try:
+    #    result = plot_style.get_systemdefault()
+    #    assert result is not None, "Expected non-None result from get_systemdefault()"
+    #except Exception as e:
+    #    pytest.fail(f"Getting system defaults failed with: {str(e)}")
+    result = plot_style.get_systemdefault()
+    captured = capfd.readouterr()
+    assert "Loading default Pygeostat Parameters from" in captured.out
 
 
 
