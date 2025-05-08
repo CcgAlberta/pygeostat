@@ -1,20 +1,28 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
 
-__author__ = 'pygeostat development team'
-__date__ = '2020-01-04'
-__version__ = '1.0.0'
-
-import os, sys
-try:
-    import pygeostat as gs
-except (ImportError, ModuleNotFoundError):
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..')))
-    import pygeostat as gs
-import unittest
+import pytest
 import warnings
-import subprocess
+
+from pygeostat.plotting.set_style import PlotStyle
+
+
+# Fixture component used in the tests
+@pytest.fixture(scope="module")
+def plot_style():
+    """
+    Fixture providing the PlotStyle object from gs for tests
+
+    Returns the PlotStyle class to test its static methods and properties
+    """
+
+    warnings.simplefilter('ignore', category=ImportWarning)
+    return PlotStyle
+
+
+
+
+
 
 
 class PygeostatPlotStyleTest(unittest.TestCase):
