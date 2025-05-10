@@ -1,65 +1,53 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
 
-__author__ = 'pygeostat development team'
-__date__ = '2020-01-04'
-__version__ = '1.0.0'
-
-import os, sys
-try:
-    import pygeostat as gs
-except (ImportError, ModuleNotFoundError):
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..')))
-    import pygeostat as gs
-import unittest
+from _pytest.capture import capfd
+import pytest
 import warnings
-import subprocess
 
+from pygeostat.plotting.set_style import PlotStyle
 
-class PygeostatPlotStyleTest(unittest.TestCase):
-    '''
-     Test suite for pygeostat plot style settings
-    '''
+# Fixture component used in the tests
+@pytest.fixture(scope="module")
+def plot_style():
+    """
+    Fixture providing the PlotStyle object from gs for tests
 
-    def setUp(self):
-        warnings.simplefilter('ignore', category=ImportWarning)
-        self.plot_style = gs.PlotStyle
+    Returns the PlotStyle class to test its static methods and properties
+    """
 
+    warnings.simplefilter('ignore', category=ImportWarning)
+    return PlotStyle
 
-    def test_update_key(self):
-        '''
-        A collection of test to check the update behavior for pygeostat Parameters object
-        '''
+def test_update_key(plot_style):
+    """Test to update plot style parameters with valid keys."""
 
-        # Correct assignment
-        self.plot_style.update({'axes.grid': True})
-        
-        self.assertEqual(self.plot_style['axes.grid'], True)
+    # Original so it can be restored later
+    original_value = plot_style.get('axes.grid', None)
 
-        # Wrong Key
-        with self.assertRaises(KeyError):
-            self.plot_style.update({'FakeParameters':0})
-    
+    try:
+        # Update with valid key
+        plot_style.update({'axes.grid': True})
+        assert plot_style['axes.grid'] is True
+    finally:
+        # Restore orignal value to avoid affect rest of tests
+        if original_value is not None:
+            plot_style.update({'axes.grid': original_value})
 
-    def test_set_default_plot_style(self):
-        '''
-        Test the capability of writing pygeostat plot styles into a config file under the user folder
-        '''
-        try:
-            self.plot_style.set_systemdefault()
-        except Exception as ex:
-            self.fail('Unable to set system defaults \n{}'.format(str(ex)))
+def test_update_invalid_key(plot_style):
+    """Test updating plot style parameters with invalid keys raises KeyError."""
+    with pytest.raises(KeyError):
+        plot_style.update({'FakeParameters': 0})
 
-    def test_get_default_plot_style(self):
-        '''
-        test getting the default plot style
-        '''
+def test_set_default_plot_style(plot_style):
+    """Test setting system default plot styles."""
+    try:
+        plot_style.set_systemdefault()
+    except Exception as e:
+        pytest.fail(f"Setting system defaults failed with: {str(e)}")
 
-        try:
-            self.plot_style.get_systemdefault()
-        except Exception as ex:
-            self.fail('Unable to set system defaults \n{}'.format(str(ex)))
-
-if __name__ == '__main__':
-	subprocess.call([sys.executable, '-m', 'unittest', str(__file__), '-v'])
+def test_get_default_plot_style(plot_style, capfd):
+    """Test getting the default plot style."""
+    result = plot_style.get_systemdefault()
+    captured = capfd.readouterr()
+    assert "Loading default Pygeostat Parameters from" in captured.out
