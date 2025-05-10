@@ -1,64 +1,52 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
 
-__author__ = 'pygeostat development team'
-__date__ = '2020-01-04'
-__version__ = '1.0.0'
-
-import unittest
+import pytest
 import numpy as np
 import pandas as pd
 
-import os, sys
-try:
-    import pygeostat as gs
-except (ImportError, ModuleNotFoundError):
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname( __file__ ), r'..')))
-    import pygeostat as gs
+from pygeostat.plotting.gaussian_mv import GmmUtility
 
+# Fixture component to be use on the tests
+@pytest.fixture
+def gmm_util():
+    """Create a GMM utility fixture with standard normal test data."""
+    x, y = np.random.multivariate_normal(
+        mean=[0, 0], 
+        cov=[[1, 0], [0, 1]], 
+        size=5000
+    ).T
+    
+    data = pd.DataFrame({
+        'var1': x,
+        'var2': y
+    })
+    
+    return GmmUtility(
+        mean_vector_list=[[0, 0], [0, 0]], 
+        data=data, 
+        variable_names=['var1', 'var2'],
+        covariance_matrix_list=[[[1, 0], [0, 1]], [[1, 0], [0, 1]]], 
+        contribution_list=[0.5, 0.5]
+    )
 
+def test_conditional_mean(gmm_util):
+    """Test that conditional mean is correctly computed."""
+    mean, _, _, _ = gmm_util.conditional_moments([0, None])
+    assert abs(mean) < 1e-5, "Conditional mean should be approximately zero"
 
-class GmmUtilityTest(unittest.TestCase):
+def test_conditional_variance(gmm_util):
+    """Test that conditional variance is correctly computed."""
+    _, var, _, _ = gmm_util.conditional_moments([0, None])
+    assert abs(var - 1) < 1e-5, "Conditional variance should be approximately one"
 
-    '''
-        This class is used to implement unittests for PyEDW.ServerConnect class
-    '''
+def test_conditional_skewness(gmm_util):
+    """Test that conditional skewness is correctly computed."""
+    _, _, skew, _ = gmm_util.conditional_moments([0, None])
+    assert abs(skew) < 1e-5, "Conditional skewness should be approximately zero"
 
-    def setUp(self):
-        '''
-        Method called to prepare the test fixture. This is called immediately before calling the test method;
-        other than AssertionError or SkipTest, any exception raised by this method will be considered
-        an error rather than a test failure. The default implementation does nothing.
-        '''
-        x, y = np.random.multivariate_normal([0, 0], [[1, 0], [0, 1]], 5000).T
-        x = x.reshape(5000, 1)
-        y = y.reshape(5000, 1)
-        data = pd.DataFrame(columns=['var1'], data=x)
-        data['var2'] = y
-        self.gmm_util = gs.GmmUtility(mean_vector_list=[[0, 0], [0, 0]], data=data, variable_names=['var1', 'var2'],
-                                   covariance_matrix_list=[[[1, 0], [0, 1]], [[1, 0], [0, 1]]], contribution_list=[0.5, 0.5])
+def test_conditional_kurtosis(gmm_util):
+    """Test that conditional kurtosis is correctly computed."""
+    _, _, _, kurtosis = gmm_util.conditional_moments([0, None])
+    assert abs(kurtosis - 3) < 1e-5, "Conditional kurtosis should be approximately three"
 
-    def test_conditional_mean(self):
-        mean, _, _, _ = self.gmm_util.conditional_moments([0, None])
-
-        self.assertTrue(abs(mean) < 0.00001)
-
-    def test_conditional_variance(self):
-        _, var, _, _ = self.gmm_util.conditional_moments([0, None])
-
-        self.assertTrue(abs(var - 1) < 0.00001)
-
-    def test_conditional_skewness(self):
-        _, _, skew, _ = self.gmm_util.conditional_moments([0, None])
-
-        self.assertTrue(skew < 0.00001)
-
-    def test_conditional_kurtosis(self):
-        _, _, _, kurtosis = self.gmm_util.conditional_moments([0, None])
-
-        self.assertTrue(abs(kurtosis - 3) < 0.00001)
-
-
-if __name__ == '__main__':
-    unittest.main()
