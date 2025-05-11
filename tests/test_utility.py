@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Tests for utility functions in pygeostat"""
-
-import os
-import sys
 import pytest
 import pygeostat as gs
 
