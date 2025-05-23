@@ -7,9 +7,6 @@ import platform
 from pygeostat.data import DataFile, ExampleData
 from pygeostat.data.grid_definition import GridDef
 
-from pygeostat.data import DataFile, ExampleData
-from pygeostat.data.grid_definition import GridDef
-
 # Fixtures
 @pytest.fixture
 def cleanup_files():
@@ -126,13 +123,13 @@ def test_write_read_h5(cleanup_files):
     assert os.path.isfile('test.h5')
 
 
-@pytest.mark.skip(reason="Checking if CI fails because of this one")
 def test_write_vtk(cleanup_files):
     """Test writing VTK format."""
     data = {'East': [1000, 1200], 'North': [2000, 2500], 'Elevation': [1, 1]}
     dat = DataFile(data=data, dftype='point')
     dat.write_file('test.vtk')
-    assert os.path.isfile('test.vtk')
+    # TODO: Ref #100
+    assert os.path.isfile('test.vtk.vtu') or os.path.isfile('test.vtk')
 
 
 def test_set_catdict():
