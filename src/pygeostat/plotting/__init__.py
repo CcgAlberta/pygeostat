@@ -1,7 +1,6 @@
 '''
 Pygeostat plotting modules
 '''
-from __future__ import absolute_import, division, print_function
 
 # Load some plotting modules
 from .histogram_plot import histogram_plot

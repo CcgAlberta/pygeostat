@@ -7,7 +7,6 @@ h5_io.py: Contains input/output functions for using HDF5 files within pygeostat
 #-----------------------------------------------------------------------------
 # Boilerplate
 #-----------------------------------------------------------------------------
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 #-----------------------------------------------------------------------------
 # Imports

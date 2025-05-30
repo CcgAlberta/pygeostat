@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 '''desurvey.py: Contains utilities for desurveying drill hole data'''
-from __future__ import absolute_import, division, print_function
 
 __author__ = 'pygeostat development team'
 __date__ = '2014-04-03'

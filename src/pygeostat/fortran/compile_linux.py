@@ -11,7 +11,6 @@ Note:
 
 .. codeauthor:: Ryan Martin - 24-04-2018
 """
-from __future__ import absolute_import, division, print_function
 from subprocess import call, check_output, Popen, PIPE, STDOUT
 import os
 import shutil

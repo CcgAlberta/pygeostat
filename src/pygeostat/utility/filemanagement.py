@@ -5,7 +5,6 @@
 #-----------------------------------------------------------------------------
 # Boilerplate
 #-----------------------------------------------------------------------------
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 __author__ = 'pygeostat development team'
 __date__ = '2018'
