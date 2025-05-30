@@ -4,7 +4,6 @@
 """
 Various tools to aid in multivariate geostatistics.
 """
-from __future__ import absolute_import, division, print_function
 __author__ = 'pygeostat development team'
 __date__ = '2016-03-16'
 __version__ = '1.000'

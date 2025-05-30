@@ -9,7 +9,6 @@ Geostatistics, Copyright 1998-2014 individual authors) software.
 It aims to provide a very efficient method to run, script and
 interact with GSLIB and CCG software using Python.
 '''
-from __future__ import absolute_import, division, print_function
 
 __version__ = '1.1.1'
 

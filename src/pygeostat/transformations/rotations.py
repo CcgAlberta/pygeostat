@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''Contains utilities for GSLIB rotations'''
-from __future__ import absolute_import, division, print_function
 
 __author__ = 'pygeostat development team'
 __date__ = '2016-02-14'
