@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''labels.py: Contains utilities for creating index columns and labels'''
-from __future__ import absolute_import, division, print_function
 __author__ = 'Tyler Acorn'
 __date__ = '2015-10-08'
 __version__ = '1.001'

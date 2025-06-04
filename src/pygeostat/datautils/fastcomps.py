@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''fastcomposites.py: Faster compositing with length saving for usage in modeling'''
-from __future__ import absolute_import, division, print_function
 
 __author__ = 'pygeostat development team'
 __date__ = '2016-12-17'

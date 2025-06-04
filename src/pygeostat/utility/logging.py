@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 '''utils.py: Contains utility functions for providing status alerts in a script'''
-from __future__ import absolute_import, division, print_function
 __author__ = 'pygeostat development team'
 __date__ = '2015'
 __version__ = '1.000'

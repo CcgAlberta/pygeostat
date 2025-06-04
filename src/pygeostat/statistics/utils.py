@@ -6,7 +6,6 @@ Various tools for calculating statistics
 #-----------------------------------------------------------------------------
 # Boilerplate
 #-----------------------------------------------------------------------------
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 #-----------------------------------------------------------------------------
 # Imports
@@ -194,12 +193,12 @@ def accsim(truth, reals, pinc=0.05):
     pre = 0
     goo = 0
     for i, values in propavg.iterrows():
-        if values[1] >= values[0]:
+        if values.iloc[1] >= values.iloc[0]:
             acc = acc + 1
-            pre = pre + (values[1] - values[0])
-            goo = goo + (values[1] - values[0])
+            pre = pre + (values.iloc[1] - values.iloc[0])
+            goo = goo + (values.iloc[1] - values.iloc[0])
         else:
-            goo = goo + (2 * (values[0] - values[1]))
+            goo = goo + (2 * (values.iloc[0] - values.iloc[1]))
     acc = acc / len(propavg)
     pre = 1 - ((2 * pre) / len(propavg))
     goo = 1 - (goo / len(propavg))

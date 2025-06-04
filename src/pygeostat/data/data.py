@@ -7,7 +7,6 @@ This module Contains basic data class to read data in different formats includin
 #-----------------------------------------------------------------------------
 # Boilerplate
 #-----------------------------------------------------------------------------
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 #-----------------------------------------------------------------------------
 # Imports

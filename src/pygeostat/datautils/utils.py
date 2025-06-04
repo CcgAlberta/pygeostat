@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''A collection of utility functions for data prosessing and manipulation'''
-from __future__ import absolute_import, division, print_function
 
 import os
 import math
