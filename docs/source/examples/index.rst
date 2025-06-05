@@ -13,8 +13,7 @@ Introduction
 .. toctree::
    :maxdepth: 2
    
-   ../../examples/Introduction
-|
+   Introduction.ipynb
 
 Kriging
 ***********************
@@ -22,10 +21,8 @@ Kriging
 .. toctree::
    :maxdepth: 2
    
-   ../../examples/kriging1
-   ../../examples/kriging2
-
-|
+   Kriging1.ipynb
+   Kriging2.ipynb
 
 Boundary Modeling
 ***********************
@@ -33,9 +30,7 @@ Boundary Modeling
 .. toctree::
    :maxdepth: 2
    
-   ../../examples/BoundaryModeling
-
-|
+   BoundaryModeling.ipynb
 
 Structural Modeling
 ***********************
@@ -43,9 +38,7 @@ Structural Modeling
 .. toctree::
    :maxdepth: 2
    
-   ../../examples/StructuralModeling
-
-|
+   StructuralModeling.ipynb
 
 GMM Visualization
 ***********************
@@ -53,4 +46,4 @@ GMM Visualization
 .. toctree::
    :maxdepth: 2
    
-   ../../examples/GMM
+   GMM.ipynb
