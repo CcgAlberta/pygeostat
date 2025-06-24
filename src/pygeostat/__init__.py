@@ -10,7 +10,7 @@ It aims to provide a very efficient method to run, script and
 interact with GSLIB and CCG software using Python.
 '''
 
-__version__ = '1.1.1'
+__version__ = '1.2.0'
 
 # parameter configurations
 from . pygeostat_parameters import Parameters, PlotStyle
