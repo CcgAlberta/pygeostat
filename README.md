@@ -10,9 +10,8 @@
 [![CI](https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master)](https://github.com/CcgAlberta/pygeostat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-:warning: This package has been updated. Expect breaking changes from last
-stable version. 
-Latest stable release can be found [here](https://github.com/CcgAlberta/pygeostat/releases/tag/v1.1.1)
+:warning: This package has been updated. Expect breaking changes when migrating
+from last stable [version](https://github.com/CcgAlberta/pygeostat/releases/tag/v1.1.1)
 
 ## Installation
 
