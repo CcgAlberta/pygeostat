@@ -10,10 +10,38 @@
 [![CI](https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master)](https://github.com/CcgAlberta/pygeostat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-
-
-:warning: This package is being updated. Expect frequent changes to the code and functionality.
+:warning: This package has been updated. Expect breaking changes from last
+stable version. 
 Latest stable release can be found [here](https://github.com/CcgAlberta/pygeostat/releases/tag/v1.1.1)
+
+## Installation
+
+### Quick Install
+
+```bash
+pip install pygeostat
+```
+
+### Requirements
+- Python 3.10 or higher
+
+### Verify Installation
+
+```{python}
+import pygeostat as gs
+print(f"Pygeostat version: {gs.__version__}")
+print("Basic import successful!")
+```
+
+# Test with example data
+
+```{python}
+# Load example data (this tests data loading functionality)
+data = gs.ExampleData('oilsands')
+print(f"Data loaded: {data.shape}")
+print(f"Columns: {list(data.columns)}")
+print(f"First few rows:\n{data.head()}")
+```
 
 ## Introduction
 
@@ -31,6 +59,10 @@ For a full featured commercial alternative to pygeostat, see [RMSP](https://reso
 </a>
 
 Contact [Resource Modeling Solutions](https://resourcemodelingsolutions.com/contact/) about a commercial or academic license.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 # Contact:
 Refer to [www.ccgalberta.com](http://www.ccgalberta.com).
