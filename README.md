@@ -5,13 +5,42 @@
   <img alt="Pygeostat Logo" src="http://www.ccgalberta.com/pygeostat/_images/pygeostat_logo.png">
 </picture> 
 
-|||
-| --- | --- |
-| Package | [![CI - Test](https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master)]( https://github.com/CcgAlberta/pygeostat) [![Docs](https://github.com/CcgAlberta/pygeostat/workflows/Documentation/badge.svg?branch=master)](https://www.ccgalberta.com/pygeostat/welcome.html) [![PyPi](https://badge.fury.io/py/pygeostat.svg)]([https://www.ccgalberta.com/pygeostat/welcome.htm](https://badge.fury.io/py/pygeostat))|
-| Versions | [![Python3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100) [![Python3.11](https://img.shields.io/badge/python-3.11-red.svg)](https://www.python.org/downloads/release/python-3110) |
+[![PyPI](https://badge.fury.io/py/pygeostat.svg)](https://badge.fury.io/py/pygeostat)
+[![Python](https://img.shields.io/pypi/pyversions/pygeostat.svg)](https://pypi.org/project/pygeostat/)
+[![CI](https://github.com/CcgAlberta/pygeostat/workflows/IntegrationCheck/badge.svg?branch=master)](https://github.com/CcgAlberta/pygeostat)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-:warning: This package is being updated. Expect frequent changes to the code and functionality.
-Latest stable release can be found [here](https://github.com/CcgAlberta/pygeostat/releases/tag/v1.1.1)
+:warning: This package has been updated. Expect breaking changes when migrating
+from last stable [version](https://github.com/CcgAlberta/pygeostat/releases/tag/v1.1.1)
+
+## Installation
+
+### Quick Install
+
+```bash
+pip install pygeostat
+```
+
+### Requirements
+- Python 3.10 or higher
+
+### Verify Installation
+
+```{python}
+import pygeostat as gs
+print(f"Pygeostat version: {gs.__version__}")
+print("Basic import successful!")
+```
+
+# Test with example data
+
+```{python}
+# Load example data (this tests data loading functionality)
+data = gs.ExampleData('oilsands')
+print(f"Data loaded: {data.shape}")
+print(f"Columns: {list(data.columns)}")
+print(f"First few rows:\n{data.head()}")
+```
 
 ## Introduction
 
@@ -29,6 +58,10 @@ For a full featured commercial alternative to pygeostat, see [RMSP](https://reso
 </a>
 
 Contact [Resource Modeling Solutions](https://resourcemodelingsolutions.com/contact/) about a commercial or academic license.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 # Contact:
 Refer to [www.ccgalberta.com](http://www.ccgalberta.com).

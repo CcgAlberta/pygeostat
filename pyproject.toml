@@ -85,6 +85,20 @@ include = [
     "pygeostat.*",
 ]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+pygeostat = [
+    "data/**/*"
+]
+
 [tool.setuptools.dynamic]
 version = {attr = "pygeostat.__version__"}
+
+[dependency-groups]
+dev = [
+    "build>=1.2.2.post1",
+    "twine>=6.1.0",
+]
 
