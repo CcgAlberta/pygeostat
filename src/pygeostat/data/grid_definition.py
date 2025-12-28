@@ -840,11 +840,11 @@ class GridDef:
                                      ' to be less then or equal to the lower range', zrange)
             else:
                 zrange = (0, self.nz)
-            rand_xind = np.random.random_integers(xrange[0], xrange[1], size=n)
-            rand_yind = np.random.random_integers(yrange[0], yrange[1], size=n)
-            rand_zind = np.random.random_integers(zrange[0], zrange[1], size=n)
+            rand_xind = np.random.randint(xrange[0], xrange[1] + 1, size=n)
+            rand_yind = np.random.randint(yrange[0], yrange[1] + 1, size=n)
+            rand_zind = np.random.randint(zrange[0], zrange[1] + 1, size=n)
         else:
-            rand_indices = np.random.random_integers(0, self.count(), size=n)
+            rand_indices = np.random.randint(0, self.count() + 1, size=n)
 
         if dim == 1:
             return rand_indices
