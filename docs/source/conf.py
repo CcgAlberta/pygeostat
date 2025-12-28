@@ -49,7 +49,8 @@ extensions = [
     'sphinx.ext.inheritance_diagram',
     'nbsphinx',
     'sphinx.ext.viewcode',
-    'sphinx.ext.autosummary'
+    'sphinx.ext.autosummary',
+    'sphinx_design'
 ]
 
 # TODO: Check if this works:
