@@ -558,10 +558,8 @@ def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, f
     else:
         raise ValueError("Invalid trimming variable {}".format(tvar))
 
-    # Character conversion of strings
-    cvariables = []
-    for varname in [var.ljust(64) for var in variables]:
-        cvariables.append([v for v in varname])
+    # Character conversion of strings - format for f2py (NumPy 2.x compatibility)
+    cvariables = [var.ljust(64) for var in variables]
 
     tmin = Parameters.get('data.tmin', None)
     if tmin is None:
