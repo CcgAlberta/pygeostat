@@ -16,8 +16,8 @@ Pygeostat users are encouraged to read the linked introductions to theses packag
 A series of introductory tutorials to begin learning Python (https://docs.python.org/3/tutorial/index.html)
 
 
-* A comprehensive list of pygeostst functions and classes is available at :ref:`genindex`
-* The list of pygeostst functions and classes can also be accessed as shown below,
+* A comprehensive list of pygeostat functions and classes is available at :ref:`genindex`
+* The list of pygeostat functions and classes can also be accessed as shown below,
 
 .. image:: ./figures/GettingStarted/1.png
    :align: left
@@ -31,7 +31,7 @@ A series of introductory tutorials to begin learning Python (https://docs.python
 
 	Examples:
 
-Some Exapmles of using Python standard libraries for resource modelling: 
+Some Examples of using Python standard libraries for resource modelling: 
 	Swath plot:
 
 .. plot::
