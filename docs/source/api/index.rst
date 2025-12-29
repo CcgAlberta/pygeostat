@@ -11,3 +11,9 @@ This section provides detailed documentation for all modules and classes in PyGe
    griddef
    programs
    statistics
+   datautils
+   transformations
+   utility
+   multivariate
+   fortran
+   parameters
