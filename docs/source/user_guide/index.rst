@@ -8,5 +8,6 @@ This guide provides detailed instructions for installing, configuring, and using
    :caption: Contents
 
    installation
-   gettingstarted
+   getting_started
+   plotting_gallery
    plotting
