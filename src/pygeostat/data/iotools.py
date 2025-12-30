@@ -325,7 +325,28 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
         raise AssertionError("Error reading GSB data!, Error #{}".format(errorvalue))
 
     # Clean up column names and trimmed data
-    vnames = [''.join([v.decode("utf-8") for v in vname]).strip() for vname in vnames]
+    # Handle both NumPy 1.x (returns bytes) and 2.x (returns strings/arrays)
+    cleaned_vnames = []
+    for vname in vnames:
+        if isinstance(vname, bytes):
+            # NumPy 1.x: direct byte string
+            cleaned_vnames.append(vname.decode("utf-8").strip())
+        elif isinstance(vname, str):
+            # NumPy 2.x: already a string
+            cleaned_vnames.append(vname.strip())
+        else:
+            # NumPy 1.x: array of bytes
+            try:
+                cleaned_vnames.append(''.join([v.decode("utf-8") for v in vname]).strip())
+            except AttributeError:
+                # NumPy 2.x: array of characters as strings or ints
+                if hasattr(vname, 'tobytes'):
+                    # Try converting to bytes first
+                    cleaned_vnames.append(vname.tobytes().decode("utf-8").strip())
+                else:
+                    # Fallback: convert to string directly
+                    cleaned_vnames.append(str(vname).strip())
+    vnames = cleaned_vnames
 
     # Convert to pandas dataframe
     data = pd.DataFrame(data=reals.transpose(), columns=vnames)
@@ -558,10 +579,8 @@ def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, f
     else:
         raise ValueError("Invalid trimming variable {}".format(tvar))
 
-    # Character conversion of strings
-    cvariables = []
-    for varname in [var.ljust(64) for var in variables]:
-        cvariables.append([v for v in varname])
+    # Character conversion of strings - format for f2py (NumPy 2.x compatibility)
+    cvariables = [var.ljust(64) for var in variables]
 
     tmin = Parameters.get('data.tmin', None)
     if tmin is None:
