@@ -5,10 +5,13 @@
 Installation
 ============
 
-Note that pygeostat requires Python 3.7+. Pygeostat will likely require modification to work with
-any other version of python. Pygeostat is also dependent on the suite of curated python
-packages provided with the Anaconda Python distribution. It is recommended to install this
-prior to pygeostat installation.
+Note that pygeostat requires Python 3.10 or higher. PyGeoStat follows modern Python standards
+and requires features available in Python 3.10+.
+
+.. important::
+   **Minimum Python Version:** 3.10+
+
+   For historical versions supporting older Python, see pygeostat version 1.1.1.
 
 
 Python Installation
@@ -30,9 +33,10 @@ Pygeostat Installation
 Additional Software (`CCG <https://CCGAlberta.com/>`_ Members)
 ****************************************************************
 
-`CCG <https://CCGAlberta.com/>`_ memebers have the option to install CCG/GSLIB software (executable files) to enable pygeostat :ref:`scripting features <programs>`. This can be done using the following function. While GSLIB executable files are avilable through a public repository, for `CCG <https://CCGAlberta.com/>`_ software a vlid access token is required to download executables files from a private repository. The access token is avilable for CCG members at CCG knowledge base website. 
+`CCG <https://CCGAlberta.com/>`_ members have the option to install CCG/GSLIB software (executable files) to enable pygeostat :ref:`scripting features <programs>`. This can be done using the following function. While GSLIB executable files are available through a public repository, for `CCG <https://CCGAlberta.com/>`_ software a valid access token is required to download executables files from a private repository. The access token is available for CCG members at CCG knowledge base website. 
 
 .. autofunction:: pygeostat.utility.get_executable
+   :no-index:
 
 
 Create Virtual Environments
@@ -40,11 +44,11 @@ Create Virtual Environments
 
 Python environments can be used to isolate different projects with different dependencies. The following code snippets can be used to setup a python environment using `conda <https://docs.conda.io/projects/conda/en/latest/index.html/>`_ package manager. 
 
-1. Creat the environment
+1. Create the environment
 
 .. code-block:: shell
 
-   conda env create -n <environment_name> -f environment.yml
+   conda create -n <environment_name> python=3.10
 
 2. Activate the environment
 
@@ -52,35 +56,33 @@ Python environments can be used to isolate different projects with different dep
 
    conda activate <environment_name>
 
-3. Install pygeostat on the new environment that is activate
+3. Install pygeostat in the activated environment
 
 .. code-block:: shell
 
    pip install pygeostat
 
-The nexs step is to launch your favorite IDE for python (e.g. Jupyter).
+The next step is to launch your favorite IDE for python (e.g. Jupyter).
 
-Using R from Python
-*******************
-Consider:
+Optional: Using R from Python
+*******************************
 
-    * rpy2 - a Python library providing a low-level interface to R from Python -
-      http://rpy.sourceforge.net/
-    * Matrix - a R library - https://stat.ethz.ch/R-manual/R-devel/library/base/html/matrix.html
+.. note::
+   **This is optional.** rpy2 is only required for specific functions like ``gs.nearpd()``.
+   Most pygeostat functionality does not require R.
 
+If you need to interface between Python and R:
 
-To allow interfacing between Python and R, rpy2 is required. Currently, only the utility gs.nearpd()
-uses rpy2 which also requires the R library "Matrix" to be installed through R. Installing rpy2 can
-be temperamental. Use the following installation instructions for rpy2:
+**Requirements:**
+   * R installed on your system
+   * rpy2 - Python interface to R
+   * Matrix - R library (install via R)
 
-   1. Download the rpy2 wheel file (e.g., rpy2-2.6.0-cp34-none-win_amd64) from:
-      http://www.lfd.uci.edu/~gohlke/pythonlibs/#rpy2
-   2. From the command prompt, install the wheel file by using the command
+**Installation:**
 
-   >>> pip install rpy2-2.6.0-cp34-none-win_amd64.whl
+.. code-block:: shell
 
-   3. Add the path to the folder containing R.dll to the environment variable PATH
-      (e.g., C:\Program Files\R\R-3.1.2/bin\i386)
-   4. Add an environment variable R_HOME pointing to R (e.g., C:\Program Files\R\R-3.1.2)
-   5. Add an environment variable R_USER that is your windows user name
+   pip install rpy2
+
+For platform-specific requirements and troubleshooting, see the `rpy2 documentation <https://rpy2.github.io/>`_.
 
