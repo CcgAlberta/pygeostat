@@ -50,19 +50,31 @@ extensions = [
     'nbsphinx',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
-    'sphinx_design'
+    'sphinx_design',
+    'myst_parser'
 ]
 
 # TODO: Check if this works:
 autosummary_generate = True
+
+# MyST parser configuration
+myst_enable_extensions = [
+    "colon_fence",      # Allow ::: for directives (cleaner than ```)
+    "deflist",          # Definition lists
+    "fieldlist",        # Field lists
+    "substitution",     # Substitutions
+    "tasklist",         # Task lists
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
