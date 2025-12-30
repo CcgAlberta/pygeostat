@@ -35,10 +35,6 @@ get_comps
 ---------
 .. autofunction:: get_comps
 
-get_composites
---------------
-.. autofunction:: get_composites
-
 fast_comps
 ----------
 .. autofunction:: fast_comps

@@ -41,19 +41,3 @@ printerr
 log_progress
 ------------
 .. autofunction:: log_progress
-
-Deprecation
-===========
-
-PygeostatDeprecationWarning
----------------------------
-.. autoclass:: PygeostatDeprecationWarning
-   :members:
-
-warn_deprecated
----------------
-.. autofunction:: warn_deprecated
-
-deprecated
-----------
-.. autofunction:: deprecated
