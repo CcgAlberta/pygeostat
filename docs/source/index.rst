@@ -50,7 +50,14 @@ Getting Started
 Tutorials
 ---------
 
-.. grid:: 1
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card:: 📊 Plotting Gallery
+      :link: user_guide/plotting_gallery
+      :link-type: doc
+
+      Visual showcase of all PyGeoStat plotting functions.
 
    .. grid-item-card:: 🧪 Examples Gallery
       :link: examples/index

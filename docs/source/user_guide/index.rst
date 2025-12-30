@@ -9,4 +9,5 @@ This guide provides detailed instructions for installing, configuring, and using
 
    installation
    getting_started
+   plotting_gallery
    plotting
