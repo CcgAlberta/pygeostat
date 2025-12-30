@@ -36,6 +36,7 @@ Additional Software (`CCG <https://CCGAlberta.com/>`_ Members)
 `CCG <https://CCGAlberta.com/>`_ members have the option to install CCG/GSLIB software (executable files) to enable pygeostat :ref:`scripting features <programs>`. This can be done using the following function. While GSLIB executable files are available through a public repository, for `CCG <https://CCGAlberta.com/>`_ software a valid access token is required to download executables files from a private repository. The access token is available for CCG members at CCG knowledge base website. 
 
 .. autofunction:: pygeostat.utility.get_executable
+   :no-index:
 
 
 Create Virtual Environments
