@@ -1,4 +1,4 @@
-(gettingstarted)=
+(getting_started)=
 # Getting Started
 
 PyGeoStat is a Python package for geostatistical data handling, visualization,
