@@ -9,7 +9,6 @@
 # Imports
 #-----------------------------------------------------------------------------
 
-import six
 import os
 from collections.abc import MutableMapping
 import warnings
@@ -24,11 +23,11 @@ def _validate_string(s, accept_none = False):
 		return None
 	try:
 		if isinstance(s,list):
-			return [six.text_type(item) for item in s]
+			return [str(item) for item in s]
 		elif isinstance(s,dict):
-			return dict((six.text_type(key), six.text_type(value)) for key, value in s.items())
+			return dict((str(key), str(value)) for key, value in s.items())
 		else:
-			return six.text_type(s)
+			return str(s)
 	except ValueError:
 		raise ValueError('Could not convert "%s" to string' % s)
 
@@ -78,7 +77,7 @@ def _validate_color(s):
 	except AttributeError:
 		pass
 
-	if isinstance(s, six.string_types):
+	if isinstance(s, str):
 		if len(s) == 6 or len(s) == 8:
 			stmp = '#' + s
 			if is_color_like(stmp):
@@ -170,7 +169,7 @@ def _validate_kde_or_color(s):
 	except AttributeError:
 		pass
 
-	if isinstance(s, six.string_types):
+	if isinstance(s, str):
 		if len(s) == 6 or len(s) == 8:
 			stmp = '#' + s
 			if is_color_like(stmp):
@@ -624,13 +623,13 @@ class Parameters(MutableMapping, dict):
 		approach to setting defaults to a Python instance.
 	"""
 	# get validation items
-	validate = dict((key, converter) for key, (_, converter) in six.iteritems(default_parameters))
-	
+	validate = dict((key, converter) for key, (_, converter) in default_parameters.items())
+
 
 	def __init__(self, *args, **kwargs):
 		self.update(*args, **kwargs)
 		self._section_name = 'PygeostatParameters'
-		self._default_dict = dict((key, parameter) for key, (parameter, _) in six.iteritems(default_parameters))
+		self._default_dict = dict((key, parameter) for key, (parameter, _) in default_parameters.items())
 		self._default_descriptions = default_parameter_descriptions
 
 
@@ -962,7 +961,7 @@ class PlotStyle(Parameters):
 # 1) Parameters comes first
 def _parameters_initialize():
 	ret = Parameters([(key, default) for key, (default, _) in
-					six.iteritems(default_parameters)])
+					default_parameters.items()])
 	ret.get_systemdefault(confirm_autoload=True)
 	return ret
 

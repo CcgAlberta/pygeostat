@@ -120,3 +120,4 @@ examples/temp
 CleanUp.bat
 *.json
 pygeostat/fortran/tmp
+Makefile
