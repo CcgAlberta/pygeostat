@@ -46,7 +46,7 @@ If this runs without errors, pygeostat is installed correctly.
 The quickest way to see pygeostat in action is to load example data and create
 a simple plot.
 
-```{python}
+```python
 import pygeostat as gs
 
 # Load example dataset
@@ -75,7 +75,7 @@ In general, most pygeostat workflows follow a similar pattern:
 
 For example:
 
-```{python}
+```python
 import pygeostat as gs
 
 data = gs.ExampleData('oilsands')
@@ -94,14 +94,14 @@ geostatistical analysis and plotting.
 
 ---
 
-Finding Functions and Classes
+## Finding Functions and Classes
 
 PyGeoStat provides a large number of functions and classes. You can explore
 available functionality in several ways:
 
- - Browse the full API reference: {ref}genindex
- - Use tab completion in your editor (e.g., type gs. and press Tab)
- - Learn through examples in the documentation
+- Browse the full API reference: {ref}`genindex`
+- Use tab completion in your editor (e.g., type `gs.` and press Tab)
+- Learn through examples in the documentation
 
 The API reference is organized by module and provides detailed documentation
 for each function and class.
@@ -135,10 +135,10 @@ estimated values against reference data.
 
 Once you are comfortable with the basics, we recommend the following path:
 
-📘 Work through the {ref}Introduction example <examples>
-📊 Explore the {ref}Plotting Functions <plotting> section
-📚 Browse the {ref}API Reference <api> to discover available tools
-🧪 Review the {ref}Examples <examples> for complete workflows
+📘 Work through the {ref}`Introduction example <examples>`\
+📊 Explore the {ref}`Plotting Functions <plotting>` section\
+📚 Browse the {ref}`API Reference <api>` to discover available tools\
+🧪 Review the {ref}`Examples <examples>` for complete workflows
 
 ---
 
