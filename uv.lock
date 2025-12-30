@@ -2199,8 +2199,8 @@ wheels = [
 ]
 
 [[package]]
-name = "pygeostat-testb"
-version = "1.2.1"
+name = "pygeostat"
+version = "1.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "h5py" },
