@@ -1,98 +1,69 @@
 PyGeoStat
 =========
 
-.. raw:: html
+A Python package for geostatistical modeling and spatial uncertainty analysis.
 
-   <div class="jumbotron">
-     <div class="container">
-       <div class="row">
-         <div class="col-md-6">
-           <p>Welcome to pygeostat, a Python package for geostatistical modeling. Pygeostat is aimed at preparing spatial data, scripting geostatistical workflows, modeling using tools developed at the Centre for Computational Geostatistics (CCG), and constructing visualizations to study spatial data, and geostatistical models.</p>
-           <p>
-             <a class="btn btn-primary btn-lg" href="user_guide/getting_started.html" role="button">Getting Started</a>
-             <a class="btn btn-secondary btn-lg" href="release_highlights.html" role="button">Release Highlights</a>
-           </p>
-         </div>
-         <div class="col-md-6">
-           <ul class="feature-list">
-             <li>Configurations of persistent project parameters and plotting style</li>
-            <li>Data file management functions for interacting with CSV, GeoEAS (GSLIB), and VTK formats</li>
-            <li>Utilities for managing GSLIB-style grid definitions</li>
-            <li>Export grid and point data files for visualization with Paraview (VTK format)</li>
-            <li>Simplified scripting of GSLIB programs with parallelization and crash detection/notification</li>
-            <li>Linear desurveying and compositing methods including automatic composite detection</li>
-            <li>A collection of example data files included in pygeostat installation <code>gs.ExampleData()</code></li>
-            <li>Library of plotting functions</li>
-           </ul>
-         </div>
-       </div>
-     </div>
-   </div>
+.. admonition:: What is PyGeoStat?
+   :class: note
+
+   PyGeoStat is aimed at preparing spatial data, scripting geostatistical
+   workflows, modeling using tools developed at the Centre for Computational
+   Geostatistics (CCG), and constructing visualizations to study spatial data
+   and geostatistical models.
+
+Key Features
+------------
+
+- Persistent project configuration and plotting styles
+- Data file management for CSV, GeoEAS (GSLIB), and VTK formats
+- Utilities for GSLIB-style grid definitions
+- Export to Paraview (VTK)
+- Parallelized GSLIB workflow scripting with crash detection
+- Desurveying and compositing utilities
+- Example datasets via ``gs.ExampleData()``
+- Comprehensive plotting utilities
 
 Getting Started
---------------
+---------------
 
-Information to install, test, and contribute to the package.
+.. grid:: 3
+   :gutter: 3
 
-.. raw:: html
+   .. grid-item-card:: 🚀 Installation
+      :link: user_guide/installation
+      :link-type: doc
 
-   <div class="container">
-     <div class="row">
-       <div class="col-md-4">
-         <div class="card">
-           <div class="card-header">
-             <h3>Installation</h3>
-           </div>
-           <div class="card-body">
-             <p>How to install PyGeoStat</p>
-             <a class="btn btn-primary" href="user_guide/installation.html">Learn More</a>
-           </div>
-         </div>
-       </div>
-       <div class="col-md-4">
-         <div class="card">
-           <div class="card-header">
-             <h3>User Guide</h3>
-           </div>
-           <div class="card-body">
-             <p>The main documentation</p>
-             <a class="btn btn-primary" href="user_guide/index.html">Learn More</a>
-           </div>
-         </div>
-       </div>
-       <div class="col-md-4">
-         <div class="card">
-           <div class="card-header">
-             <h3>API</h3>
-           </div>
-           <div class="card-body">
-             <p>The detailed API reference</p>
-             <a class="btn btn-primary" href="api/index.html">Learn More</a>
-           </div>
-         </div>
-       </div>
-     </div>
-   </div>
+      How to install PyGeoStat and verify your setup.
 
-Tutorials Gallery
---------------
+   .. grid-item-card:: 📘 User Guide
+      :link: user_guide/index
+      :link-type: doc
 
-A collection of tutorials illustrating the use of PyGeoStat for various geostatistical modeling tasks.
+      Core concepts and geostatistical workflows.
 
-.. raw:: html
+   .. grid-item-card:: 🧩 API Reference
+      :link: api/index
+      :link-type: doc
 
-   <div class="container">
-     <div class="row">
-       <div class="col-12">
-         <div class="card">
-           <div class="card-body">
-             <p>Explore our examples to see PyGeoStat in action and learn how to apply it to various geostatistical problems.</p>
-             <a class="btn btn-primary" href="examples/index.html">Example Gallery</a>
-           </div>
-         </div>
-       </div>
-     </div>
-   </div>
+      Detailed documentation of all classes and functions.
+
+Tutorials
+---------
+
+.. grid:: 2
+   :gutter: 3
+
+   .. grid-item-card:: 📊 Plotting Gallery
+      :link: user_guide/plotting_gallery
+      :link-type: doc
+
+      Visual showcase of all PyGeoStat plotting functions.
+
+   .. grid-item-card:: 🧪 Examples Gallery
+      :link: examples/index
+      :link-type: doc
+
+      Hands-on tutorials illustrating PyGeoStat in real-world workflows.
 
 .. toctree::
    :maxdepth: 2
@@ -102,3 +73,4 @@ A collection of tutorials illustrating the use of PyGeoStat for various geostati
    api/index
    examples/index
    contribution/contribution
+
