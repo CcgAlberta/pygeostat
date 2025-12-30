@@ -9,6 +9,7 @@ This section provides detailed documentation for all modules and classes in PyGe
 
    data
    griddef
+   plotting
    programs
    statistics
    datautils
