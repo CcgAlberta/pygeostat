@@ -1,0 +1,86 @@
+name: Bug report
+description: Report something in pygeostat that doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. A short example that maintainers can copy, paste and run is the fastest way to get it fixed.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the [existing issues](https://github.com/CcgAlberta/pygeostat/issues?q=is%3Aissue) and this bug hasn't been reported yet.
+          required: true
+        - label: I can reproduce this bug with the [latest release](https://pypi.org/project/pygeostat/) of pygeostat.
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal reproducible example
+      description: |
+        The smallest piece of code that shows the problem and runs as-is after installing pygeostat.
+
+        - Use the datasets that ship with pygeostat ([`gs.ExampleData`](https://pygeostat.readthedocs.io/en/latest/api/data.html#pygeostat.data.data.ExampleData)) or build a small `pandas.DataFrame` in the code, instead of attaching data files.
+        - If the problem is in a Jupyter notebook, paste only the cells needed to reproduce it. `jupytext --to py:percent notebook.ipynb` converts a notebook into a script.
+        - Please don't attach zip files.
+      placeholder: |
+        import pygeostat as gs
+
+        data = gs.ExampleData('point3d_ind_mv')
+        gs.histogram_plot(data, var='Phi')
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: What you saw when running the example. If there's an error, paste the full traceback, not only the last line.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "3.12.4"
+    validations:
+      required: true
+
+  - type: input
+    id: pygeostat-version
+    attributes:
+      label: pygeostat version
+      description: 'Output of `python -c "import pygeostat; print(pygeostat.__version__)"`'
+      placeholder: "1.2.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Screenshots of plots, links to related issues, or other context.
