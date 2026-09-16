@@ -410,7 +410,6 @@ def addxticks(fig, nrow, ncol, lastax, axextents=None):
 
     .. codeauthor:: Ryan Martin and pygeostat development team - 2016-04-18
     """
-    import pygeostat as gs
 
     #  Add xticklabels to the last subplot in a column when it is not in the last row
     renderer = fig.canvas.get_renderer()
@@ -462,7 +461,6 @@ def get_supaxislocs(fig, nrow, ncol, figsize, pad):
 
     .. codeauthor:: pygeostat development team 2016-04-18
     """
-    import pygeostat as gs
 
     renderer = fig.canvas.get_renderer()
     fig.draw(renderer)
@@ -1169,7 +1167,6 @@ def _spatial_pointdata(data, orient, x=None, y=None, z=None, griddef=None):
     import pandas as pd
     from ..data.data import DataFile
     from ..data.grid_definition import GridDef
-    import pygeostat as gs
     if not any([isinstance(data, pd.DataFrame), isinstance(data, DataFile)]):
         raise ValueError("The parameter data must be either a gs.DataFile or a pd.DataFrame")
     if isinstance(data, DataFile):
