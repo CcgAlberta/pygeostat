@@ -1,0 +1,74 @@
+name: Installation or setup issue
+description: Report a problem installing pygeostat, compiling its Fortran extensions or setting up external executables
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening an issue, please check the [Getting Started guide](https://pygeostat.readthedocs.io/en/latest/user_guide/getting_started.html).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: What are you setting up?
+      options:
+        - Installing pygeostat (pip, uv, conda)
+        - Compiling the Fortran extensions (gfortran / MinGW, GSB files)
+        - Getting the external executables (gs.get_executable, GSLIB / CCG programs)
+        - Building the documentation
+        - Something else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "3.12.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How are you installing pygeostat?
+      options:
+        - pip
+        - uv
+        - conda
+        - From source (git clone)
+        - Other
+
+  - type: textarea
+    id: commands
+    attributes:
+      label: Commands you ran
+      description: The exact commands, in order.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output
+      description: The complete output of the failing command, not only the last line.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Virtual environment or conda environment details, compiler versions, or other context.

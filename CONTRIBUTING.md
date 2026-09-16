@@ -2,7 +2,7 @@
 
 When contributing to this repository, please first discuss the change you wish to make via github issues with the owners of this repository before making a change. 
 
-If someone wish to report any bugs, this is encouraged to log the issue on github along with a zip file containing a notebook example of what is not working with clear explanations, and possibly screen shots that can be used to reproduce the issue. The owners will get notifications when an issue is raised.
+To report a bug, [open an issue](https://github.com/CcgAlberta/pygeostat/issues/new/choose) and choose the **Bug report** form. Include a minimal reproducible example: the smallest piece of code that shows the problem and runs as-is when pasted into a Python session. Use the datasets that ship with pygeostat (`gs.ExampleData`) or a small `pandas.DataFrame` built in the code instead of attaching data or zip files. If the problem is in a Jupyter notebook, paste only the cells needed to reproduce it; `jupytext --to py:percent notebook.ipynb` converts a notebook into a script. Screenshots help for plotting problems. For feature ideas or installation problems, choose the matching form. The owners get a notification when an issue is opened.
 
 This document outlines the conventions followed in pygeostat development.
 

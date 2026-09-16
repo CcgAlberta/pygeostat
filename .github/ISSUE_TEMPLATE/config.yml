@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://pygeostat.readthedocs.io/
+    about: User guide, API reference and examples.
