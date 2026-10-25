@@ -120,3 +120,36 @@ def test_drillhole_mesh_trace_missing_coordinate(capsys):
     assert '1 sample(s) with missing coordinates' in capsys.readouterr().out
     assert set(mesh.cell_data['Au']) == {1.0, 2.0}
     assert mesh.bounds[4:] == (90.0, 100.0)
+
+
+@pytest.fixture
+def grid3d():
+    """pygeostat's 40 x 40 x 40 example grid and its grid definition."""
+    return gs.ExampleData('3d_grid'), gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1])
+
+
+def test_block_mesh_uniform(grid3d):
+    """Each cell holds the value of the block that GridDef itself finds at the cell's centre."""
+    data, griddef = grid3d
+    mesh = gs.block_mesh(data, var='value', griddef=griddef)
+    assert mesh.n_cells == griddef.count()
+    assert mesh.bounds == (0.0, 80.0, 0.0, 80.0, 0.0, 40.0)
+    centres = mesh.cell_centers().points
+    idx, _ = griddef.get_index(centres[:, 0], centres[:, 1], centres[:, 2])
+    np.testing.assert_array_equal(mesh.cell_data['value'], data.data['value'].to_numpy()[idx])
+
+
+def test_block_mesh_griddef_from_datafile(grid3d):
+    """A DataFile's own griddef is used without passing it."""
+    data, griddef = grid3d
+    data.griddef = griddef
+    assert gs.block_mesh(data, var='value').n_cells == griddef.count()
+
+
+def test_block_mesh_errors(grid3d):
+    """No griddef, or a griddef that doesn't match the data, raise a clear error."""
+    data, griddef = grid3d
+    with pytest.raises(ValueError, match='griddef'):
+        gs.block_mesh(data.data, var='value')
+    with pytest.raises(ValueError, match='64000 rows but the grid has 32000 blocks'):
+        gs.block_mesh(data, var='value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 20, 0.5, 1]))
