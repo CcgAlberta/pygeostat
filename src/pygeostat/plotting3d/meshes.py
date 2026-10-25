@@ -127,10 +127,11 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 	return mesh.tube(radius=radius, n_sides=n_sides)
 
 
-def block_mesh(data, var=None, griddef=None):
+def block_mesh(data, var=None, griddef=None, x=None, y=None, z=None, size=None):
 	"""
-	Convert a block model on a regular grid to a PyVista mesh, one cell per block, with the values
-	of ``var`` stored as cell data.
+	Convert a block model to a PyVista mesh, one cell per block, with the values of ``var`` stored
+	as cell data. A regular grid needs ``griddef``. Sub-blocks of any size need ``size``: each row
+	is a box centred at ``x``, ``y``, ``z`` with the sizes in the three ``size`` columns.
 
 	Requires PyVista (``pip install pyvista``).
 
@@ -141,9 +142,16 @@ def block_mesh(data, var=None, griddef=None):
 			based on DataFile.variables
 		griddef (gs.GridDef): grid definition. If None and data is a DataFile, based on
 			DataFile.griddef
+		x (str): x column of the sub-block centres. If None and data is a DataFile, based on
+			DataFile.x
+		y (str): y column of the sub-block centres. If None and data is a DataFile, based on
+			DataFile.y
+		z (str): z column of the sub-block centres. If None and data is a DataFile, based on
+			DataFile.z
+		size (tuple): x, y, z size columns of the sub-blocks
 
 	Returns:
-		mesh (pyvista.ImageData): one cell per block
+		mesh (pyvista.ImageData or pyvista.UnstructuredGrid): one cell per block
 
 	Examples:
 
@@ -155,29 +163,60 @@ def block_mesh(data, var=None, griddef=None):
 		mesh = gs.block_mesh(data, var='value', griddef=griddef)
 		mesh.plot()
 
+	Sub-blocks, one row per block with its centre and its sizes:
+
+	.. code-block:: python
+
+		mesh = gs.block_mesh(subblocks, var='Au', x='x', y='y', z='z',
+							 size=('xsize', 'ysize', 'zsize'))
+
 	"""
+	import numpy as np
 	from ..data.data import DataFile
 	try:
 		import pyvista as pv
 	except ImportError:
 		raise ImportError("block_mesh requires PyVista: pip install pyvista") from None
 
+	if griddef is not None and size is not None:
+		raise ValueError("Pass `griddef` for a regular grid or `size` for sub-blocks, not both")
 	if isinstance(data, DataFile):
 		if var is None:
 			var = data.variables
-		if griddef is None:
+		if griddef is None and size is None:
 			griddef = data.griddef
+		x = data.x if x is None else x
+		y = data.y if y is None else y
+		z = data.z if z is None else z
 		data = data.data
-	if griddef is None:
-		raise ValueError("`griddef` has not been set and could not be automatically retrieved")
-	if len(data) != griddef.count():
-		raise ValueError("The data has {} rows but the grid has {} blocks".format(
-			len(data), griddef.count()))
 	if var is None:
 		var = []
 	elif isinstance(var, str):
 		var = [var]
 
+	if size is not None:
+		if any(col is None for col in (x, y, z)):
+			raise ValueError("The `x`, `y` and `z` columns have not been set and could not be"
+							 " automatically retrieved")
+		n = len(data)
+		centres = data[[x, y, z]].to_numpy(dtype=float)
+		half = data[list(size)].to_numpy(dtype=float) / 2
+		# Corners in VTK hexahedron order: bottom face counterclockwise, then top face
+		corners = np.array([[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+							[-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]], dtype=float)
+		points = (centres[:, None, :] + corners[None, :, :] * half[:, None, :]).reshape(-1, 3)
+		cells = np.hstack([np.full((n, 1), 8), np.arange(8 * n).reshape(n, 8)]).ravel()
+		mesh = pv.UnstructuredGrid(cells, np.full(n, pv.CellType.HEXAHEDRON), points)
+		for v in var:
+			mesh.cell_data[v] = data[v].to_numpy(dtype=float)
+		return mesh
+
+	if griddef is None:
+		raise ValueError("`griddef` (regular grid) or `size` (sub-blocks) has not been set and"
+						 " could not be automatically retrieved")
+	if len(data) != griddef.count():
+		raise ValueError("The data has {} rows but the grid has {} blocks".format(
+			len(data), griddef.count()))
 	mesh = pv.ImageData(dimensions=(griddef.nx + 1, griddef.ny + 1, griddef.nz + 1),
 						spacing=(griddef.xsiz, griddef.ysiz, griddef.zsiz),
 						origin=(griddef.xmn - griddef.xsiz / 2, griddef.ymn - griddef.ysiz / 2,
