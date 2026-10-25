@@ -97,7 +97,12 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 			raise ValueError("`trace` needs the drill hole id column `dh`")
 		xyz = data[[x, y, z]].to_numpy(dtype=float)
 		holes = pd.factorize(data[dh])[0]
-		order = np.lexsort((-xyz[:, 2], holes))
+		# A sample with no location can't be joined, and would make the median spacing NaN
+		located = ~np.isnan(xyz).any(axis=1)
+		if not located.all():
+			printerr("{} sample(s) with missing coordinates are not drawn".format(
+				int((~located).sum())), errtype='warning')
+		order = np.flatnonzero(located)[np.lexsort((-xyz[located, 2], holes[located]))]
 		same_hole = holes[order][1:] == holes[order][:-1]
 		rows, below = order[:-1][same_hole], order[1:][same_hole]
 		upper, lower = xyz[rows], xyz[below]
