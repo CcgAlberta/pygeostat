@@ -125,3 +125,63 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 		printerr("{} interval(s) have the same start and end and are not drawn".format(nzero),
 				 errtype='warning')
 	return mesh.tube(radius=radius, n_sides=n_sides)
+
+
+def block_mesh(data, var=None, griddef=None):
+	"""
+	Convert a block model on a regular grid to a PyVista mesh, one cell per block, with the values
+	of ``var`` stored as cell data.
+
+	Requires PyVista (``pip install pyvista``).
+
+	Parameters:
+		data (pd.DataFrame or gs.DataFile): block model values, in grid order (x fastest, then y,
+			then z)
+		var (str or list): variable(s) to store on the mesh. If None and data is a DataFile,
+			based on DataFile.variables
+		griddef (gs.GridDef): grid definition. If None and data is a DataFile, based on
+			DataFile.griddef
+
+	Returns:
+		mesh (pyvista.ImageData): one cell per block
+
+	Examples:
+
+	.. code-block:: python
+
+		import pygeostat as gs
+		data = gs.ExampleData('3d_grid')
+		griddef = gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1])
+		mesh = gs.block_mesh(data, var='value', griddef=griddef)
+		mesh.plot()
+
+	"""
+	from ..data.data import DataFile
+	try:
+		import pyvista as pv
+	except ImportError:
+		raise ImportError("block_mesh requires PyVista: pip install pyvista") from None
+
+	if isinstance(data, DataFile):
+		if var is None:
+			var = data.variables
+		if griddef is None:
+			griddef = data.griddef
+		data = data.data
+	if griddef is None:
+		raise ValueError("`griddef` has not been set and could not be automatically retrieved")
+	if len(data) != griddef.count():
+		raise ValueError("The data has {} rows but the grid has {} blocks".format(
+			len(data), griddef.count()))
+	if var is None:
+		var = []
+	elif isinstance(var, str):
+		var = [var]
+
+	mesh = pv.ImageData(dimensions=(griddef.nx + 1, griddef.ny + 1, griddef.nz + 1),
+						spacing=(griddef.xsiz, griddef.ysiz, griddef.zsiz),
+						origin=(griddef.xmn - griddef.xsiz / 2, griddef.ymn - griddef.ysiz / 2,
+								griddef.zmn - griddef.zsiz / 2))
+	for v in var:
+		mesh.cell_data[v] = data[v].to_numpy(dtype=float)
+	return mesh
