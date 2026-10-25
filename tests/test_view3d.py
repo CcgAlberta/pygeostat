@@ -153,3 +153,34 @@ def test_block_mesh_errors(grid3d):
         gs.block_mesh(data.data, var='value')
     with pytest.raises(ValueError, match='64000 rows but the grid has 32000 blocks'):
         gs.block_mesh(data, var='value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 20, 0.5, 1]))
+
+
+@pytest.fixture
+def subblocks():
+    """Three sub-blocks of different sizes, in the standard format: centre and sizes."""
+    return pd.DataFrame({
+        'x': [5.0, 12.5, 15.0], 'y': [5.0, 2.5, 5.0], 'z': [5.0, 2.5, 7.5],
+        'xsize': [10.0, 5.0, 10.0], 'ysize': [10.0, 5.0, 10.0], 'zsize': [10.0, 5.0, 5.0],
+        'Au': [1.0, 2.0, 3.0],
+    })
+
+
+def test_block_mesh_subblocks(subblocks):
+    """Each row becomes one box with its own centre, sizes and value."""
+    mesh = gs.block_mesh(subblocks, var='Au', x='x', y='y', z='z',
+                         size=('xsize', 'ysize', 'zsize'))
+    assert mesh.n_cells == 3
+    assert mesh.bounds == (0.0, 20.0, 0.0, 10.0, 0.0, 10.0)
+    np.testing.assert_allclose(mesh.cell_centers().points, subblocks[['x', 'y', 'z']])
+    volumes = mesh.compute_cell_sizes(length=False, area=False)['Volume']
+    np.testing.assert_allclose(volumes, subblocks[['xsize', 'ysize', 'zsize']].prod(axis=1))
+    np.testing.assert_array_equal(mesh.cell_data['Au'], subblocks['Au'])
+
+
+def test_block_mesh_subblocks_errors(subblocks, grid3d):
+    """Both griddef and size, or sub-blocks without centres, raise a clear error."""
+    _, griddef = grid3d
+    with pytest.raises(ValueError, match='not both'):
+        gs.block_mesh(subblocks, var='Au', griddef=griddef, size=('xsize', 'ysize', 'zsize'))
+    with pytest.raises(ValueError, match='could not be'):
+        gs.block_mesh(subblocks, var='Au', size=('xsize', 'ysize', 'zsize'))
