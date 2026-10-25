@@ -19,6 +19,7 @@ from . pygeostat_parameters import Parameters, PlotStyle
 from .data import *
 from .programs import *
 from .plotting import *
+from .plotting3d import *
 from .datautils import *
 from .transformations import *
 from .multivariate import *
