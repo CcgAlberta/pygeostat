@@ -45,7 +45,9 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 
 	"""
 	import numpy as np
+	import pandas as pd
 	from ..data.data import DataFile
+	from ..utility.logging import printerr
 	try:
 		import pyvista as pv
 	except ImportError:
@@ -64,6 +66,10 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 		var = [var]
 	if (start is None) != (end is None):
 		raise ValueError("Pass both `start` and `end`, or neither")
+	for v in var:
+		if not pd.api.types.is_numeric_dtype(data[v]):
+			raise ValueError("The variable '{}' is not numeric. Store categories as integer codes"
+							 " (see DataFile.catdict)".format(v))
 
 	if start is None:
 		if any(col is None for col in (x, y, z)):
@@ -81,5 +87,10 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 	for v in var:
 		mesh.cell_data[v] = data[v].to_numpy(dtype=float)
 	if start is not None:
+		# The tube filter drops intervals with no length, so they would vanish silently
+		nzero = int((np.linalg.norm(points[0::2] - points[1::2], axis=1) == 0).sum())
+		if nzero:
+			printerr("{} interval(s) have the same start and end and are not drawn".format(nzero),
+					 errtype='warning')
 		mesh = mesh.tube(radius=radius, n_sides=n_sides)
 	return mesh
