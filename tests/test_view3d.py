@@ -110,3 +110,13 @@ def test_drillhole_mesh_trace_from_datafile():
     mesh = gs.drillhole_mesh(data, var='Bitumen', trace=True)
     assert mesh.n_cells > 0
     assert mesh.bounds[4] >= data.data[data.z].min() - 2.0
+
+
+def test_drillhole_mesh_trace_missing_coordinate(capsys):
+    """A sample with no elevation is skipped; the rest of the hole is still joined."""
+    data = pd.DataFrame({'dh': ['A'] * 4, 'x': [0.0] * 4, 'y': [0.0] * 4,
+                         'z': [100.0, 95.0, 90.0, np.nan], 'Au': [1.0, 2.0, 3.0, 4.0]})
+    mesh = gs.drillhole_mesh(data, var='Au', x='x', y='y', z='z', dh='dh', trace=True)
+    assert '1 sample(s) with missing coordinates' in capsys.readouterr().out
+    assert set(mesh.cell_data['Au']) == {1.0, 2.0}
+    assert mesh.bounds[4:] == (90.0, 100.0)
