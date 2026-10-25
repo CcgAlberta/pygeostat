@@ -70,3 +70,43 @@ def test_drillhole_mesh_text_variable(intervals):
     with pytest.raises(ValueError, match="'Rock' is not numeric"):
         gs.drillhole_mesh(intervals, var='Rock', start=('startx', 'starty', 'startz'),
                           end=('endx', 'endy', 'endz'))
+
+
+@pytest.fixture
+def samples():
+    """Two drill holes, given out of order; hole B has a 50 m stretch with no samples."""
+    return pd.DataFrame({
+        'dh': ['B', 'A', 'B', 'A', 'B', 'B'],
+        'x': [10.0, 0.0, 10.0, 0.0, 10.0, 10.0],
+        'y': [0.0] * 6,
+        'z': [95.0, 90.0, 100.0, 100.0, 40.0, 35.0],
+        'Au': [2.0, 1.0, 3.0, 4.0, 5.0, 6.0],
+    })
+
+
+def test_drillhole_mesh_trace(samples):
+    """Samples are joined down each hole, each cylinder takes its upper sample's value, and the
+    gap in hole B (50 m, ten times the 5 m median spacing) is not bridged."""
+    mesh = gs.drillhole_mesh(samples, var='Au', x='x', y='y', z='z', dh='dh', trace=True,
+                             radius=1.0)
+    values = mesh.cell_data['Au']
+    centres = mesh.cell_centers().points
+    hole_a = centres[:, 0] < 5
+    assert set(values[hole_a]) == {4.0}         # A: 100 -> 90, value of the sample at 100
+    assert set(values[~hole_a]) == {3.0, 5.0}   # B: 100 -> 95 and 40 -> 35
+    assert not np.any((centres[:, 2] > 45) & (centres[:, 2] < 90))
+
+
+def test_drillhole_mesh_trace_max_gap(samples):
+    """A larger max_gap bridges the gap, so hole B gets its 95 -> 40 cylinder too."""
+    mesh = gs.drillhole_mesh(samples, var='Au', x='x', y='y', z='z', dh='dh', trace=True,
+                             max_gap=60.0)
+    assert set(mesh.cell_data['Au']) == {2.0, 3.0, 4.0, 5.0}
+
+
+def test_drillhole_mesh_trace_from_datafile():
+    """A DataFile's own drill hole id column is used without naming it."""
+    data = gs.ExampleData('oilsands')
+    mesh = gs.drillhole_mesh(data, var='Bitumen', trace=True)
+    assert mesh.n_cells > 0
+    assert mesh.bounds[4] >= data.data[data.z].min() - 2.0
