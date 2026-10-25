@@ -53,3 +53,20 @@ def test_drillhole_mesh_errors(intervals):
         gs.drillhole_mesh(intervals, var='Au')
     with pytest.raises(ValueError, match='both `start` and `end`'):
         gs.drillhole_mesh(intervals, var='Au', start=('startx', 'starty', 'startz'))
+
+
+def test_drillhole_mesh_zero_length_warns(intervals, capsys):
+    """An interval with the same start and end is not drawn, and the user is told."""
+    intervals.loc[1, 'endz'] = intervals.loc[1, 'startz']
+    mesh = gs.drillhole_mesh(intervals, var='Au', start=('startx', 'starty', 'startz'),
+                             end=('endx', 'endy', 'endz'))
+    assert '1 interval(s) have the same start and end' in capsys.readouterr().out
+    assert mesh.bounds[4:] == (90.0, 100.0)
+
+
+def test_drillhole_mesh_text_variable(intervals):
+    """Text categories get a clear error instead of a failed float conversion."""
+    intervals['Rock'] = ['granite', 'diorite']
+    with pytest.raises(ValueError, match="'Rock' is not numeric"):
+        gs.drillhole_mesh(intervals, var='Rock', start=('startx', 'starty', 'startz'),
+                          end=('endx', 'endy', 'endz'))
