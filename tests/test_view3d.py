@@ -268,3 +268,22 @@ def test_show_static_colour_bar(grid3d):
                                                         round(box.width * 400))
     fig, ax = viewer.show_static(figsize=(4, 3), cbar=False)
     assert fig.axes == [ax]
+
+
+@pytest.mark.parametrize('change', ['none', 'zoom', 'parallel'])
+def test_show_static_keeps_the_camera(subblocks, change):
+    """show_static draws exactly what the live scene shows, zoom and projection included."""
+    from matplotlib import pyplot as plt
+    mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
+    viewer = gs.view3d(mesh, color='tan', viewer=gs.Viewer(off_screen=True))
+    viewer.plotter.window_size = [400, 300]
+    viewer.plotter.camera_position = 'iso'
+    if change == 'zoom':
+        viewer.plotter.camera.zoom(2)
+    elif change == 'parallel':
+        viewer.plotter.camera.parallel_projection = True
+    live = viewer.plotter.screenshot(return_img=True)
+    fig = plt.figure(figsize=(4, 3), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1])
+    viewer.show_static(ax=ax)
+    np.testing.assert_array_equal(ax.get_images()[0].get_array(), live)
