@@ -251,3 +251,20 @@ def test_show_static_on_given_axis(grid3d):
     out_fig, out_ax = gs.view3d(data, 'value', griddef=griddef).show_static(ax=right)
     assert (out_fig, out_ax) == (fig, right)
     assert len(right.get_images()) == 1 and len(left.get_images()) == 0
+
+
+def test_show_static_colour_bar(grid3d):
+    """The colour bar is a matplotlib one with the layer's label, limits and colormap, the picture
+    still fills the (narrower) axis at full resolution, and cbar=False leaves it out."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, clim=(-1, 2), cmap='magma', label='Grade')
+    fig, ax = viewer.show_static(figsize=(4, 3), dpi=100)
+    (cbar_ax,) = [a for a in fig.axes if a is not ax]
+    assert cbar_ax.get_ylabel() == 'Grade'
+    assert cbar_ax.get_ylim() == (-1, 2)
+    assert cbar_ax._colorbar.cmap.name == 'magma'
+    box = ax.get_position()
+    assert ax.get_images()[0].get_array().shape[:2] == (round(box.height * 300),
+                                                        round(box.width * 400))
+    fig, ax = viewer.show_static(figsize=(4, 3), cbar=False)
+    assert fig.axes == [ax]
