@@ -85,7 +85,12 @@ class Viewer:
 		for mesh, kwargs in self._layers:
 			static.add_mesh(mesh, show_scalar_bar=False, **kwargs)
 		if self.plotter.camera_set:
+			# The position alone misses the zoom and the projection
+			live = self.plotter.camera
+			static.camera.parallel_projection = live.parallel_projection
 			static.camera_position = self.plotter.camera_position
+			static.camera.view_angle = live.view_angle
+			static.camera.parallel_scale = live.parallel_scale
 		image = static.screenshot(return_img=True)
 		static.close()
 
