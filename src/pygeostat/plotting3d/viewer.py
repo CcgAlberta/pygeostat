@@ -39,7 +39,7 @@ class Viewer:
 		"""Show the scene. Keyword arguments go to ``pyvista.Plotter.show``."""
 		return self.plotter.show(**kwargs)
 
-	def show_static(self, figsize=None, dpi=None, title=None, ax=None):
+	def show_static(self, figsize=None, dpi=None, title=None, cbar=True, ax=None):
 		"""
 		Draw the scene as a picture on a matplotlib axis, so it can sit next to 2D plots in one
 		figure. The scene is rendered off screen, so this works before or after ``show``.
@@ -48,6 +48,7 @@ class Viewer:
 			figsize (tuple): figure size (width, height) in inches, if ``ax`` is None
 			dpi (float): resolution of the picture. If None, the figure's own dpi
 			title (str): title of the axis
+			cbar (bool): draw a matplotlib colour bar for each layer coloured by a variable
 			ax (mpl.axis): axis to draw on. If None, a new figure is made
 
 		Returns:
@@ -56,6 +57,8 @@ class Viewer:
 		"""
 		import pyvista as pv
 		import matplotlib.pyplot as plt
+		from matplotlib.cm import ScalarMappable
+		from matplotlib.colors import Normalize
 
 		if ax is None:
 			fig, ax = plt.subplots(figsize=figsize)
@@ -63,12 +66,24 @@ class Viewer:
 			fig = ax.figure
 		if dpi is None:
 			dpi = fig.dpi
+
+		# PyVista's colour bars overlap the picture at small sizes, so matplotlib draws them instead.
+		# They go on first because they shrink the axis, and the picture is rendered at its size.
+		cbars = {}
+		for mesh, kwargs in self._layers:
+			if 'scalars' in kwargs:
+				label = kwargs['scalar_bar_args']['title']
+				clim = kwargs['clim'] or mesh.get_data_range(kwargs['scalars'])
+				cbars.setdefault(label, (kwargs['cmap'], clim))
+		if cbar:
+			for label, (cmap, clim) in cbars.items():
+				fig.colorbar(ScalarMappable(Normalize(*clim), cmap), ax=ax, label=label)
 		bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
 		window_size = [int(round(bbox.width * dpi)), int(round(bbox.height * dpi))]
 
 		static = pv.Plotter(off_screen=True, window_size=window_size)
 		for mesh, kwargs in self._layers:
-			static.add_mesh(mesh, **kwargs)
+			static.add_mesh(mesh, show_scalar_bar=False, **kwargs)
 		if self.plotter.camera_set:
 			static.camera_position = self.plotter.camera_position
 		image = static.screenshot(return_img=True)
