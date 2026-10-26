@@ -227,3 +227,27 @@ def test_view3d_mesh_and_colour(subblocks):
     assert actor.mapper.dataset is mesh
     assert actor.prop.color == pv.Color('red')
     assert not actor.mapper.scalar_visibility
+
+
+def test_show_static(grid3d):
+    """The scene is drawn on a matplotlib axis at the axis' own pixel size, from a viewer that was
+    never shown on screen."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef)
+    fig, ax = viewer.show_static(figsize=(4, 3), dpi=100, title='Blocks')
+    (image,) = ax.get_images()
+    box = ax.get_position()  # in fractions of the 4 x 3 inch figure
+    assert image.get_array().shape[:2] == (round(box.height * 3 * 100), round(box.width * 4 * 100))
+    assert image.get_array().std() > 0
+    assert ax.get_title() == 'Blocks'
+    assert fig is ax.figure
+
+
+def test_show_static_on_given_axis(grid3d):
+    """With ax=, the picture goes on that axis, next to whatever else is in the figure."""
+    from matplotlib import pyplot as plt
+    data, griddef = grid3d
+    fig, (left, right) = plt.subplots(1, 2, figsize=(8, 4))
+    out_fig, out_ax = gs.view3d(data, 'value', griddef=griddef).show_static(ax=right)
+    assert (out_fig, out_ax) == (fig, right)
+    assert len(right.get_images()) == 1 and len(left.get_images()) == 0
