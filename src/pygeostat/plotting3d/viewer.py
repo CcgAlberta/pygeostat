@@ -27,10 +27,58 @@ class Viewer:
 		except ImportError:
 			raise ImportError("Viewer requires PyVista: pip install pyvista") from None
 		self.plotter = pv.Plotter(off_screen=off_screen)
+		# Each layer's mesh and drawing options, so show_static can rebuild the scene
+		self._layers = []
+
+	def add(self, mesh, **kwargs):
+		"""Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``."""
+		self._layers.append((mesh, kwargs))
+		self.plotter.add_mesh(mesh, **kwargs)
 
 	def show(self, **kwargs):
 		"""Show the scene. Keyword arguments go to ``pyvista.Plotter.show``."""
 		return self.plotter.show(**kwargs)
+
+	def show_static(self, figsize=None, dpi=None, title=None, ax=None):
+		"""
+		Draw the scene as a picture on a matplotlib axis, so it can sit next to 2D plots in one
+		figure. The scene is rendered off screen, so this works before or after ``show``.
+
+		Parameters:
+			figsize (tuple): figure size (width, height) in inches, if ``ax`` is None
+			dpi (float): resolution of the picture. If None, the figure's own dpi
+			title (str): title of the axis
+			ax (mpl.axis): axis to draw on. If None, a new figure is made
+
+		Returns:
+			fig (mpl.figure.Figure): the figure
+			ax (mpl.axis): the axis with the picture
+		"""
+		import pyvista as pv
+		import matplotlib.pyplot as plt
+
+		if ax is None:
+			fig, ax = plt.subplots(figsize=figsize)
+		else:
+			fig = ax.figure
+		if dpi is None:
+			dpi = fig.dpi
+		bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+		window_size = [int(round(bbox.width * dpi)), int(round(bbox.height * dpi))]
+
+		static = pv.Plotter(off_screen=True, window_size=window_size)
+		for mesh, kwargs in self._layers:
+			static.add_mesh(mesh, **kwargs)
+		if self.plotter.camera_set:
+			static.camera_position = self.plotter.camera_position
+		image = static.screenshot(return_img=True)
+		static.close()
+
+		ax.imshow(image)
+		ax.axis('off')
+		if title is not None:
+			ax.set_title(title)
+		return fig, ax
 
 
 def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color=None, label=None,
@@ -102,8 +150,8 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 	if viewer is None:
 		viewer = Viewer()
 	if var is None:
-		viewer.plotter.add_mesh(mesh, color=color, opacity=opacity)
+		viewer.add(mesh, color=color, opacity=opacity)
 	else:
-		viewer.plotter.add_mesh(mesh, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
-								opacity=opacity, scalar_bar_args={'title': label or var})
+		viewer.add(mesh, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim, opacity=opacity,
+				   scalar_bar_args={'title': label or var})
 	return viewer
