@@ -184,3 +184,46 @@ def test_block_mesh_subblocks_errors(subblocks, grid3d):
         gs.block_mesh(subblocks, var='Au', griddef=griddef, size=('xsize', 'ysize', 'zsize'))
     with pytest.raises(ValueError, match='could not be'):
         gs.block_mesh(subblocks, var='Au', size=('xsize', 'ysize', 'zsize'))
+
+
+def layers(viewer):
+    """The PyVista actors of the meshes in a scene, in the order they were added."""
+    return [a for a in viewer.plotter.actors.values() if isinstance(a, pv.Actor)]
+
+
+def test_view3d_layers_share_a_viewer(grid3d):
+    """Calls with viewer= add to the same scene, like ax= in the 2D plots."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, opacity=0.3, viewer=gs.Viewer(off_screen=True))
+    same = gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=viewer)
+    assert same is viewer
+    blocks, points = layers(viewer)
+    assert isinstance(blocks.mapper.dataset, pv.ImageData)
+    assert blocks.prop.opacity == 0.3
+    assert points.mapper.dataset.n_points == 100
+
+
+def test_view3d_colours(grid3d):
+    """clim sets the colour range, the default colormap is gs.Parameters['plotting.cmap'] and the
+    colour bar is titled by label."""
+    from matplotlib import colormaps
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, clim=(0, 2), label='Grade',
+                       viewer=gs.Viewer(off_screen=True))
+    (actor,) = layers(viewer)
+    assert tuple(actor.mapper.scalar_range) == (0, 2)
+    top = [0.0, 0.0, 0.0]
+    actor.mapper.lookup_table.GetColor(2, top)
+    cmap = colormaps[gs.Parameters['plotting.cmap']]
+    np.testing.assert_allclose(top, cmap(1.0)[:3], atol=0.01)
+    assert 'Grade' in viewer.plotter.scalar_bars
+
+
+def test_view3d_mesh_and_colour(subblocks):
+    """A PyVista mesh is shown as given; without var it is drawn in one colour."""
+    mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
+    viewer = gs.view3d(mesh, color='red', viewer=gs.Viewer(off_screen=True))
+    (actor,) = layers(viewer)
+    assert actor.mapper.dataset is mesh
+    assert actor.prop.color == pv.Color('red')
+    assert not actor.mapper.scalar_visibility
