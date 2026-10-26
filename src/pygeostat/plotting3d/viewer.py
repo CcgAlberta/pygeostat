@@ -39,6 +39,33 @@ class Viewer:
 		"""Show the scene. Keyword arguments go to ``pyvista.Plotter.show``."""
 		return self.plotter.show(**kwargs)
 
+	def get_camera(self):
+		"""
+		The current view, as a dictionary of plain numbers that can be saved (e.g. with ``json``)
+		and given back to :meth:`set_camera` to reproduce the view exactly.
+
+		Returns:
+			camera (dict): ``position``, ``focal_point`` and ``view_up`` (x, y, z lists),
+			``parallel_projection`` (bool), and the zoom: ``view_angle`` (degrees, used by a
+			perspective view) and ``parallel_scale`` (used by a parallel view)
+		"""
+		camera = self.plotter.camera
+		return {'position': [float(v) for v in camera.position],
+				'focal_point': [float(v) for v in camera.focal_point],
+				'view_up': [float(v) for v in camera.up],
+				'parallel_projection': bool(camera.parallel_projection),
+				'view_angle': float(camera.view_angle),
+				'parallel_scale': float(camera.parallel_scale)}
+
+	def set_camera(self, camera):
+		"""
+		Set the view from a dictionary made by :meth:`get_camera`.
+
+		Parameters:
+			camera (dict): the view, as returned by :meth:`get_camera`
+		"""
+		_apply_camera(self.plotter, camera)
+
 	def show_static(self, figsize=None, dpi=None, title=None, cbar=True, ax=None):
 		"""
 		Draw the scene as a picture on a matplotlib axis, so it can sit next to 2D plots in one
@@ -85,12 +112,7 @@ class Viewer:
 		for mesh, kwargs in self._layers:
 			static.add_mesh(mesh, show_scalar_bar=False, **kwargs)
 		if self.plotter.camera_set:
-			# The position alone misses the zoom and the projection
-			live = self.plotter.camera
-			static.camera.parallel_projection = live.parallel_projection
-			static.camera_position = self.plotter.camera_position
-			static.camera.view_angle = live.view_angle
-			static.camera.parallel_scale = live.parallel_scale
+			_apply_camera(static, self.get_camera())
 		image = static.screenshot(return_img=True)
 		static.close()
 
@@ -99,6 +121,15 @@ class Viewer:
 		if title is not None:
 			ax.set_title(title)
 		return fig, ax
+
+
+def _apply_camera(plotter, camera):
+	"""Set a plotter's camera from a get_camera dictionary. The position alone misses the zoom and
+	the projection."""
+	plotter.camera.parallel_projection = camera['parallel_projection']
+	plotter.camera_position = (camera['position'], camera['focal_point'], camera['view_up'])
+	plotter.camera.view_angle = camera['view_angle']
+	plotter.camera.parallel_scale = camera['parallel_scale']
 
 
 def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color=None, label=None,
