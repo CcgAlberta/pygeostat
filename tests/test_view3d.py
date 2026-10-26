@@ -296,3 +296,35 @@ def test_show_static_keeps_the_camera(subblocks, change):
     ax = fig.add_axes([0, 0, 1, 1])
     viewer.show_static(ax=ax)
     np.testing.assert_array_equal(ax.get_images()[0].get_array(), live)
+
+
+def test_camera_round_trip(subblocks):
+    """A view saved as JSON and set on a new scene gives the same picture, live and static."""
+    import json
+    from matplotlib import pyplot as plt
+    mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
+
+    def scene():
+        viewer = gs.view3d(mesh, color='tan', viewer=gs.Viewer(off_screen=True))
+        viewer.plotter.window_size = [400, 300]
+        return viewer
+
+    first = scene()
+    first.plotter.camera_position = 'yz'
+    first.plotter.camera.azimuth = 30
+    first.plotter.camera.parallel_projection = True
+    first.plotter.camera.zoom(1.5)
+    saved = json.loads(json.dumps(first.get_camera()))
+    assert saved['parallel_projection'] is True
+
+    second = scene()
+    second.set_camera(saved)
+    assert second.get_camera() == saved
+    expected = first.plotter.screenshot(return_img=True)
+    np.testing.assert_array_equal(second.plotter.screenshot(return_img=True), expected)
+    # A scene that was never drawn on screen still uses the camera in show_static
+    third = scene()
+    third.set_camera(saved)
+    ax = plt.figure(figsize=(4, 3), dpi=100).add_axes([0, 0, 1, 1])
+    third.show_static(ax=ax)
+    np.testing.assert_array_equal(ax.get_images()[0].get_array(), expected)
