@@ -11,6 +11,15 @@ import pygeostat as gs
 pv = pytest.importorskip('pyvista')
 
 
+@pytest.fixture(autouse=True)
+def close_scenes():
+    """Close the figures and PyVista plotters each test leaves open."""
+    from matplotlib import pyplot as plt
+    yield
+    plt.close('all')
+    pv.close_all()
+
+
 @pytest.fixture
 def intervals():
     """Two drill hole intervals with start and end coordinates."""
