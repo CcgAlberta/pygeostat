@@ -328,3 +328,41 @@ def test_camera_round_trip(subblocks):
     ax = plt.figure(figsize=(4, 3), dpi=100).add_axes([0, 0, 1, 1])
     third.show_static(ax=ax)
     np.testing.assert_array_equal(ax.get_images()[0].get_array(), expected)
+
+
+def test_ruler_titles(subblocks):
+    """Axis titles follow gs.Parameters like the 2D plots; unit='' leaves the unit out."""
+    mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
+    viewer = gs.view3d(mesh, viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    unit = gs.Parameters['plotting.unit']
+    axes = viewer.plotter.renderer.cube_axes_actor
+    assert axes.GetXTitle() == '{} ({})'.format(gs.Parameters['plotting.xname'], unit)
+    assert axes.GetZTitle() == '{} ({})'.format(gs.Parameters['plotting.zname'], unit)
+    viewer.add_ruler(unit='')
+    assert viewer.plotter.renderer.cube_axes_actor.GetYTitle() == gs.Parameters['plotting.yname']
+
+
+def test_ruler_box_does_not_grow(subblocks):
+    """The ruler box is the data plus 2% (not below 0 where the data starts at 0), and drawing it
+    again does not make it bigger."""
+    mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
+    viewer = gs.view3d(mesh, viewer=gs.Viewer(off_screen=True))
+    for _ in range(3):
+        viewer.add_ruler()
+        np.testing.assert_allclose(viewer.plotter.renderer.cube_axes_actor.bounds,
+                                   (0, 20.4, 0, 10.2, 0, 10.2))
+
+
+def test_show_static_draws_the_ruler(subblocks):
+    """show_static includes the ruler: the picture matches the live view pixel for pixel."""
+    from matplotlib import pyplot as plt
+    mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
+    viewer = gs.view3d(mesh, color='tan', viewer=gs.Viewer(off_screen=True))
+    viewer.plotter.window_size = [400, 300]
+    viewer.add_ruler()
+    viewer.plotter.camera_position = 'iso'
+    live = viewer.plotter.screenshot(return_img=True)
+    ax = plt.figure(figsize=(4, 3), dpi=100).add_axes([0, 0, 1, 1])
+    viewer.show_static(ax=ax)
+    np.testing.assert_array_equal(ax.get_images()[0].get_array(), live)
