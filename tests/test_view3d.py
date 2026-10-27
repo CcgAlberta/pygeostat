@@ -455,3 +455,16 @@ def test_view3d_threshold_drillholes(intervals):
     assert actor.mapper.dataset.bounds[4:] == (90.0, 100.0)
     with pytest.raises(ValueError, match='needs a variable'):
         gs.view3d(mesh, threshold=(0, 10), viewer=gs.Viewer(off_screen=True))
+
+
+def test_ruler_keeps_the_whole_model_under_a_threshold(grid3d):
+    """With a high threshold only a few blocks are left, but the ruler still spans the whole
+    model, so they can be placed within it."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, threshold=(3.5, 10),
+                       viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    (actor,) = layers(viewer)
+    assert actor.mapper.dataset.n_cells == np.sum(data.data['value'].to_numpy() >= 3.5) < 20
+    np.testing.assert_allclose(viewer.plotter.renderer.cube_axes_actor.bounds,
+                               (0, 80, 0, 80, 0, 40))
