@@ -29,11 +29,30 @@ class Viewer:
 		self.plotter = pv.Plotter(off_screen=off_screen)
 		# Each layer's mesh and drawing options, so show_static can rebuild the scene
 		self._layers = []
+		self._ruler = None
 
 	def add(self, mesh, **kwargs):
 		"""Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``."""
 		self._layers.append((mesh, kwargs))
 		self.plotter.add_mesh(mesh, **kwargs)
+
+	def add_ruler(self, unit=None):
+		"""
+		Draw axes with grid lines on the back walls around everything in the scene, titled like
+		the 2D plots (e.g. "Easting (m)").
+
+		Parameters:
+			unit (str): unit in the axis titles. If None, based on gs.Parameters['plotting.unit'];
+				use ``''`` for no unit
+		"""
+		from ..pygeostat_parameters import Parameters
+		if unit is None:
+			unit = Parameters['plotting.unit']
+		unit = ' ({})'.format(unit) if unit else ''
+		self._ruler = {'xtitle': Parameters['plotting.xname'] + unit,
+					   'ytitle': Parameters['plotting.yname'] + unit,
+					   'ztitle': Parameters['plotting.zname'] + unit}
+		_draw_ruler(self.plotter, self._layers, self._ruler)
 
 	def show(self, **kwargs):
 		"""Show the scene. Keyword arguments go to ``pyvista.Plotter.show``."""
@@ -111,6 +130,8 @@ class Viewer:
 		static = pv.Plotter(off_screen=True, window_size=window_size)
 		for mesh, kwargs in self._layers:
 			static.add_mesh(mesh, show_scalar_bar=False, **kwargs)
+		if self._ruler is not None:
+			_draw_ruler(static, self._layers, self._ruler)
 		if self.plotter.camera_set:
 			_apply_camera(static, self.get_camera())
 		image = static.screenshot(return_img=True)
@@ -121,6 +142,21 @@ class Viewer:
 		if title is not None:
 			ax.set_title(title)
 		return fig, ax
+
+
+def _draw_ruler(plotter, layers, titles):
+	"""Draw the ruler around the layers' meshes. The bounds come from the meshes, not the plotter,
+	which also holds the ruler itself, so redrawing it never grows the box."""
+	import numpy as np
+	bounds = np.array([mesh.bounds for mesh, _ in layers]).reshape(-1, 3, 2)
+	lower, upper = bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
+	# 2% of breathing room, without pushing a lower bound that is >= 0 below 0
+	pad = (upper - lower) * 0.02
+	lower = np.where(lower >= 0, np.maximum(lower - pad, 0), lower - pad)
+	upper = upper + pad
+	plotter.show_bounds(bounds=np.column_stack([lower, upper]).ravel().tolist(), grid='back',
+						location='outer', ticks='both', minor_ticks=False, font_size=9,
+						n_xlabels=5, n_ylabels=5, n_zlabels=5, fmt='%.0f', color='black', **titles)
 
 
 def _apply_camera(plotter, camera):
