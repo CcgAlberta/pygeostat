@@ -150,13 +150,25 @@ def _draw_ruler(plotter, layers, titles):
 	import numpy as np
 	bounds = np.array([mesh.bounds for mesh, _ in layers]).reshape(-1, 3, 2)
 	lower, upper = bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
-	# 2% of breathing room, without pushing a lower bound that is >= 0 below 0
-	pad = (upper - lower) * 0.02
-	lower = np.where(lower >= 0, np.maximum(lower - pad, 0), lower - pad)
-	upper = upper + pad
-	plotter.show_bounds(bounds=np.column_stack([lower, upper]).ravel().tolist(), grid='back',
-						location='outer', ticks='both', minor_ticks=False, font_size=9,
-						n_xlabels=5, n_ylabels=5, n_zlabels=5, fmt='%.0f', color='black', **titles)
+	# VTK spaces the labels evenly over the box, so for round labels the box ends on multiples of
+	# a round step (1, 2 or 5 times a power of 10, about 5 labels per axis)
+	box, nlabels, decimals = [], [], []
+	for lo, hi in zip(lower, upper):
+		span = hi - lo if hi > lo else 1.0
+		power = 10 ** np.floor(np.log10(span / 4))
+		step = next(m * power for m in (1, 2, 5, 10) if m * power >= span / 4)
+		lo, hi = np.floor(lo / step) * step, np.ceil(hi / step) * step
+		if hi == lo:
+			hi = lo + step
+		box += [lo, hi]
+		nlabels.append(int(round((hi - lo) / step)) + 1)
+		decimals.append(max(0, int(-np.floor(np.log10(step)))))
+	axes = plotter.show_bounds(bounds=box, grid='back', location='outer', ticks='both',
+							   minor_ticks=False, font_size=9, n_xlabels=nlabels[0],
+							   n_ylabels=nlabels[1], n_zlabels=nlabels[2], color='black', **titles)
+	axes.x_label_format = '%.{}f'.format(decimals[0])
+	axes.y_label_format = '%.{}f'.format(decimals[1])
+	axes.z_label_format = '%.{}f'.format(decimals[2])
 
 
 def _apply_camera(plotter, camera):
