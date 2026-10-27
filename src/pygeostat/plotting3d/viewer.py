@@ -203,6 +203,35 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0):
 	axes.z_label_format = '%.{}f'.format(decimals[2])
 
 
+def _slice(mesh, griddef, orient, slice_number, slice_coordinate, slice_thickness, pointtol):
+	"""The part of a mesh in a slice band. Blocks are kept whole (by their centre); drill holes,
+	points and surfaces are cut at the band's edges."""
+	import numpy as np
+	import pyvista as pv
+	axes = {'xy': 2, 'xz': 1, 'yz': 0}
+	if orient not in axes:
+		raise ValueError("`orient` must be 'xy', 'xz' or 'yz'")
+	axis = axes[orient]
+	if slice_coordinate is None:
+		if slice_number is None or griddef is None:
+			raise ValueError("Pass `slice_coordinate`, or `slice_number` for data on a grid")
+		slice_coordinate = griddef.get_slice_coordinate(orient, slice_number)
+	if griddef is not None:
+		size = (griddef.xsiz, griddef.ysiz, griddef.zsiz)[axis]
+		# Half a block past the outermost centre, so exactly 2 * slice_thickness + 1 layers
+		tolerance = ((slice_thickness or 0) + 0.5) * size
+	elif pointtol is None:
+		raise ValueError("Pass `pointtol`, the distance either side of the slice to show")
+	else:
+		tolerance = pointtol
+	if isinstance(mesh, pv.PolyData):
+		band = np.array(mesh.bounds, dtype=float)
+		band[2 * axis:2 * axis + 2] = slice_coordinate - tolerance, slice_coordinate + tolerance
+		return mesh.clip_box(band.tolist(), invert=False)
+	distance = np.abs(mesh.cell_centers().points[:, axis] - slice_coordinate)
+	return mesh.extract_cells(np.flatnonzero(distance <= tolerance))
+
+
 def _apply_camera(plotter, camera):
 	"""Set a plotter's camera from a get_camera dictionary. The position alone misses the zoom and
 	the projection."""
@@ -213,7 +242,8 @@ def _apply_camera(plotter, camera):
 
 
 def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color=None, label=None,
-		   threshold=None, **kwargs):
+		   threshold=None, orient=None, slice_number=None, slice_coordinate=None,
+		   slice_thickness=None, pointtol=None, **kwargs):
 	"""
 	Add drill holes, a block model or a mesh to a 3D scene. Calls share one scene through
 	``viewer``, the same way 2D plots share ``ax``.
@@ -241,6 +271,16 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		threshold (tuple): (min, max) of ``var`` to show; blocks, intervals or points outside it,
 			or without a value, are hidden. Colours keep the full range of ``var`` unless ``clim``
 			is passed
+		orient (str): show only a slice: ``'xy'`` (plan), ``'xz'`` or ``'yz'`` (sections), as in
+			:func:`gs.slice_plot() <pygeostat.plotting.slice_plot.slice_plot>`
+		slice_number (int): grid index of the slice along the axis not in ``orient``, for data
+			on a grid
+		slice_coordinate (float): position of the slice along the axis not in ``orient``, instead
+			of ``slice_number`` (e.g. for drill holes or sub-blocks)
+		slice_thickness (int): for data on a grid, the number of extra grid slices shown on each
+			side of the slice. Default 0, a single layer of blocks
+		pointtol (float): for data that is not on a grid, the distance either side of the slice
+			to show; drill holes are cut at that distance
 		**kwargs: passed to ``drillhole_mesh`` or ``block_mesh`` (e.g. ``start``, ``end``,
 			``trace``, ``radius``, ``griddef``, ``size``)
 
@@ -274,21 +314,26 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 
 	if var is None and isinstance(data, DataFile) and isinstance(data.variables, str):
 		var = data.variables
+	griddef = None
 	if isinstance(data, pv.DataSet):
 		mesh = data
 	elif 'griddef' in kwargs or 'size' in kwargs or getattr(data, 'griddef', None) is not None:
 		mesh = block_mesh(data, var=var, **kwargs)
+		if 'size' not in kwargs:
+			griddef = kwargs['griddef'] if 'griddef' in kwargs else data.griddef
 	else:
 		mesh = drillhole_mesh(data, var=var, **kwargs)
+	# The ruler keeps wrapping the whole layer when only part of it is shown
+	extent = mesh.bounds if threshold is not None or orient is not None else None
 	if threshold is not None:
 		if var is None:
 			raise ValueError("`threshold` needs a variable `var`")
 		if clim is None:
 			clim = mesh.get_data_range(var)
-		extent = mesh.bounds
 		mesh = mesh.threshold(threshold, scalars=var)
-	else:
-		extent = None
+	if orient is not None:
+		mesh = _slice(mesh, griddef, orient, slice_number, slice_coordinate, slice_thickness,
+					  pointtol)
 
 	if viewer is None:
 		viewer = Viewer()
