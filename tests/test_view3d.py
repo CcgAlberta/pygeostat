@@ -386,3 +386,47 @@ def test_show_static_draws_the_ruler(subblocks):
     ax = plt.figure(figsize=(4, 3), dpi=100).add_axes([0, 0, 1, 1])
     viewer.show_static(ax=ax)
     np.testing.assert_array_equal(ax.get_images()[0].get_array(), live)
+
+
+def ruler_labels(viewer, axis):
+    """The label strings the ruler draws on one axis (0, 1, 2 for x, y, z)."""
+    viewer.plotter.render()
+    labels = viewer.plotter.renderer.cube_axes_actor.GetAxisLabels(axis)
+    return [labels.GetValue(i) for i in range(labels.GetNumberOfValues())]
+
+
+def test_vertical_exaggeration():
+    """The scene is stretched vertically, the ruler wraps the stretched scene but keeps the real
+    elevations, and a layer added afterwards is stretched too."""
+    viewer = gs.view3d(pv.Box((0, 100, 0, 100, 0, 10)), viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_vertical_exaggeration(5)
+    assert viewer.plotter.bounds[4:] == (0, 50)
+    assert ruler_labels(viewer, 2) == ['0', '5', '10']
+    assert viewer.plotter.renderer.cube_axes_actor.bounds[4:] == (0, 50)
+    gs.view3d(pv.Box((0, 50, 0, 50, 10, 20)), viewer=viewer)
+    assert viewer.plotter.bounds[4:] == (0, 100)
+    assert ruler_labels(viewer, 2) == ['0', '5', '10', '15', '20']
+
+
+def test_show_static_vertical_exaggeration(subblocks):
+    """show_static draws the stretched scene and ruler exactly as the live view."""
+    from matplotlib import pyplot as plt
+    mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
+    viewer = gs.view3d(mesh, color='tan', viewer=gs.Viewer(off_screen=True))
+    viewer.plotter.window_size = [400, 300]
+    viewer.add_ruler()
+    viewer.set_vertical_exaggeration(3)
+    viewer.plotter.camera_position = 'iso'
+    live = viewer.plotter.screenshot(return_img=True)
+    ax = plt.figure(figsize=(4, 3), dpi=100).add_axes([0, 0, 1, 1])
+    viewer.show_static(ax=ax)
+    np.testing.assert_array_equal(ax.get_images()[0].get_array(), live)
+
+
+def test_ruler_follows_new_layers():
+    """A layer added after the ruler is inside the ruler."""
+    viewer = gs.view3d(pv.Box((0, 100, 0, 100, 0, 10)), viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    gs.view3d(pv.Box((0, 100, 0, 100, 10, 40)), viewer=viewer)
+    assert ruler_labels(viewer, 2) == ['0', '10', '20', '30', '40']
