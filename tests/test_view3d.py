@@ -468,3 +468,54 @@ def test_ruler_keeps_the_whole_model_under_a_threshold(grid3d):
     assert actor.mapper.dataset.n_cells == np.sum(data.data['value'].to_numpy() >= 3.5) < 20
     np.testing.assert_allclose(viewer.plotter.renderer.cube_axes_actor.bounds,
                                (0, 80, 0, 80, 0, 40))
+
+
+@pytest.mark.parametrize('orient, thickness', [('xy', 0), ('xy', 2), ('xz', 1), ('yz', 0)])
+def test_view3d_slice_grid(grid3d, orient, thickness):
+    """A grid slice shows grid layers slice_number - thickness to slice_number + thickness,
+    checked against the data reshaped in grid order (x fastest, then y, then z)."""
+    data, griddef = grid3d
+    cube = data.data['value'].to_numpy().reshape(griddef.nz, griddef.ny, griddef.nx)
+    n = 10
+    layers_kept = {'xy': cube[n - thickness:n + thickness + 1],
+                   'xz': cube[:, n - thickness:n + thickness + 1],
+                   'yz': cube[:, :, n - thickness:n + thickness + 1]}[orient]
+    viewer = gs.view3d(data, 'value', griddef=griddef, orient=orient, slice_number=n,
+                       slice_thickness=thickness, viewer=gs.Viewer(off_screen=True))
+    (actor,) = layers(viewer)
+    np.testing.assert_array_equal(np.sort(actor.mapper.dataset.cell_data['value']),
+                                  np.sort(layers_kept.ravel()))
+
+
+def test_view3d_slice_drillholes(intervals):
+    """Drill holes are cut at pointtol either side of the slice coordinate."""
+    viewer = gs.view3d(intervals, 'Au', start=('startx', 'starty', 'startz'),
+                       end=('endx', 'endy', 'endz'), orient='xy', slice_coordinate=92.0,
+                       pointtol=3.0, viewer=gs.Viewer(off_screen=True))
+    (actor,) = layers(viewer)
+    assert actor.mapper.dataset.bounds[4:] == pytest.approx((89.0, 95.0))
+
+
+def test_view3d_slice_points():
+    """Points within pointtol of the slice are kept, counted directly from the data."""
+    data = gs.ExampleData('oilsands')
+    north = data.data[data.y].to_numpy()
+    centre = float(np.median(north))
+    viewer = gs.view3d(data, 'Bitumen', orient='xz', slice_coordinate=centre, pointtol=100.0,
+                       viewer=gs.Viewer(off_screen=True))
+    (actor,) = layers(viewer)
+    assert actor.mapper.dataset.n_points == np.sum(np.abs(north - centre) <= 100.0)
+
+
+def test_view3d_slice_errors(grid3d, intervals):
+    """A slice needs a position, data without a grid needs pointtol, and orient is checked."""
+    data, griddef = grid3d
+    tubes = dict(start=('startx', 'starty', 'startz'), end=('endx', 'endy', 'endz'),
+                 viewer=gs.Viewer(off_screen=True))
+    with pytest.raises(ValueError, match='slice_coordinate'):
+        gs.view3d(intervals, 'Au', orient='xy', slice_number=3, **tubes)
+    with pytest.raises(ValueError, match='pointtol'):
+        gs.view3d(intervals, 'Au', orient='xy', slice_coordinate=90.0, **tubes)
+    with pytest.raises(ValueError, match="'xy', 'xz' or 'yz'"):
+        gs.view3d(data, 'value', griddef=griddef, orient='zz', slice_number=3,
+                  viewer=gs.Viewer(off_screen=True))
