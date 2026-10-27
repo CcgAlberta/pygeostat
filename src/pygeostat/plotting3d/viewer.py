@@ -203,7 +203,7 @@ def _apply_camera(plotter, camera):
 
 
 def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color=None, label=None,
-		   **kwargs):
+		   threshold=None, **kwargs):
 	"""
 	Add drill holes, a block model or a mesh to a 3D scene. Calls share one scene through
 	``viewer``, the same way 2D plots share ``ax``.
@@ -228,6 +228,9 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		opacity (float): 0 (invisible) to 1 (opaque)
 		color: colour of a layer that is not coloured by a variable
 		label (str): title of the colour bar. If None, ``var``
+		threshold (tuple): (min, max) of ``var`` to show; blocks, intervals or points outside it,
+			or without a value, are hidden. Colours keep the full range of ``var`` unless ``clim``
+			is passed
 		**kwargs: passed to ``drillhole_mesh`` or ``block_mesh`` (e.g. ``start``, ``end``,
 			``trace``, ``radius``, ``griddef``, ``size``)
 
@@ -267,6 +270,12 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		mesh = block_mesh(data, var=var, **kwargs)
 	else:
 		mesh = drillhole_mesh(data, var=var, **kwargs)
+	if threshold is not None:
+		if var is None:
+			raise ValueError("`threshold` needs a variable `var`")
+		if clim is None:
+			clim = mesh.get_data_range(var)
+		mesh = mesh.threshold(threshold, scalars=var)
 
 	if viewer is None:
 		viewer = Viewer()
