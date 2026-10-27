@@ -344,14 +344,34 @@ def test_ruler_titles(subblocks):
 
 
 def test_ruler_box_does_not_grow(subblocks):
-    """The ruler box is the data plus 2% (not below 0 where the data starts at 0), and drawing it
-    again does not make it bigger."""
+    """Drawing the ruler again does not make its box bigger."""
     mesh = gs.block_mesh(subblocks, x='x', y='y', z='z', size=('xsize', 'ysize', 'zsize'))
     viewer = gs.view3d(mesh, viewer=gs.Viewer(off_screen=True))
     for _ in range(3):
         viewer.add_ruler()
         np.testing.assert_allclose(viewer.plotter.renderer.cube_axes_actor.bounds,
-                                   (0, 20.4, 0, 10.2, 0, 10.2))
+                                   (0, 20, 0, 10, 0, 10))
+
+
+@pytest.mark.parametrize('bounds, expected', [
+    ((0, 80, 0, 80, 0, 40), [['0', '20', '40', '60', '80'], ['0', '20', '40', '60', '80'],
+                             ['0', '10', '20', '30', '40']]),
+    ((612950, 613420, 5055100, 5061000, 146, 286),
+     [['612800', '613000', '613200', '613400', '613600'],
+      ['5054000', '5056000', '5058000', '5060000', '5062000'], ['100', '150', '200', '250', '300']]),
+    ((0.12, 0.47, 0, 0.3, -3, -1), [['0.1', '0.2', '0.3', '0.4', '0.5'],
+                                    ['0.0', '0.1', '0.2', '0.3', '0.4'],
+                                    ['-3.0', '-2.5', '-2.0', '-1.5', '-1.0']]),
+])
+def test_ruler_round_labels(bounds, expected):
+    """Labels land on round numbers, each axis with only the decimals its own step needs."""
+    viewer = gs.view3d(pv.Box(bounds), viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.plotter.render()
+    axes = viewer.plotter.renderer.cube_axes_actor
+    labels = [[axes.GetAxisLabels(i).GetValue(j) for j in range(axes.GetAxisLabels(i).GetNumberOfValues())]
+              for i in range(3)]
+    assert labels == expected
 
 
 def test_show_static_draws_the_ruler(subblocks):
