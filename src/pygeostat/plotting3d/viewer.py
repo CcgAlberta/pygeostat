@@ -29,17 +29,27 @@ class Viewer:
 		self.plotter = pv.Plotter(off_screen=off_screen)
 		# Each layer's mesh and drawing options, so show_static can rebuild the scene
 		self._layers = []
+		# The extent of each layer before any threshold, which the ruler wraps
+		self._extents = []
 		self._ruler = None
 		self._vertical_exaggeration = 1.0
 
-	def add(self, mesh, **kwargs):
-		"""Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``."""
+	def add(self, mesh, extent=None, **kwargs):
+		"""
+		Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``.
+
+		Parameters:
+			mesh (pyvista.DataSet): the mesh
+			extent (tuple): bounds (xmin, xmax, ymin, ymax, zmin, zmax) for the ruler to wrap,
+				e.g. the whole model when ``mesh`` is part of it. If None, the bounds of ``mesh``
+		"""
 		self._layers.append((mesh, kwargs))
+		self._extents.append(mesh.bounds if extent is None else extent)
 		self.plotter.add_mesh(mesh, **kwargs)
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
 		elif self._ruler is not None:
-			_draw_ruler(self.plotter, self._layers, self._ruler)
+			_draw_ruler(self.plotter, self._extents, self._ruler)
 
 	def add_ruler(self, unit=None):
 		"""
@@ -57,7 +67,7 @@ class Viewer:
 		self._ruler = {'xtitle': Parameters['plotting.xname'] + unit,
 					   'ytitle': Parameters['plotting.yname'] + unit,
 					   'ztitle': Parameters['plotting.zname'] + unit}
-		_draw_ruler(self.plotter, self._layers, self._ruler, self._vertical_exaggeration)
+		_draw_ruler(self.plotter, self._extents, self._ruler, self._vertical_exaggeration)
 
 	def set_vertical_exaggeration(self, factor):
 		"""
@@ -71,7 +81,7 @@ class Viewer:
 		self.plotter.set_scale(zscale=factor)
 		# set_scale also stretches the ruler, so it is drawn again
 		if self._ruler is not None:
-			_draw_ruler(self.plotter, self._layers, self._ruler, factor)
+			_draw_ruler(self.plotter, self._extents, self._ruler, factor)
 
 	def show(self, **kwargs):
 		"""Show the scene. Keyword arguments go to ``pyvista.Plotter.show``."""
@@ -151,7 +161,7 @@ class Viewer:
 			static.add_mesh(mesh, show_scalar_bar=False, **kwargs)
 		static.set_scale(zscale=self._vertical_exaggeration)
 		if self._ruler is not None:
-			_draw_ruler(static, self._layers, self._ruler, self._vertical_exaggeration)
+			_draw_ruler(static, self._extents, self._ruler, self._vertical_exaggeration)
 		if self.plotter.camera_set:
 			_apply_camera(static, self.get_camera())
 		image = static.screenshot(return_img=True)
@@ -164,12 +174,12 @@ class Viewer:
 		return fig, ax
 
 
-def _draw_ruler(plotter, layers, titles, vertical_exaggeration=1.0):
-	"""Draw the ruler around the layers' meshes. The bounds come from the meshes, not the plotter,
+def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0):
+	"""Draw the ruler around the layers' extents. They come from the layers, not the plotter,
 	which also holds the ruler itself, so redrawing it never grows the box. With vertical
 	exaggeration the box is stretched like the scene but labelled with the real elevations."""
 	import numpy as np
-	bounds = np.array([mesh.bounds for mesh, _ in layers]).reshape(-1, 3, 2)
+	bounds = np.array(extents, dtype=float).reshape(-1, 3, 2)
 	lower, upper = bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
 	# VTK spaces the labels evenly over the box, so for round labels the box ends on multiples of
 	# a round step (1, 2 or 5 times a power of 10, about 5 labels per axis)
@@ -275,13 +285,16 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			raise ValueError("`threshold` needs a variable `var`")
 		if clim is None:
 			clim = mesh.get_data_range(var)
+		extent = mesh.bounds
 		mesh = mesh.threshold(threshold, scalars=var)
+	else:
+		extent = None
 
 	if viewer is None:
 		viewer = Viewer()
 	if var is None:
-		viewer.add(mesh, color=color, opacity=opacity)
+		viewer.add(mesh, extent=extent, color=color, opacity=opacity)
 	else:
-		viewer.add(mesh, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim, opacity=opacity,
+		viewer.add(mesh, extent=extent, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim, opacity=opacity,
 				   scalar_bar_args={'title': label or var})
 	return viewer
