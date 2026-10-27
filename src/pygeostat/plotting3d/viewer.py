@@ -30,11 +30,16 @@ class Viewer:
 		# Each layer's mesh and drawing options, so show_static can rebuild the scene
 		self._layers = []
 		self._ruler = None
+		self._vertical_exaggeration = 1.0
 
 	def add(self, mesh, **kwargs):
 		"""Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``."""
 		self._layers.append((mesh, kwargs))
 		self.plotter.add_mesh(mesh, **kwargs)
+		if self._vertical_exaggeration != 1:
+			self.set_vertical_exaggeration(self._vertical_exaggeration)
+		elif self._ruler is not None:
+			_draw_ruler(self.plotter, self._layers, self._ruler)
 
 	def add_ruler(self, unit=None):
 		"""
@@ -52,7 +57,21 @@ class Viewer:
 		self._ruler = {'xtitle': Parameters['plotting.xname'] + unit,
 					   'ytitle': Parameters['plotting.yname'] + unit,
 					   'ztitle': Parameters['plotting.zname'] + unit}
-		_draw_ruler(self.plotter, self._layers, self._ruler)
+		_draw_ruler(self.plotter, self._layers, self._ruler, self._vertical_exaggeration)
+
+	def set_vertical_exaggeration(self, factor):
+		"""
+		Stretch the scene vertically, e.g. to see a thin deposit spread over a large area. The
+		ruler keeps showing the real elevations.
+
+		Parameters:
+			factor (float): vertical exaggeration, 1 for none
+		"""
+		self._vertical_exaggeration = factor
+		self.plotter.set_scale(zscale=factor)
+		# set_scale also stretches the ruler, so it is drawn again
+		if self._ruler is not None:
+			_draw_ruler(self.plotter, self._layers, self._ruler, factor)
 
 	def show(self, **kwargs):
 		"""Show the scene. Keyword arguments go to ``pyvista.Plotter.show``."""
@@ -130,8 +149,9 @@ class Viewer:
 		static = pv.Plotter(off_screen=True, window_size=window_size)
 		for mesh, kwargs in self._layers:
 			static.add_mesh(mesh, show_scalar_bar=False, **kwargs)
+		static.set_scale(zscale=self._vertical_exaggeration)
 		if self._ruler is not None:
-			_draw_ruler(static, self._layers, self._ruler)
+			_draw_ruler(static, self._layers, self._ruler, self._vertical_exaggeration)
 		if self.plotter.camera_set:
 			_apply_camera(static, self.get_camera())
 		image = static.screenshot(return_img=True)
@@ -144,9 +164,10 @@ class Viewer:
 		return fig, ax
 
 
-def _draw_ruler(plotter, layers, titles):
+def _draw_ruler(plotter, layers, titles, vertical_exaggeration=1.0):
 	"""Draw the ruler around the layers' meshes. The bounds come from the meshes, not the plotter,
-	which also holds the ruler itself, so redrawing it never grows the box."""
+	which also holds the ruler itself, so redrawing it never grows the box. With vertical
+	exaggeration the box is stretched like the scene but labelled with the real elevations."""
 	import numpy as np
 	bounds = np.array([mesh.bounds for mesh, _ in layers]).reshape(-1, 3, 2)
 	lower, upper = bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
@@ -163,7 +184,8 @@ def _draw_ruler(plotter, layers, titles):
 		box += [lo, hi]
 		nlabels.append(int(round((hi - lo) / step)) + 1)
 		decimals.append(max(0, int(-np.floor(np.log10(step)))))
-	axes = plotter.show_bounds(bounds=box, grid='back', location='outer', ticks='both',
+	stretched = box[:4] + [box[4] * vertical_exaggeration, box[5] * vertical_exaggeration]
+	axes = plotter.show_bounds(bounds=stretched, axes_ranges=box, grid='back', location='outer', ticks='both',
 							   minor_ticks=False, font_size=9, n_xlabels=nlabels[0],
 							   n_ylabels=nlabels[1], n_zlabels=nlabels[2], color='black', **titles)
 	axes.x_label_format = '%.{}f'.format(decimals[0])
