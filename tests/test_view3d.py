@@ -430,3 +430,28 @@ def test_ruler_follows_new_layers():
     viewer.add_ruler()
     gs.view3d(pv.Box((0, 100, 0, 100, 10, 40)), viewer=viewer)
     assert ruler_labels(viewer, 2) == ['0', '10', '20', '30', '40']
+
+
+def test_view3d_threshold(grid3d):
+    """Only blocks with a value inside the threshold are shown (count checked against the data
+    directly), and the colours keep the full range of the variable."""
+    data, griddef = grid3d
+    values = data.data['value'].to_numpy()
+    viewer = gs.view3d(data, 'value', griddef=griddef, threshold=(1.0, 2.0),
+                       viewer=gs.Viewer(off_screen=True))
+    (actor,) = layers(viewer)
+    shown = actor.mapper.dataset.cell_data['value']
+    assert len(shown) == np.sum((values >= 1.0) & (values <= 2.0))
+    assert shown.min() >= 1.0 and shown.max() <= 2.0
+    np.testing.assert_allclose(actor.mapper.scalar_range, (values.min(), values.max()))
+
+
+def test_view3d_threshold_drillholes(intervals):
+    """Intervals without a value are hidden by a threshold, and it needs a variable."""
+    mesh = gs.drillhole_mesh(intervals, var='Au', start=('startx', 'starty', 'startz'),
+                             end=('endx', 'endy', 'endz'))
+    viewer = gs.view3d(mesh, 'Au', threshold=(0, 10), viewer=gs.Viewer(off_screen=True))
+    (actor,) = layers(viewer)
+    assert actor.mapper.dataset.bounds[4:] == (90.0, 100.0)
+    with pytest.raises(ValueError, match='needs a variable'):
+        gs.view3d(mesh, threshold=(0, 10), viewer=gs.Viewer(off_screen=True))
