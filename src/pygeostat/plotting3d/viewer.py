@@ -280,7 +280,8 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		slice_thickness (int): for data on a grid, the number of extra grid slices shown on each
 			side of the slice. Default 0, a single layer of blocks
 		pointtol (float): for data that is not on a grid, the distance either side of the slice
-			to show; drill holes are cut at that distance
+			to show; drill holes are cut at that distance. Like ``threshold``, a slice keeps the
+			colours of the full range of ``var`` unless ``clim`` is passed
 		**kwargs: passed to ``drillhole_mesh`` or ``block_mesh`` (e.g. ``start``, ``end``,
 			``trace``, ``radius``, ``griddef``, ``size``)
 
@@ -323,13 +324,16 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			griddef = kwargs['griddef'] if 'griddef' in kwargs else data.griddef
 	else:
 		mesh = drillhole_mesh(data, var=var, **kwargs)
-	# The ruler keeps wrapping the whole layer when only part of it is shown
-	extent = mesh.bounds if threshold is not None or orient is not None else None
+	# When only part of the layer is shown, the ruler keeps wrapping the whole layer and the
+	# colours keep its full range, so moving a slice or cutoff doesn't change them
+	extent = None
+	if threshold is not None or orient is not None:
+		extent = mesh.bounds
+		if clim is None and var is not None:
+			clim = mesh.get_data_range(var)
 	if threshold is not None:
 		if var is None:
 			raise ValueError("`threshold` needs a variable `var`")
-		if clim is None:
-			clim = mesh.get_data_range(var)
 		mesh = mesh.threshold(threshold, scalars=var)
 	if orient is not None:
 		mesh = _slice(mesh, griddef, orient, slice_number, slice_coordinate, slice_thickness,
