@@ -149,10 +149,13 @@ class Viewer:
 			if 'scalars' in kwargs:
 				label = kwargs['scalar_bar_args']['title']
 				clim = kwargs['clim'] or mesh.get_data_range(kwargs['scalars'])
-				cbars.setdefault(label, (kwargs['cmap'], clim))
+				ticks = kwargs.get('annotations')
+				cbars.setdefault(label, (kwargs['cmap'], clim, ticks))
 		if cbar:
-			for label, (cmap, clim) in cbars.items():
-				fig.colorbar(ScalarMappable(Normalize(*clim), cmap), ax=ax, label=label)
+			for label, (cmap, clim, ticks) in cbars.items():
+				bar = fig.colorbar(ScalarMappable(Normalize(*clim), cmap), ax=ax, label=label)
+				if ticks is not None:
+					bar.set_ticks(list(ticks), labels=list(ticks.values()))
 		bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
 		window_size = [int(round(bbox.width * dpi)), int(round(bbox.height * dpi))]
 
@@ -203,6 +206,37 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0):
 	axes.z_label_format = '%.{}f'.format(decimals[2])
 
 
+# Cell array with each cell's category as 0, 1, 2, ... in code order, which is what gets coloured
+_CATEGORY = 'category index'
+
+
+def _categories(mesh, var, cmap, catdict):
+	"""Colour setup for a categorical variable, following location_plot: the categories present,
+	in code order, each with the colour at its place in catdict (or in code order without one).
+	Returns a copy of the mesh with the category index added, the colormap, and the labels."""
+	import numpy as np
+	from matplotlib.colors import ListedColormap
+	from ..plotting.utils import _get_cmap
+	values = np.asarray(mesh.cell_data[var], dtype=float)
+	known = np.isfinite(values)
+	codes = np.unique(values[known]).astype(int)
+	if isinstance(catdict, dict):
+		missing = sorted(int(code) for code in set(codes) - set(catdict))
+		if missing:
+			raise ValueError("Codes {} of '{}' are not in catdict".format(missing, var))
+		colours = _get_cmap(cmap, True, len(catdict)).colors
+		colours = [colours[list(catdict).index(code)] for code in codes]
+		names = [catdict[code] for code in codes]
+	else:
+		colours = _get_cmap(cmap, True, len(codes)).colors
+		names = [str(code) for code in codes]
+	index = np.full(len(values), np.nan)
+	index[known] = np.searchsorted(codes, values[known].astype(int))
+	mesh = mesh.copy(deep=False)
+	mesh.cell_data[_CATEGORY] = index
+	return mesh, ListedColormap(colours), dict(enumerate(names))
+
+
 def _slice(mesh, griddef, orient, slice_number, slice_coordinate, slice_thickness, pointtol):
 	"""The part of a mesh in a slice band. Blocks are kept whole (by their centre); drill holes,
 	points and surfaces are cut at the band's edges."""
@@ -243,7 +277,7 @@ def _apply_camera(plotter, camera):
 
 def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color=None, label=None,
 		   threshold=None, orient=None, slice_number=None, slice_coordinate=None,
-		   slice_thickness=None, pointtol=None, **kwargs):
+		   slice_thickness=None, pointtol=None, catdict=None, **kwargs):
 	"""
 	Add drill holes, a block model or a mesh to a 3D scene. Calls share one scene through
 	``viewer``, the same way 2D plots share ``ax``.
@@ -268,6 +302,10 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		opacity (float): 0 (invisible) to 1 (opaque)
 		color: colour of a layer that is not coloured by a variable
 		label (str): title of the colour bar. If None, ``var``
+		catdict (dict): names of the categories of ``var``, e.g. ``{1: 'Granite', 2: 'Diorite'}``.
+			``var`` is coloured by category if this is passed, or if data is a DataFile and
+			``var`` is its ``cat`` column (then DataFile.catdict is used). Categories get the
+			same colours as in :func:`gs.location_plot() <pygeostat.plotting.location_plot.location_plot>`
 		threshold (tuple): (min, max) of ``var`` to show; blocks, intervals or points outside it,
 			or without a value, are hidden. Colours keep the full range of ``var`` unless ``clim``
 			is passed
@@ -324,6 +362,12 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			griddef = kwargs['griddef'] if 'griddef' in kwargs else data.griddef
 	else:
 		mesh = drillhole_mesh(data, var=var, **kwargs)
+	categorical = var is not None and (catdict is not None or (
+		isinstance(data, DataFile) and var == data.cat))
+	if categorical:
+		if catdict is None:
+			catdict = data.catdict
+		mesh, cmap, annotations = _categories(mesh, var, cmap, catdict)
 	# When only part of the layer is shown, the ruler keeps wrapping the whole layer and the
 	# colours keep its full range, so moving a slice or cutoff doesn't change them
 	extent = None
@@ -343,7 +387,11 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		viewer = Viewer()
 	if var is None:
 		viewer.add(mesh, extent=extent, color=color, opacity=opacity)
+	elif categorical:
+		viewer.add(mesh, extent=extent, scalars=_CATEGORY, cmap=cmap, opacity=opacity,
+				   clim=(-0.5, len(annotations) - 0.5), n_colors=len(annotations),
+				   annotations=annotations, scalar_bar_args={'title': label or var})
 	else:
-		viewer.add(mesh, extent=extent, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim, opacity=opacity,
-				   scalar_bar_args={'title': label or var})
+		viewer.add(mesh, extent=extent, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
+				   opacity=opacity, scalar_bar_args={'title': label or var})
 	return viewer
