@@ -519,3 +519,15 @@ def test_view3d_slice_errors(grid3d, intervals):
     with pytest.raises(ValueError, match="'xy', 'xz' or 'yz'"):
         gs.view3d(data, 'value', griddef=griddef, orient='zz', slice_number=3,
                   viewer=gs.Viewer(off_screen=True))
+
+
+def test_view3d_slice_keeps_full_colour_range(grid3d):
+    """A slice is coloured on the full range of the variable, so the colours don't change as the
+    slice moves."""
+    data, griddef = grid3d
+    values = data.data['value'].to_numpy()
+    for n in (5, 30):
+        viewer = gs.view3d(data, 'value', griddef=griddef, orient='xy', slice_number=n,
+                           viewer=gs.Viewer(off_screen=True))
+        (actor,) = layers(viewer)
+        np.testing.assert_allclose(actor.mapper.scalar_range, (values.min(), values.max()))
