@@ -531,3 +531,71 @@ def test_view3d_slice_keeps_full_colour_range(grid3d):
                            viewer=gs.Viewer(off_screen=True))
         (actor,) = layers(viewer)
         np.testing.assert_allclose(actor.mapper.scalar_range, (values.min(), values.max()))
+
+
+def colours_2d(data, var, **kwargs):
+    """The colour location_plot draws for each code of var, read off its scatter points."""
+    from matplotlib import pyplot as plt
+    ax = gs.location_plot(data, x='x', y='y', var=var, **kwargs)
+    faces = [c for c in ax.collections if len(c.get_facecolors()) == len(data)][0].get_facecolors()
+    plt.close(ax.figure)
+    return {int(code): tuple(np.round(faces[i, :3], 3)) for i, code in enumerate(data[var])}
+
+
+def colours_3d(viewer):
+    """The colour of each category in the 3D scene, by its label."""
+    (actor,) = layers(viewer)
+    table = actor.mapper.lookup_table
+    names = viewer._layers[0][1]['annotations']
+    colours = {}
+    for index, name in names.items():
+        rgb = [0.0, 0.0, 0.0]
+        table.GetColor(index, rgb)
+        colours[name] = tuple(np.round(rgb, 3))
+    return colours
+
+
+def test_view3d_categories_match_location_plot():
+    """With a catdict that names exactly the codes in the data, each category gets the colour
+    location_plot gives it."""
+    data = pd.DataFrame({'x': [0.0, 1.0, 2.0, 3.0], 'y': [0.0, 1.0, 2.0, 3.0], 'z': [0.0] * 4,
+                         'Facies': [3, 1, 3, 1]})
+    catdict = {1: 'Sand', 3: 'Shale'}
+    expected = colours_2d(data, 'Facies', catdata=True, catdict=catdict)
+    got = colours_3d(gs.view3d(data, 'Facies', x='x', y='y', z='z', catdict=catdict,
+                               viewer=gs.Viewer(off_screen=True)))
+    assert got == {'Sand': expected[1], 'Shale': expected[3]}
+
+
+def test_view3d_categories_keep_catdict_colours():
+    """When catdict also names codes that are not in the data, each category keeps the colour of
+    its place in catdict, so a rock type has the same colour whatever subset is shown.
+    (location_plot means to do the same but draws every point in one colour in this case.)"""
+    from pygeostat.plotting.utils import _get_cmap
+    data = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 1.0], 'z': [0.0, 0.0], 'Facies': [3, 1]})
+    palette = _get_cmap(None, True, 3).colors
+    got = colours_3d(gs.view3d(data, 'Facies', x='x', y='y', z='z',
+                               catdict={1: 'Sand', 2: 'Silt', 3: 'Shale'},
+                               viewer=gs.Viewer(off_screen=True)))
+    assert got == {'Sand': tuple(np.round(palette[0][:3], 3)),
+                   'Shale': tuple(np.round(palette[2][:3], 3))}
+
+
+def test_view3d_categories_from_datafile():
+    """A DataFile's cat column is coloured by category without passing anything, and
+    show_static labels the colour bar with the categories."""
+    data = gs.ExampleData('point3d_ind_mv')
+    viewer = gs.view3d(data, data.cat)
+    assert viewer._layers[0][1]['annotations'] == {0: '1', 1: '2', 2: '3', 3: '4', 4: '5'}
+    fig, ax = viewer.show_static(figsize=(4, 3))
+    (bar,) = [a for a in fig.axes if a is not ax]
+    assert [t.get_text() for t in bar.get_yticklabels()] == ['1', '2', '3', '4', '5']
+
+
+def test_view3d_category_missing_from_catdict(intervals):
+    """A code the catdict doesn't name gives a clear error."""
+    intervals['Rock'] = [1, 2]
+    with pytest.raises(ValueError, match=r"Codes \[2\] of 'Rock' are not in catdict"):
+        gs.view3d(intervals, 'Rock', start=('startx', 'starty', 'startz'),
+                  end=('endx', 'endy', 'endz'), catdict={1: 'Granite'},
+                  viewer=gs.Viewer(off_screen=True))
