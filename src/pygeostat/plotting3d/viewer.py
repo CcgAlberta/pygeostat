@@ -7,6 +7,17 @@
 #-----------------------------------------------------------------------------
 
 
+class _Layer:
+	"""A mesh in the scene with the options it was drawn with, which the panel changes later"""
+
+	def __init__(self, name, mesh, kwargs, actor):
+		self.name = name
+		self.mesh = mesh
+		self.kwargs = kwargs
+		self.actor = actor
+		self.visible = True
+
+
 class Viewer:
 	"""
 	A 3D scene that layers are added to with :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`.
@@ -27,14 +38,19 @@ class Viewer:
 		except ImportError:
 			raise ImportError("Viewer requires PyVista: pip install pyvista") from None
 		self.plotter = pv.Plotter(off_screen=off_screen)
-		# Each layer's mesh and drawing options, so show_static can rebuild the scene
+		# The layers, so show_static can rebuild the scene
 		self._layers = []
 		# The extent of each layer before any threshold, which the ruler wraps
 		self._extents = []
 		self._ruler = None
 		self._vertical_exaggeration = 1.0
 
-	def add(self, mesh, extent=None, **kwargs):
+	@property
+	def layers(self):
+		"""Names of the layers, in the order they were added (list of str)"""
+		return [layer.name for layer in self._layers]
+
+	def add(self, mesh, extent=None, name=None, **kwargs):
 		"""
 		Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``.
 
@@ -42,14 +58,43 @@ class Viewer:
 			mesh (pyvista.DataSet): the mesh
 			extent (tuple): bounds (xmin, xmax, ymin, ymax, zmin, zmax) for the ruler to wrap,
 				e.g. the whole model when ``mesh`` is part of it. If None, the bounds of ``mesh``
+			name (str): name of the layer, to change it with :meth:`set_layer`. A name that is
+				already taken gets a number added. If None, ``'Layer 1'``, ``'Layer 2'``, ...
 		"""
-		self._layers.append((mesh, kwargs))
+		name = name or 'Layer {}'.format(len(self._layers) + 1)
+		first, number = name, 1
+		while name in self.layers:
+			number += 1
+			name = '{} ({})'.format(first, number)
+		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, **kwargs)))
 		self._extents.append(mesh.bounds if extent is None else extent)
-		self.plotter.add_mesh(mesh, **kwargs)
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
 		elif self._ruler is not None:
 			_draw_ruler(self.plotter, self._extents, self._ruler)
+
+	def set_layer(self, name, visible=None, opacity=None):
+		"""
+		Change a layer that is already in the scene. The change shows in :meth:`show` and in
+		:meth:`show_static`.
+
+		Parameters:
+			name (str): name of the layer, one of :attr:`layers`
+			visible (bool): show or hide the layer. If None, unchanged
+			opacity (float): 0 (invisible) to 1 (opaque). If None, unchanged
+		"""
+		matches = [layer for layer in self._layers if layer.name == name]
+		if not matches:
+			raise ValueError("No layer '{}'; the layers are {}".format(name, self.layers))
+		layer = matches[0]
+		if opacity is not None:
+			if not 0 <= opacity <= 1:
+				raise ValueError("`opacity` must be between 0 and 1")
+			layer.kwargs['opacity'] = opacity
+			layer.actor.prop.opacity = opacity
+		if visible is not None:
+			layer.visible = bool(visible)
+			layer.actor.visibility = layer.visible
 
 	def add_ruler(self, unit=None):
 		"""
@@ -144,11 +189,13 @@ class Viewer:
 
 		# PyVista's colour bars overlap the picture at small sizes, so matplotlib draws them instead.
 		# They go on first because they shrink the axis, and the picture is rendered at its size.
+		shown = [layer for layer in self._layers if layer.visible]
 		cbars = {}
-		for mesh, kwargs in self._layers:
+		for layer in shown:
+			kwargs = layer.kwargs
 			if 'scalars' in kwargs:
 				label = kwargs['scalar_bar_args']['title']
-				clim = kwargs['clim'] or mesh.get_data_range(kwargs['scalars'])
+				clim = kwargs['clim'] or layer.mesh.get_data_range(kwargs['scalars'])
 				ticks = kwargs.get('annotations')
 				cbars.setdefault(label, (kwargs['cmap'], clim, ticks))
 		if cbar:
@@ -160,8 +207,8 @@ class Viewer:
 		window_size = [int(round(bbox.width * dpi)), int(round(bbox.height * dpi))]
 
 		static = pv.Plotter(off_screen=True, window_size=window_size)
-		for mesh, kwargs in self._layers:
-			static.add_mesh(mesh, show_scalar_bar=False, **kwargs)
+		for layer in shown:
+			static.add_mesh(layer.mesh, show_scalar_bar=False, **layer.kwargs)
 		static.set_scale(zscale=self._vertical_exaggeration)
 		if self._ruler is not None:
 			_draw_ruler(static, self._extents, self._ruler, self._vertical_exaggeration)
@@ -304,7 +351,8 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		clim (tuple): colour limits (min, max). If None, the range of ``var``
 		opacity (float): 0 (invisible) to 1 (opaque)
 		color: colour of a layer that is not coloured by a variable
-		label (str): title of the colour bar. If None, ``var``
+		label (str): title of the colour bar and name of the layer (see ``Viewer.layers``). If None,
+			``var``
 		catdict (dict): names of the categories of ``var``, e.g. ``{1: 'Granite', 2: 'Diorite'}``.
 			``var`` is coloured by category if this is passed, or if data is a DataFile and
 			``var`` is its ``cat`` column (then DataFile.catdict is used). Categories get the
@@ -388,13 +436,14 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 
 	if viewer is None:
 		viewer = Viewer()
+	name = label or var
 	if var is None:
-		viewer.add(mesh, extent=extent, color=color, opacity=opacity)
+		viewer.add(mesh, extent=extent, name=name, color=color, opacity=opacity)
 	elif categorical:
-		viewer.add(mesh, extent=extent, scalars=_CATEGORY, cmap=cmap, opacity=opacity,
+		viewer.add(mesh, extent=extent, name=name, scalars=_CATEGORY, cmap=cmap, opacity=opacity,
 				   clim=(-0.5, len(annotations) - 0.5), n_colors=len(annotations),
 				   annotations=annotations, scalar_bar_args={'title': label or var})
 	else:
-		viewer.add(mesh, extent=extent, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
+		viewer.add(mesh, extent=extent, name=name, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
 				   opacity=opacity, scalar_bar_args={'title': label or var})
 	return viewer
