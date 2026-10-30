@@ -185,12 +185,15 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0):
 	bounds = np.array(extents, dtype=float).reshape(-1, 3, 2)
 	lower, upper = bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
 	# VTK spaces the labels evenly over the box, so for round labels the box ends on multiples of
-	# a round step (1, 2 or 5 times a power of 10, about 5 labels per axis)
+	# a round step (1, 2 or 5 times a power of 10). The longest axis on screen gets about 5 labels
+	# and a shorter one proportionally fewer, so labels on a short axis don't run together
+	spans = np.where(upper > lower, upper - lower, 1.0)
+	on_screen = spans * [1, 1, vertical_exaggeration]
 	box, nlabels, decimals = [], [], []
-	for lo, hi in zip(lower, upper):
-		span = hi - lo if hi > lo else 1.0
-		power = 10 ** np.floor(np.log10(span / 4))
-		step = next(m * power for m in (1, 2, 5, 10) if m * power >= span / 4)
+	for lo, hi, span, shown in zip(lower, upper, spans, on_screen):
+		intervals = max(2, round(4 * shown / on_screen.max()))
+		power = 10 ** np.floor(np.log10(span / intervals))
+		step = next(m * power for m in (1, 2, 5, 10) if m * power >= span / intervals)
 		lo, hi = np.floor(lo / step) * step, np.ceil(hi / step) * step
 		if hi == lo:
 			hi = lo + step
