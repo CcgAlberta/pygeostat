@@ -545,7 +545,7 @@ def colours_3d(viewer):
     """The colour of each category in the 3D scene, by its label."""
     (actor,) = layers(viewer)
     table = actor.mapper.lookup_table
-    names = viewer._layers[0][1]['annotations']
+    names = viewer._layers[0].kwargs['annotations']
     colours = {}
     for index, name in names.items():
         rgb = [0.0, 0.0, 0.0]
@@ -585,7 +585,7 @@ def test_view3d_categories_from_datafile():
     show_static labels the colour bar with the categories."""
     data = gs.ExampleData('point3d_ind_mv')
     viewer = gs.view3d(data, data.cat)
-    assert viewer._layers[0][1]['annotations'] == {0: '1', 1: '2', 2: '3', 3: '4', 4: '5'}
+    assert viewer._layers[0].kwargs['annotations'] == {0: '1', 1: '2', 2: '3', 3: '4', 4: '5'}
     fig, ax = viewer.show_static(figsize=(4, 3))
     (bar,) = [a for a in fig.axes if a is not ax]
     assert [t.get_text() for t in bar.get_yticklabels()] == ['1', '2', '3', '4', '5']
@@ -609,3 +609,57 @@ def test_ruler_short_axis_gets_fewer_labels():
     assert ruler_labels(viewer, 2) == ['0', '20', '40']
     viewer.set_vertical_exaggeration(25)
     assert ruler_labels(viewer, 2) == ['0', '10', '20', '30', '40']
+
+
+def test_layers_are_named_and_numbered(grid3d):
+    """A layer is named by its label or variable, a repeated name gets a number, and a layer
+    without a variable is 'Layer N'."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    gs.view3d(data, 'value', griddef=griddef, viewer=viewer)
+    gs.view3d(data, 'value', griddef=griddef, label='Copy', viewer=viewer)
+    viewer.add(pv.Sphere(), color='red')
+    assert viewer.layers == ['value', 'value (2)', 'Copy', 'Layer 4']
+
+
+def test_set_layer_hides_and_changes_opacity(grid3d):
+    """set_layer changes the actor of the named layer only."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=viewer)
+    blocks, points = layers(viewer)
+    viewer.set_layer('value', visible=False, opacity=0.4)
+    assert not blocks.visibility and points.visibility
+    assert blocks.prop.opacity == 0.4 and points.prop.opacity == 1
+    viewer.set_layer('value', visible=True)
+    assert blocks.visibility and blocks.prop.opacity == 0.4
+
+
+def test_set_layer_errors(grid3d):
+    """An unknown layer names the layers there are; opacity outside 0 to 1 is refused."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    with pytest.raises(ValueError, match=r"No layer 'x'.*\['value'\]"):
+        viewer.set_layer('x', visible=False)
+    with pytest.raises(ValueError, match='opacity'):
+        viewer.set_layer('value', opacity=1.5)
+    assert layers(viewer)[0].prop.opacity == 1
+
+
+def test_show_static_follows_set_layer(grid3d):
+    """A hidden layer is left out of the picture, with its colour bar, and the opacity is kept."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=viewer)
+    fig, ax = viewer.show_static()
+    both, bars = np.asarray(ax.images[0].get_array()), len(fig.axes)
+    viewer.set_layer('Estimate', visible=False)
+    fig, ax = viewer.show_static()
+    assert len(fig.axes) == bars - 1
+    assert not np.array_equal(both, np.asarray(ax.images[0].get_array()))
+    viewer.set_layer('Estimate', visible=True)
+    fig, ax = viewer.show_static()
+    opaque = np.asarray(ax.images[0].get_array())
+    viewer.set_layer('value', opacity=0.1)
+    fig, ax = viewer.show_static()
+    assert not np.array_equal(opaque, np.asarray(ax.images[0].get_array()))
