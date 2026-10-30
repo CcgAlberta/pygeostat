@@ -355,12 +355,11 @@ def test_ruler_box_does_not_grow(subblocks):
 
 @pytest.mark.parametrize('bounds, expected', [
     ((0, 80, 0, 80, 0, 40), [['0', '20', '40', '60', '80'], ['0', '20', '40', '60', '80'],
-                             ['0', '10', '20', '30', '40']]),
+                             ['0', '20', '40']]),
     ((612950, 613420, 5055100, 5061000, 146, 286),
-     [['612800', '613000', '613200', '613400', '613600'],
-      ['5054000', '5056000', '5058000', '5060000', '5062000'], ['100', '150', '200', '250', '300']]),
-    ((0.12, 0.47, 0, 0.3, -3, -1), [['0.1', '0.2', '0.3', '0.4', '0.5'],
-                                    ['0.0', '0.1', '0.2', '0.3', '0.4'],
+     [['612500', '613000', '613500'], ['5054000', '5056000', '5058000', '5060000', '5062000'],
+      ['100', '200', '300']]),
+    ((0.12, 0.47, 0, 0.3, -3, -1), [['0.0', '0.2', '0.4', '0.6'], ['0.0', '0.2', '0.4'],
                                     ['-3.0', '-2.5', '-2.0', '-1.5', '-1.0']]),
 ])
 def test_ruler_round_labels(bounds, expected):
@@ -429,7 +428,7 @@ def test_ruler_follows_new_layers():
     viewer = gs.view3d(pv.Box((0, 100, 0, 100, 0, 10)), viewer=gs.Viewer(off_screen=True))
     viewer.add_ruler()
     gs.view3d(pv.Box((0, 100, 0, 100, 10, 40)), viewer=viewer)
-    assert ruler_labels(viewer, 2) == ['0', '10', '20', '30', '40']
+    assert ruler_labels(viewer, 2) == ['0', '20', '40']
 
 
 def test_view3d_threshold(grid3d):
@@ -599,3 +598,14 @@ def test_view3d_category_missing_from_catdict(intervals):
         gs.view3d(intervals, 'Rock', start=('startx', 'starty', 'startz'),
                   end=('endx', 'endy', 'endz'), catdict={1: 'Granite'},
                   viewer=gs.Viewer(off_screen=True))
+
+
+def test_ruler_short_axis_gets_fewer_labels():
+    """A short axis on screen has fewer labels, so they don't run together, and gets more as
+    vertical exaggeration makes it longer on screen."""
+    viewer = gs.view3d(pv.Box((0, 1000, 0, 1000, 0, 40)), viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    assert ruler_labels(viewer, 0) == ['0', '500', '1000']
+    assert ruler_labels(viewer, 2) == ['0', '20', '40']
+    viewer.set_vertical_exaggeration(25)
+    assert ruler_labels(viewer, 2) == ['0', '10', '20', '30', '40']
