@@ -66,6 +66,9 @@ dev = [
 view3d = [
     "pyvista>=0.49.0",
 ]
+view3d-panel = [
+    "pyvista[jupyter]>=0.49.0",
+]
 docs = [
     "sphinx>=8.1.3",
     "nbsphinx>=0.8.8",
