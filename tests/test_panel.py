@@ -35,7 +35,7 @@ def rows(panel):
 def triggered(panel, handler):
     """The function the page calls for `handler`, found from the page's own HTML."""
     controller = panel.server.controller
-    names = re.findall(r"trigger\('(trigger__\d+)', \[layer.name, [^\]]*\]\)", panel.layout.html)
+    names = re.findall(r"trigger\('(trigger__\d+)', \[layer.name[^\]]*\]\)", panel.layout.html)
     return next(controller.trigger_fn(n) for n in names if controller.trigger_fn(n) == handler)
 
 
@@ -109,3 +109,64 @@ def test_panel_data_range_is_the_whole_layer():
     row = viewer.panel().state.layers[0]
     assert row['data_range'] == [data.data['value'].min(), data.data['value'].max()]
     assert row['clim'] == row['data_range']
+
+
+def test_panel_threshold(viewer):
+    """The boxes set one end of the threshold, starting from the range of the variable; All shows
+    every value again; a value that does not work is explained and changes nothing."""
+    panel = viewer.panel()
+    layer = viewer._layers[0]
+    low, high = layer.mesh.get_data_range('value')
+    assert panel.state.layers[0]['threshold_range'] == [low, high]
+    assert panel.state.layers[0]['threshold'] is None
+    set_threshold = triggered(panel, panel.set_threshold)
+    set_threshold('value', 0, '0.5')
+    assert layer.threshold == (0.5, high)
+    assert panel.state.layers[0]['threshold'] == [0.5, high]
+    assert layer.actor.mapper.dataset.n_cells < 40 ** 3
+    set_threshold('value', 1, '0.1')
+    assert layer.threshold == (0.5, high) and 'min not above max' in panel.state.message
+    set_threshold('value', 1, 'abc')
+    assert "'abc' is not a number" in panel.state.message
+    triggered(panel, panel.clear_threshold)('value')
+    assert layer.threshold is None and layer.actor.mapper.dataset.n_cells == 40 ** 3
+    assert panel.state.message == ''
+
+
+def test_panel_slice_of_a_grid(viewer):
+    """Slice starts in the middle of the grid, the boxes move and thicken it, and the layer is the
+    same as view3d with those arguments."""
+    panel = viewer.panel()
+    layer = viewer._layers[0]
+    triggered(panel, panel.set_slice_on)('value', True)
+    assert panel.state.layers[0]['slice'] == {
+        'orient': 'xz', 'position': 20, 'position_label': 'Slice number', 'width': 0,
+        'width_label': 'Extra slices each side'}
+    triggered(panel, panel.set_orient)('value', 'yz')
+    triggered(panel, panel.set_position)('value', '5')
+    triggered(panel, panel.set_width)('value', '2')
+    data = gs.ExampleData('3d_grid')
+    expected = gs.view3d(data, 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]), orient='yz',
+                         slice_number=5, slice_thickness=2, viewer=gs.Viewer(off_screen=True))
+    assert layer.mesh.n_cells == expected._layers[0].mesh.n_cells < 40 ** 3
+    triggered(panel, panel.set_position)('value', '500')
+    assert 'Nothing is left' in panel.state.message and layer.section['slice_number'] == 5
+    triggered(panel, panel.set_slice_on)('value', False)
+    assert panel.state.layers[0]['slice'] is None and layer.actor.mapper.dataset.n_cells == 40 ** 3
+
+
+def test_panel_slice_of_drill_holes():
+    """Data without a grid is sliced by coordinate and distance, starting in the middle of the
+    layer; a layer made from a mesh has no slice controls."""
+    data = gs.ExampleData('oilsands')
+    viewer = gs.view3d(data, 'Bitumen', viewer=gs.Viewer(off_screen=True))
+    viewer.add(pv.Sphere(), color='red')
+    panel = viewer.panel()
+    assert [row['can_slice'] for row in panel.state.layers] == [True, False]
+    triggered(panel, panel.set_slice_on)('Bitumen', True)
+    lower, upper = viewer._layers[0].source.mesh.bounds[2:4]
+    row = panel.state.layers[0]['slice']
+    assert row['position'] == (lower + upper) / 2 and row['width'] == (upper - lower) / 20
+    assert row['position_label'] == 'Coordinate' and row['width_label'] == 'Distance each side'
+    triggered(panel, panel.set_width)('Bitumen', '1000')
+    assert viewer._layers[0].section['pointtol'] == 1000
