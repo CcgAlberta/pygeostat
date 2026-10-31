@@ -10,12 +10,24 @@
 class _Layer:
 	"""A mesh in the scene with the options it was drawn with, which the panel changes later"""
 
-	def __init__(self, name, mesh, kwargs, actor):
+	def __init__(self, name, mesh, kwargs, actor, data_range=None):
 		self.name = name
 		self.mesh = mesh
 		self.kwargs = kwargs
 		self.actor = actor
 		self.visible = True
+		# The range of the variable over the whole layer, not only the part shown after a
+		# threshold or slice
+		if data_range is None and 'scalars' in kwargs:
+			data_range = mesh.get_data_range(kwargs['scalars'])
+		self.data_range = data_range
+
+	@property
+	def clim(self):
+		"""The colour limits (min, max) of a layer coloured by a continuous variable, else None"""
+		if 'scalars' not in self.kwargs or 'annotations' in self.kwargs:
+			return None
+		return tuple(self.kwargs['clim'] or self.data_range)
 
 
 class Viewer:
@@ -52,7 +64,7 @@ class Viewer:
 		"""Names of the layers, in the order they were added (list of str)"""
 		return [layer.name for layer in self._layers]
 
-	def add(self, mesh, extent=None, name=None, **kwargs):
+	def add(self, mesh, extent=None, name=None, data_range=None, **kwargs):
 		"""
 		Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``.
 
@@ -62,13 +74,15 @@ class Viewer:
 				e.g. the whole model when ``mesh`` is part of it. If None, the bounds of ``mesh``
 			name (str): name of the layer, to change it with :meth:`set_layer`. A name that is
 				already taken gets a number added. If None, ``'Layer 1'``, ``'Layer 2'``, ...
+			data_range (tuple): range (min, max) of the variable the mesh is coloured by over the
+				whole layer, when ``mesh`` is only part of it. If None, the range of ``mesh``
 		"""
 		name = name or 'Layer {}'.format(len(self._layers) + 1)
 		first, number = name, 1
 		while name in self.layers:
 			number += 1
 			name = '{} ({})'.format(first, number)
-		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, **kwargs)))
+		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, **kwargs), data_range))
 		self._extents.append(mesh.bounds if extent is None else extent)
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
@@ -77,7 +91,7 @@ class Viewer:
 		if self._panel is not None:
 			self._panel.refresh()
 
-	def set_layer(self, name, visible=None, opacity=None):
+	def set_layer(self, name, visible=None, opacity=None, clim=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
 		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
@@ -87,16 +101,27 @@ class Viewer:
 			name (str): name of the layer, one of :attr:`layers`
 			visible (bool): show or hide the layer. If None, unchanged
 			opacity (float): 0 (invisible) to 1 (opaque). If None, unchanged
+			clim (tuple): colour limits (min, max) of a layer coloured by a continuous variable.
+				If None, unchanged
 		"""
 		matches = [layer for layer in self._layers if layer.name == name]
 		if not matches:
 			raise ValueError("No layer '{}'; the layers are {}".format(name, self.layers))
 		layer = matches[0]
+		# Everything is checked before anything changes, so a refused call changes nothing
+		if opacity is not None and not 0 <= opacity <= 1:
+			raise ValueError("`opacity` must be between 0 and 1")
+		if clim is not None:
+			if layer.clim is None:
+				raise ValueError("Layer '{}' is not coloured by a continuous variable".format(name))
+			if not clim[0] < clim[1]:
+				raise ValueError("`clim` must be (min, max) with min below max")
 		if opacity is not None:
-			if not 0 <= opacity <= 1:
-				raise ValueError("`opacity` must be between 0 and 1")
 			layer.kwargs['opacity'] = opacity
 			layer.actor.prop.opacity = opacity
+		if clim is not None:
+			layer.kwargs['clim'] = tuple(clim)
+			layer.actor.mapper.scalar_range = tuple(clim)
 		if visible is not None:
 			layer.visible = bool(visible)
 			layer.actor.visibility = layer.visible
@@ -442,10 +467,13 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 	# When only part of the layer is shown, the ruler keeps wrapping the whole layer and the
 	# colours keep its full range, so moving a slice or cutoff doesn't change them
 	extent = None
+	data_range = None
 	if threshold is not None or orient is not None:
 		extent = mesh.bounds
-		if clim is None and var is not None:
-			clim = mesh.get_data_range(var)
+		if var is not None:
+			data_range = mesh.get_data_range(var)
+			if clim is None:
+				clim = data_range
 	if threshold is not None:
 		if var is None:
 			raise ValueError("`threshold` needs a variable `var`")
@@ -464,6 +492,6 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 				   clim=(-0.5, len(annotations) - 0.5), n_colors=len(annotations),
 				   annotations=annotations, scalar_bar_args={'title': label or var})
 	else:
-		viewer.add(mesh, extent=extent, name=name, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
+		viewer.add(mesh, extent=extent, name=name, data_range=data_range, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
 				   opacity=opacity, scalar_bar_args={'title': label or var})
 	return viewer
