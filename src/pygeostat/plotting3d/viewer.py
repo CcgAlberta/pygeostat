@@ -76,7 +76,8 @@ class Viewer:
 	def set_layer(self, name, visible=None, opacity=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
-		:meth:`show_static`.
+		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
+		the axes.
 
 		Parameters:
 			name (str): name of the layer, one of :attr:`layers`
