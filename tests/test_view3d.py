@@ -663,3 +663,23 @@ def test_show_static_follows_set_layer(grid3d):
     viewer.set_layer('value', opacity=0.1)
     fig, ax = viewer.show_static()
     assert not np.array_equal(opaque, np.asarray(ax.images[0].get_array()))
+
+
+def test_set_layer_clim(grid3d):
+    """clim changes the colour range of the actor and of the colour bar in show_static; it is
+    refused for a layer without a continuous variable, and a refused call changes nothing."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    viewer.add(pv.Sphere(), color='red')
+    gs.view3d(gs.ExampleData('point3d_ind_mv'), 'Lithofacies', catdict={1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e'},
+              viewer=viewer)
+    viewer.set_layer('value', clim=(0.5, 1.5))
+    assert tuple(layers(viewer)[0].mapper.scalar_range) == (0.5, 1.5)
+    fig, ax = viewer.show_static()
+    assert fig.axes[1].get_ylim() == (0.5, 1.5)
+    for name in ('Layer 2', 'Lithofacies'):
+        with pytest.raises(ValueError, match='continuous'):
+            viewer.set_layer(name, opacity=0.5, clim=(0, 1))
+    with pytest.raises(ValueError, match='min below max'):
+        viewer.set_layer('value', opacity=0.5, clim=(2, 1))
+    assert layers(viewer)[0].prop.opacity == 1 and layers(viewer)[1].prop.opacity == 1
