@@ -44,6 +44,8 @@ class Viewer:
 		self._extents = []
 		self._ruler = None
 		self._vertical_exaggeration = 1.0
+		# The panel made by panel(), which shows the layers
+		self._panel = None
 
 	@property
 	def layers(self):
@@ -72,6 +74,8 @@ class Viewer:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
 		elif self._ruler is not None:
 			_draw_ruler(self.plotter, self._extents, self._ruler)
+		if self._panel is not None:
+			self._panel.refresh()
 
 	def set_layer(self, name, visible=None, opacity=None):
 		"""
@@ -96,6 +100,8 @@ class Viewer:
 		if visible is not None:
 			layer.visible = bool(visible)
 			layer.actor.visibility = layer.visible
+		if self._panel is not None:
+			self._panel.refresh()
 
 	def add_ruler(self, unit=None):
 		"""
@@ -128,6 +134,19 @@ class Viewer:
 		# set_scale also stretches the ruler, so it is drawn again
 		if self._ruler is not None:
 			_draw_ruler(self.plotter, self._extents, self._ruler, factor)
+
+	def panel(self):
+		"""
+		The scene with a panel of controls beside it, to switch layers on and off and change their
+		opacity. Requires ``pip install pygeostat[view3d-panel]``. In a notebook, make the result the
+		last line of a cell to show it.
+
+		Returns:
+			panel (pygeostat.plotting3d.panel.Panel): the panel
+		"""
+		from .panel import Panel
+		self._panel = Panel(self)
+		return self._panel
 
 	def show(self, **kwargs):
 		"""Show the scene. Keyword arguments go to ``pyvista.Plotter.show``."""
