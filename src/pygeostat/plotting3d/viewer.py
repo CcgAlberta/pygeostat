@@ -7,15 +7,41 @@
 #-----------------------------------------------------------------------------
 
 
+class _Source:
+	"""The whole mesh of a layer, with what is needed to cut a part of it, so the part shown can
+	change after the layer is drawn"""
+
+	def __init__(self, mesh, var, griddef):
+		self.mesh = mesh
+		self.var = var
+		self.griddef = griddef
+
+	def cut(self, threshold, section):
+		"""The part of the mesh in the threshold (min, max of the variable) and in the slice
+		(a dictionary of the slice arguments of view3d), whole if either is None"""
+		mesh = self.mesh
+		if threshold is not None:
+			if self.var is None:
+				raise ValueError("`threshold` needs a variable `var`")
+			mesh = mesh.threshold(threshold, scalars=self.var)
+		if section is not None:
+			mesh = _slice(mesh, self.griddef, **section)
+		return mesh
+
+
 class _Layer:
 	"""A mesh in the scene with the options it was drawn with, which the panel changes later"""
 
-	def __init__(self, name, mesh, kwargs, actor, data_range=None):
+	def __init__(self, name, mesh, kwargs, actor, data_range=None, source=None, threshold=None,
+				 section=None):
 		self.name = name
 		self.mesh = mesh
 		self.kwargs = kwargs
 		self.actor = actor
 		self.visible = True
+		self.source = source
+		self.threshold = threshold
+		self.section = section
 		# The range of the variable over the whole layer, not only the part shown after a
 		# threshold or slice
 		if data_range is None and 'scalars' in kwargs:
@@ -64,7 +90,8 @@ class Viewer:
 		"""Names of the layers, in the order they were added (list of str)"""
 		return [layer.name for layer in self._layers]
 
-	def add(self, mesh, extent=None, name=None, data_range=None, **kwargs):
+	def add(self, mesh, extent=None, name=None, data_range=None, source=None, threshold=None,
+			section=None, **kwargs):
 		"""
 		Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``.
 
@@ -76,13 +103,17 @@ class Viewer:
 				already taken gets a number added. If None, ``'Layer 1'``, ``'Layer 2'``, ...
 			data_range (tuple): range (min, max) of the variable the mesh is coloured by over the
 				whole layer, when ``mesh`` is only part of it. If None, the range of ``mesh``
+			source (_Source): the whole mesh and what is needed to cut it, when ``mesh`` is a part
+				of it that :meth:`set_layer` can change. ``threshold`` and ``section`` are how
+				``mesh`` was cut from it
 		"""
 		name = name or 'Layer {}'.format(len(self._layers) + 1)
 		first, number = name, 1
 		while name in self.layers:
 			number += 1
 			name = '{} ({})'.format(first, number)
-		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, **kwargs), data_range))
+		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, **kwargs), data_range,
+								   source, threshold, section))
 		self._extents.append(mesh.bounds if extent is None else extent)
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
@@ -91,7 +122,8 @@ class Viewer:
 		if self._panel is not None:
 			self._panel.refresh()
 
-	def set_layer(self, name, visible=None, opacity=None, clim=None):
+	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
+				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
 		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
@@ -103,6 +135,20 @@ class Viewer:
 			opacity (float): 0 (invisible) to 1 (opaque). If None, unchanged
 			clim (tuple): colour limits (min, max) of a layer coloured by a continuous variable.
 				If None, unchanged
+			threshold (tuple): show only values of the variable between (min, max), as in
+				:func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`; ``False`` shows all of
+				the layer again. If None, unchanged. Colours keep the limits of the layer
+			orient (str): show only a slice, ``'xy'``, ``'xz'`` or ``'yz'``; ``False`` shows all of
+				the layer again. If None, the slice stays as it is
+			slice_number (int): the slice of a layer on a grid, which stays as it is if None
+			slice_coordinate (float): the position of the slice, which stays as it is if None
+			slice_thickness (int): extra grid slices each side, which stays as it is if None
+			pointtol (float): distance each side for a layer not on a grid, which stays as it is
+				if None
+
+		The slice arguments work as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`.
+		Changing a slice that is already shown needs only the arguments that change. A layer
+		made from a ready mesh (not from data) cannot be thresholded or sliced.
 		"""
 		matches = [layer for layer in self._layers if layer.name == name]
 		if not matches:
@@ -116,6 +162,25 @@ class Viewer:
 				raise ValueError("Layer '{}' is not coloured by a continuous variable".format(name))
 			if not clim[0] < clim[1]:
 				raise ValueError("`clim` must be (min, max) with min below max")
+		slice_args = (orient, slice_number, slice_coordinate, slice_thickness, pointtol)
+		cut = threshold is not None or any(v is not None for v in slice_args)
+		if cut:
+			if layer.source is None:
+				raise ValueError("Layer '{}' was added as a mesh, so it cannot be thresholded or sliced".format(name))
+			new_threshold = layer.threshold if threshold is None else None if threshold is False else tuple(threshold)
+			if new_threshold is not None and not new_threshold[0] <= new_threshold[1]:
+				raise ValueError("`threshold` must be (min, max) with min not above max")
+			new_section = layer.section
+			if any(v is not None for v in slice_args):
+				new_section = _new_section(layer.section, *slice_args)
+			part = layer.source.cut(new_threshold, new_section)
+			if part.n_cells == 0:
+				raise ValueError("Nothing is left of layer '{}' with this threshold and slice".format(name))
+			layer.threshold, layer.section = new_threshold, new_section
+			self.plotter.remove_actor(layer.actor)
+			layer.mesh = part
+			layer.actor = self.plotter.add_mesh(part, **layer.kwargs)
+			layer.actor.visibility = layer.visible
 		if opacity is not None:
 			layer.kwargs['opacity'] = opacity
 			layer.actor.prop.opacity = opacity
@@ -361,6 +426,24 @@ def _slice(mesh, griddef, orient, slice_number, slice_coordinate, slice_thicknes
 	return mesh.extract_cells(np.flatnonzero(distance <= tolerance))
 
 
+def _new_section(section, orient, slice_number, slice_coordinate, slice_thickness, pointtol):
+	"""The slice arguments of a layer after set_layer: the current ones with the given ones
+	changed, or None (the whole layer) for orient=False"""
+	if orient is False:
+		return None
+	if section is None and orient is None:
+		raise ValueError("Pass `orient` to slice a layer that is not sliced")
+	given = dict(orient=orient, slice_number=slice_number, slice_coordinate=slice_coordinate,
+				 slice_thickness=slice_thickness, pointtol=pointtol)
+	section = {**dict.fromkeys(given), **(section or {}), **{k: v for k, v in given.items() if v is not None}}
+	# The position is the number or the coordinate, whichever was given last
+	if slice_number is not None:
+		section['slice_coordinate'] = None
+	if slice_coordinate is not None:
+		section['slice_number'] = None
+	return section
+
+
 def _apply_camera(plotter, camera):
 	"""Set a plotter's camera from a get_camera dictionary. The position alone misses the zoom and
 	the projection."""
@@ -474,24 +557,25 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			data_range = mesh.get_data_range(var)
 			if clim is None:
 				clim = data_range
-	if threshold is not None:
-		if var is None:
-			raise ValueError("`threshold` needs a variable `var`")
-		mesh = mesh.threshold(threshold, scalars=var)
-	if orient is not None:
-		mesh = _slice(mesh, griddef, orient, slice_number, slice_coordinate, slice_thickness,
-					  pointtol)
+	source = _Source(mesh, var, griddef)
+	section = None if orient is None else dict(
+		orient=orient, slice_number=slice_number, slice_coordinate=slice_coordinate,
+		slice_thickness=slice_thickness, pointtol=pointtol)
+	mesh = source.cut(threshold, section)
 
 	if viewer is None:
 		viewer = Viewer()
 	name = label or var
 	if var is None:
-		viewer.add(mesh, extent=extent, name=name, color=color, opacity=opacity)
+		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section,
+				   color=color, opacity=opacity)
 	elif categorical:
-		viewer.add(mesh, extent=extent, name=name, scalars=_CATEGORY, cmap=cmap, opacity=opacity,
+		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section,
+				   scalars=_CATEGORY, cmap=cmap, opacity=opacity,
 				   clim=(-0.5, len(annotations) - 0.5), n_colors=len(annotations),
 				   annotations=annotations, scalar_bar_args={'title': label or var})
 	else:
-		viewer.add(mesh, extent=extent, name=name, data_range=data_range, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
+		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section,
+				   data_range=data_range, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
 				   opacity=opacity, scalar_bar_args={'title': label or var})
 	return viewer
