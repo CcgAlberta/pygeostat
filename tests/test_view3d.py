@@ -683,3 +683,85 @@ def test_set_layer_clim(grid3d):
     with pytest.raises(ValueError, match='min below max'):
         viewer.set_layer('value', opacity=0.5, clim=(2, 1))
     assert layers(viewer)[0].prop.opacity == 1 and layers(viewer)[1].prop.opacity == 1
+
+
+def test_set_layer_threshold(grid3d):
+    """A threshold set afterwards gives the same layer as view3d(threshold=), also inside a
+    slice, keeps the colours, and False shows the whole layer again."""
+    data, griddef = grid3d
+    options = dict(griddef=griddef, orient='xz', slice_number=20)
+    viewer = gs.view3d(data, 'value', viewer=gs.Viewer(off_screen=True), opacity=0.4, **options)
+    whole = layers(viewer)[0].mapper.dataset.n_cells
+    viewer.set_layer('value', threshold=(0.5, 1.0))
+    expected = gs.view3d(data, 'value', threshold=(0.5, 1.0), viewer=gs.Viewer(off_screen=True), **options)
+    (actor,) = layers(viewer)
+    assert 0 < actor.mapper.dataset.n_cells < whole
+    assert actor.mapper.dataset.n_cells == layers(expected)[0].mapper.dataset.n_cells
+    assert actor.prop.opacity == 0.4
+    assert tuple(actor.mapper.scalar_range) == tuple(data.data['value'].agg(['min', 'max']))
+    assert list(viewer.plotter.scalar_bars.keys()) == ['value']
+    viewer.set_layer('value', threshold=False)
+    assert layers(viewer)[0].mapper.dataset.n_cells == whole
+
+
+def test_set_layer_threshold_errors(grid3d):
+    """A threshold that is reversed, leaves nothing, or is on a plain mesh is refused and changes
+    nothing."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    viewer.add(pv.Sphere(), color='red')
+    with pytest.raises(ValueError, match='min not above max'):
+        viewer.set_layer('value', threshold=(2, 1))
+    with pytest.raises(ValueError, match='Nothing is left'):
+        viewer.set_layer('value', opacity=0.5, threshold=(100, 200))
+    with pytest.raises(ValueError, match='added as a mesh'):
+        viewer.set_layer('Layer 2', threshold=(0, 1))
+    assert layers(viewer)[0].mapper.dataset.n_cells == 40 ** 3
+    assert layers(viewer)[0].prop.opacity == 1
+
+
+def test_set_layer_slice(grid3d):
+    """A slice set afterwards gives the same layer as view3d(orient=), moving it needs only what
+    changes, the threshold stays, and orient=False shows the whole layer."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, threshold=(0.5, 1.0),
+                       viewer=gs.Viewer(off_screen=True))
+    whole = layers(viewer)[0].mapper.dataset.n_cells
+    viewer.set_layer('value', orient='xz', slice_number=20)
+    first = layers(viewer)[0].mapper.dataset.n_cells
+    expected = gs.view3d(data, 'value', griddef=griddef, threshold=(0.5, 1.0), orient='xz', slice_number=20,
+                         viewer=gs.Viewer(off_screen=True))
+    assert first == layers(expected)[0].mapper.dataset.n_cells < whole
+    viewer.set_layer('value', slice_number=21, slice_thickness=2)
+    moved = gs.view3d(data, 'value', griddef=griddef, threshold=(0.5, 1.0), orient='xz', slice_number=21,
+                      slice_thickness=2, viewer=gs.Viewer(off_screen=True))
+    assert layers(viewer)[0].mapper.dataset.n_cells == layers(moved)[0].mapper.dataset.n_cells
+    viewer.set_layer('value', orient=False)
+    assert layers(viewer)[0].mapper.dataset.n_cells == whole
+
+
+def test_set_layer_slice_by_coordinate():
+    """Drill holes are sliced by coordinate and distance, and a position given last replaces the
+    other kind."""
+    data = gs.ExampleData('oilsands')
+    viewer = gs.view3d(data, 'Bitumen', viewer=gs.Viewer(off_screen=True))
+    viewer.set_layer('Bitumen', orient='xz', slice_coordinate=data.data[data.y].median(), pointtol=500)
+    n = layers(viewer)[0].mapper.dataset.n_points
+    assert 0 < n < len(data)
+    viewer.set_layer('Bitumen', pointtol=1000)
+    assert layers(viewer)[0].mapper.dataset.n_points > n
+
+
+def test_set_layer_slice_errors(grid3d):
+    """A slice that is not defined, wrong, or leaves nothing is refused and changes nothing."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    with pytest.raises(ValueError, match='Pass `orient`'):
+        viewer.set_layer('value', slice_number=3)
+    with pytest.raises(ValueError, match='orient'):
+        viewer.set_layer('value', orient='ab', slice_number=3)
+    with pytest.raises(ValueError, match='Nothing is left'):
+        viewer.set_layer('value', opacity=0.5, orient='xz', slice_coordinate=1e6)
+    assert layers(viewer)[0].mapper.dataset.n_cells == 40 ** 3
+    assert layers(viewer)[0].prop.opacity == 1
+    assert viewer._layers[0].section is None
