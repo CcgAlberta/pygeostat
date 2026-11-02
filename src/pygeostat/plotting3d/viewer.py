@@ -32,6 +32,11 @@ class _Source:
 		return mesh
 
 
+def _actor_name(layer_name):
+	"""The name a layer's actor has in the plotter, so that a layer can be drawn again in its place"""
+	return 'layer ' + layer_name
+
+
 class _Layer:
 	"""A mesh in the scene with the options it was drawn with, which the panel changes later"""
 
@@ -56,6 +61,10 @@ class _Layer:
 		if data_range is None and 'scalars' in kwargs:
 			data_range = mesh.get_data_range(kwargs['scalars'])
 		self.data_range = data_range
+
+	@property
+	def key(self):
+		return _actor_name(self.name)
 
 	@property
 	def clim(self):
@@ -94,6 +103,8 @@ class Viewer:
 		self._slicer = {'enabled': False, 'origin': None, 'normal': (0.0, 0.0, 1.0), 'tolerance': 10.0,
 						'show_holes': False}
 		self._axes_from_zero = False
+		# The place of the colour bar of each title, in the order they were first needed
+		self._bar_slots = {}
 		self._vertical_exaggeration = 1.0
 		# The panel made by panel(), which shows the layers
 		self._panel = None
@@ -124,11 +135,13 @@ class Viewer:
 				leaves a ``'points'`` layer as it is
 		"""
 		name = name or 'Layer {}'.format(len(self._layers) + 1)
+		if 'scalars' in kwargs:
+			kwargs['scalar_bar_args'] = self._placed_bar(kwargs['scalar_bar_args'])
 		first, number = name, 1
 		while name in self.layers:
 			number += 1
 			name = '{} ({})'.format(first, number)
-		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, **kwargs), data_range,
+		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, name=_actor_name(name), **kwargs), data_range,
 								   source, threshold, section, kind))
 		self._extents.append(mesh.bounds if extent is None else extent)
 		if self._vertical_exaggeration != 1:
@@ -216,12 +229,39 @@ class Viewer:
 		slicer's plane. A plane that misses the layer leaves nothing to draw."""
 		plane = self._plane() if layer.kind == 'blocks' else None
 		layer.mesh = layer.source.cut(layer.threshold, layer.section, plane)
-		if layer.actor is not None:
-			self.plotter.remove_actor(layer.actor)
-			layer.actor = None
-		if layer.mesh.n_cells:
-			layer.actor = self.plotter.add_mesh(layer.mesh, **layer.kwargs)
-			layer.actor.visibility = layer.visible
+		if not layer.mesh.n_cells:
+			if layer.actor is not None:
+				self.plotter.remove_actor(layer.actor)
+				layer.actor = None
+			return
+		# Replacing the actor by its name, as the prototype does, swaps the mesh at once and keeps
+		# the colour bar: removing the actor first took its bar with it, and a new bar was made
+		# on every move of the slicer, so the slice and its legend blinked
+		layer.actor = self.plotter.add_mesh(layer.mesh, name=layer.key, **layer.kwargs)
+		layer.actor.visibility = layer.visible
+		self._keep_clim(layer)
+
+	def _placed_bar(self, bar_args):
+		"""The colour bar arguments with a position of its own, where PyVista would put the bar in
+		its next free place. PyVista takes a bar down with the layer it was made for only if it
+		chose the place itself, so a bar with a position stays while the slicer redraws the layer,
+		instead of a new bar being made at every move"""
+		import pyvista as pv
+		from pyvista.plotting.scalar_bars import MAX_N_COLOR_BARS
+		theme = pv.global_theme.colorbar_vertical
+		slot = self._bar_slots.setdefault(bar_args['title'], len(self._bar_slots))
+		if slot >= MAX_N_COLOR_BARS:
+			raise RuntimeError("There is room for {} colour bars, name fewer variables or labels".format(
+				MAX_N_COLOR_BARS))
+		return {**bar_args, 'vertical': True, 'width': theme.width, 'height': theme.height,
+				'position_x': theme.position_x - slot * (theme.width + 0.2 * theme.width),
+				'position_y': theme.position_y}
+
+	def _keep_clim(self, layer):
+		"""Put the colour limits of a layer back on its colour bar. A bar that is reused is widened
+		by pyvista to the widest range it has had, so narrowed limits would come back wider"""
+		if layer.clim is not None:
+			self.plotter.update_scalar_bar_range(layer.clim, name=layer.kwargs['scalar_bar_args']['title'])
 
 	def add_ruler(self, unit=None):
 		"""
@@ -305,12 +345,9 @@ class Viewer:
 		threshold and colours, and show even when the layer itself is hidden."""
 		import numpy as np
 		from .meshes import SEGMENT, HOLE, UPPER, LOWER, RADIUS
-		if layer.crossing_actor is not None:
-			self.plotter.remove_actor(layer.crossing_actor)
-			layer.crossing_actor = None
-		layer.crossing = None
 		slicer = self._slicer
 		if not (slicer['enabled'] and slicer['show_holes']):
+			self._clear_crossing(layer)
 			return
 		mesh = layer.source.mesh
 		upper, lower = mesh.field_data[UPPER], mesh.field_data[LOWER]
@@ -331,10 +368,18 @@ class Viewer:
 			half = slicer['tolerance'] / 2
 			tubes = tubes.clip(normal=normal, origin=origin + half * normal, invert=True)
 			tubes = tubes.clip(normal=-normal, origin=origin - half * normal, invert=True)
-		if tubes.n_cells:
-			layer.crossing = tubes
-			layer.crossing_actor = self.plotter.add_mesh(tubes, nan_color='lightgray', show_scalar_bar=False,
-														 **layer.kwargs)
+		if not tubes.n_cells:
+			self._clear_crossing(layer)
+			return
+		layer.crossing = tubes
+		layer.crossing_actor = self.plotter.add_mesh(tubes, name=layer.key + ' on slice', nan_color='lightgray',
+													 show_scalar_bar=False, **layer.kwargs)
+
+	def _clear_crossing(self, layer):
+		"""Take the holes on the slice off the scene"""
+		if layer.crossing_actor is not None:
+			self.plotter.remove_actor(layer.crossing_actor)
+		layer.crossing, layer.crossing_actor = None, None
 
 	def _sync_scalar_bars(self):
 		"""A colour bar is shown while a layer with its title is shown or has holes on the slice"""
