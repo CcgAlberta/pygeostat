@@ -820,3 +820,60 @@ def test_axis_origin_from_zero_without_layers():
     viewer = gs.Viewer(off_screen=True)
     viewer.set_axis_origin(from_zero=True)
     assert viewer._origin_values() == (0.0, 0.0, 0.0)
+
+
+def two_layer_viewer(grid3d):
+    """A block model and drill holes with a ruler, to set up and compare views."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    gs.view3d(gs.ExampleData('oilsands'), 'Bitumen', trace=True, radius=15, viewer=viewer)
+    viewer.add_ruler()
+    return viewer
+
+
+def test_view_round_trip(grid3d):
+    """get_view survives json and gives the same scene back on a fresh viewer: the layers'
+    visibility, opacity, colour limits, threshold and slice, the ruler origin, the exaggeration
+    and the camera."""
+    import json
+    viewer = two_layer_viewer(grid3d)
+    viewer.set_layer('value', opacity=0.4, clim=(-1, 1), threshold=(-2, 2), orient='xz', slice_number=7,
+                     slice_thickness=2)
+    viewer.set_layer('Bitumen', visible=False)
+    viewer.set_axis_origin((1, 2, 3))
+    viewer.set_vertical_exaggeration(4)
+    viewer.plotter.camera.position = (300, -400, 200)
+    view = json.loads(json.dumps(viewer.get_view()))
+    fresh = two_layer_viewer(grid3d)
+    fresh.set_view(view)
+    assert fresh.get_view() == view
+    assert fresh._layers[0].mesh.n_cells == viewer._layers[0].mesh.n_cells
+    assert not fresh._layers[1].actor.visibility
+
+
+def test_set_view_with_other_layers(grid3d):
+    """A view that names a layer the scene lacks is refused and changes nothing; a scene with more
+    layers than the view keeps them as they are."""
+    viewer = two_layer_viewer(grid3d)
+    view = viewer.get_view()
+    other = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], opacity=0.3, viewer=gs.Viewer(off_screen=True))
+    with pytest.raises(ValueError, match="'Bitumen'"):
+        other.set_view(view)
+    assert other._layers[0].kwargs['opacity'] == 0.3
+    view['layers'] = view['layers'][:1]
+    view['layers'][0]['opacity'] = 0.2
+    viewer.set_layer('Bitumen', opacity=0.6)
+    viewer.set_view(view)
+    assert viewer._layers[0].kwargs['opacity'] == 0.2 and viewer._layers[1].kwargs['opacity'] == 0.6
+
+
+def test_set_view_that_fails_midway_changes_nothing(grid3d):
+    """A view whose second layer cannot be shown (the threshold leaves nothing) is refused after the
+    first layer was changed, and the first layer goes back."""
+    viewer = two_layer_viewer(grid3d)
+    view = viewer.get_view()
+    view['layers'][0]['opacity'] = 0.2
+    view['layers'][1]['threshold'] = [1e9, 2e9]
+    with pytest.raises(ValueError, match='Nothing is left'):
+        viewer.set_view(view)
+    assert viewer.get_view()['layers'][0]['opacity'] == 1.0
