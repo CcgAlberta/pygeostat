@@ -765,3 +765,58 @@ def test_set_layer_slice_errors(grid3d):
     assert layers(viewer)[0].mapper.dataset.n_cells == 40 ** 3
     assert layers(viewer)[0].prop.opacity == 1
     assert viewer._layers[0].section is None
+
+
+def far_box(viewer=None):
+    """A box far from the origin, 100 by 100 by 40, in a scene with a ruler."""
+    viewer = viewer or gs.Viewer(off_screen=True)
+    viewer.add(pv.Box(bounds=(1000, 1100, 5000, 5100, 300, 340)), color='red')
+    viewer.add_ruler()
+    return viewer
+
+
+def test_axis_origin_counts_labels_from_the_origin():
+    """With an origin the labels are those of the same box moved to the origin, the box stays where
+    it is, and the titles say where the labels start. None gives the coordinates back."""
+    near = gs.Viewer(off_screen=True)
+    near.add(pv.Box(bounds=(0, 100, 0, 100, 0, 40)), color='red')
+    near.add_ruler()
+    viewer = far_box()
+    far_labels = [ruler_labels(viewer, axis) for axis in range(3)]
+    viewer.set_axis_origin((1000, 5000, 300))
+    assert [ruler_labels(viewer, axis) for axis in range(3)] == [ruler_labels(near, axis) for axis in range(3)]
+    assert far_labels != [ruler_labels(viewer, axis) for axis in range(3)]
+    axes = viewer.plotter.renderer.cube_axes_actor
+    np.testing.assert_allclose(axes.bounds, (1000, 1100, 5000, 5100, 300, 340))
+    assert axes.GetXTitle().endswith(' from 1000') and axes.GetZTitle().endswith(' from 300')
+    viewer.set_axis_origin(None)
+    assert [ruler_labels(viewer, axis) for axis in range(3)] == far_labels
+    assert ' from ' not in viewer.plotter.renderer.cube_axes_actor.GetXTitle()
+
+
+def test_axis_origin_from_zero_and_new_layers():
+    """from_zero starts each axis at the lowest edge of the scene, also after a layer is added,
+    and show_static draws the same."""
+    near = gs.Viewer(off_screen=True)
+    near.add(pv.Box(bounds=(0, 100, 0, 100, 0, 40)), color='red')
+    near.add_ruler()
+    viewer = far_box()
+    viewer.set_axis_origin(from_zero=True)
+    assert [ruler_labels(viewer, axis) for axis in range(3)] == [ruler_labels(near, axis) for axis in range(3)]
+    viewer.add(pv.Box(bounds=(1000, 1100, 4900, 5100, 300, 340)), color='blue')
+    assert ruler_labels(viewer, 1)[0] == '0'
+    assert viewer.plotter.renderer.cube_axes_actor.bounds[2] == 4900
+    fig, ax = viewer.show_static()
+    assert ax.images
+
+
+def test_axis_origin_needs_three_numbers():
+    with pytest.raises(ValueError, match='easting, northing, elevation'):
+        gs.Viewer(off_screen=True).set_axis_origin((1, 2))
+
+
+def test_axis_origin_from_zero_without_layers():
+    """Before any layer there is nothing to count from, so the origin is 0 and nothing fails."""
+    viewer = gs.Viewer(off_screen=True)
+    viewer.set_axis_origin(from_zero=True)
+    assert viewer._origin_values() == (0.0, 0.0, 0.0)
