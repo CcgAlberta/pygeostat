@@ -45,6 +45,9 @@ class _Layer:
 		self.kwargs = kwargs
 		self.actor = actor
 		self.visible = True
+		# The drill hole intervals crossing the slicer's plane, with their actor (see set_slicer)
+		self.crossing = None
+		self.crossing_actor = None
 		self.source = source
 		self.threshold = threshold
 		self.section = section
@@ -203,6 +206,9 @@ class Viewer:
 			layer.visible = bool(visible)
 			if layer.actor is not None:
 				layer.actor.visibility = layer.visible
+		if layer.kind == 'holes':
+			self._place_crossing(layer)
+		self._sync_scalar_bars()
 		self._refresh_panel()
 
 	def _place(self, layer):
@@ -269,14 +275,75 @@ class Viewer:
 		if show_holes is not None:
 			slicer['show_holes'] = bool(show_holes)
 		if enabled is not None:
+			# Like the prototype, switching the slicer on hides the drill holes, which would stand
+			# in front of the cut, and switching it off shows them again
+			if bool(enabled) != slicer['enabled']:
+				for layer in self._layers:
+					if layer.kind == 'holes':
+						layer.visible = not enabled
+						if layer.actor is not None:
+							layer.actor.visibility = layer.visible
 			slicer['enabled'] = bool(enabled)
-		if slicer['origin'] is None:
+		if slicer['enabled'] and slicer['origin'] is None:
 			lower, upper = _corners(self._extents)
 			slicer['origin'] = tuple(float(v) for v in (lower + upper) / 2)
 		for layer in self._layers:
 			if layer.kind == 'blocks' and layer.source is not None:
 				self._place(layer)
+			elif layer.kind == 'holes':
+				self._place_crossing(layer)
+		self._sync_scalar_bars()
 		self._refresh_panel()
+
+	def _place_crossing(self, layer):
+		"""Draw the drill hole intervals of a layer that cross the plane, when the slicer is on and
+		``show_holes`` is set. As in the prototype: only holes whose tube reaches the plane, and of
+		those the intervals within the tolerance band, clipped to the band. They follow the layer's
+		threshold and colours, and show even when the layer itself is hidden."""
+		import numpy as np
+		from .meshes import SEGMENT, HOLE, UPPER, LOWER, RADIUS
+		if layer.crossing_actor is not None:
+			self.plotter.remove_actor(layer.crossing_actor)
+			layer.crossing_actor = None
+		layer.crossing = None
+		slicer = self._slicer
+		if not (slicer['enabled'] and slicer['show_holes']):
+			return
+		mesh = layer.source.mesh
+		upper, lower = mesh.field_data[UPPER], mesh.field_data[LOWER]
+		radius = float(mesh.field_data[RADIUS][0])
+		origin = np.array(slicer['origin'], dtype=float)
+		normal = np.array(slicer['normal'], dtype=float)
+		normal = normal / np.linalg.norm(normal)
+		segment, hole = mesh.cell_data[SEGMENT], mesh.cell_data[HOLE]
+		hole_of_segment = np.empty(len(upper), dtype=int)
+		hole_of_segment[segment] = hole
+		touching = _in_band(upper, lower, origin, normal, 2 * radius)
+		crossing = (_in_band(upper, lower, origin, normal, slicer['tolerance'])
+					& np.isin(hole_of_segment, hole_of_segment[touching]))
+		tubes = mesh.extract_cells(np.flatnonzero(np.isin(segment, np.flatnonzero(crossing))))
+		if tubes.n_cells:
+			tubes = _Source(tubes, layer.source.var, layer.source.griddef).cut(layer.threshold, layer.section)
+		if tubes.n_cells:
+			half = slicer['tolerance'] / 2
+			tubes = tubes.clip(normal=normal, origin=origin + half * normal, invert=True)
+			tubes = tubes.clip(normal=-normal, origin=origin - half * normal, invert=True)
+		if tubes.n_cells:
+			layer.crossing = tubes
+			layer.crossing_actor = self.plotter.add_mesh(tubes, nan_color='lightgray', show_scalar_bar=False,
+														 **layer.kwargs)
+
+	def _sync_scalar_bars(self):
+		"""A colour bar is shown while a layer with its title is shown or has holes on the slice"""
+		titles = {}
+		for layer in self._layers:
+			if 'scalars' in layer.kwargs:
+				title = layer.kwargs['scalar_bar_args']['title']
+				titles[title] = titles.get(title, False) or (
+					layer.actor is not None and layer.visible) or layer.crossing is not None
+		for title, shown in titles.items():
+			if title in self.plotter.scalar_bars.keys():
+				self.plotter.scalar_bars[title].SetVisibility(shown)
 
 	def _plane(self):
 		"""The plane of the slicer, or None when it is off"""
@@ -385,12 +452,13 @@ class Viewer:
 		"""
 		Everything about how the scene is shown, as a dictionary of plain numbers and strings that
 		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
-		same layers: the camera, the vertical exaggeration, the origin of the ruler and, for each
+		same layers: the camera, the vertical exaggeration, the origin of the ruler, the slicer and, for each
 		layer, whether it is shown, its opacity, colour limits, threshold and slice.
 
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
-			``axis_origin`` (list or None), ``axes_from_zero`` (bool) and ``layers`` (a list with
+			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``slicer`` (``enabled``,
+			``origin``, ``normal``, ``tolerance`` and ``show_holes``) and ``layers`` (a list with
 			one dictionary per layer, with its ``name``)
 		"""
 		layers = []
@@ -403,7 +471,11 @@ class Viewer:
 				'slice': None if layer.section is None else {
 					k: None if v is None else v if k == 'orient' else float(v)
 					for k, v in layer.section.items()}})
-		return {'camera': self.get_camera(), 'vertical_exaggeration': float(self._vertical_exaggeration),
+		slicer = dict(self._slicer)
+		slicer['origin'] = slicer['origin'] and list(slicer['origin'])
+		slicer['normal'] = list(slicer['normal'])
+		return {'camera': self.get_camera(), 'slicer': slicer,
+				'vertical_exaggeration': float(self._vertical_exaggeration),
 				'axis_origin': self._axis_origin and list(self._axis_origin),
 				'axes_from_zero': self._axes_from_zero, 'layers': layers}
 
@@ -430,6 +502,9 @@ class Viewer:
 			raise
 
 	def _apply_view(self, view):
+		# The slicer first: switching it on hides the drill holes, then the layers are set as saved
+		if view.get('slicer') is not None:
+			self.set_slicer(**view['slicer'])
 		for saved in view['layers']:
 			cut = dict(saved['slice'] or {'orient': False})
 			if cut.get('slice_number') is not None:
@@ -473,8 +548,9 @@ class Viewer:
 		# PyVista's colour bars overlap the picture at small sizes, so matplotlib draws them instead.
 		# They go on first because they shrink the axis, and the picture is rendered at its size.
 		shown = [layer for layer in self._layers if layer.visible and layer.actor is not None]
+		# A layer with holes on the slice keeps its colour bar, though it is hidden
 		cbars = {}
-		for layer in shown:
+		for layer in shown + [l for l in self._layers if l.crossing is not None and l not in shown]:
 			kwargs = layer.kwargs
 			if 'scalars' in kwargs:
 				label = kwargs['scalar_bar_args']['title']
@@ -492,6 +568,9 @@ class Viewer:
 		static = pv.Plotter(off_screen=True, window_size=window_size)
 		for layer in shown:
 			static.add_mesh(layer.mesh, show_scalar_bar=False, **layer.kwargs)
+		for layer in self._layers:
+			if layer.crossing is not None:
+				static.add_mesh(layer.crossing, show_scalar_bar=False, nan_color='lightgray', **layer.kwargs)
 		static.set_scale(zscale=self._vertical_exaggeration)
 		if self._ruler is not None:
 			self._draw_ruler(static)
@@ -505,6 +584,16 @@ class Viewer:
 		if title is not None:
 			ax.set_title(title)
 		return fig, ax
+
+
+def _in_band(upper, lower, origin, normal, thickness):
+	"""Whether each segment (from ``upper`` to ``lower``, one row each) has a point within half of
+	``thickness`` of the plane. Distance to a plane is linear along a segment, so its two ends
+	give the nearest and the farthest point. With thickness 0 this is a crossing of the plane."""
+	import numpy as np
+	at_upper, at_lower = (upper - origin) @ normal, (lower - origin) @ normal
+	half = thickness / 2
+	return (np.minimum(at_upper, at_lower) <= half) & (np.maximum(at_upper, at_lower) >= -half)
 
 
 def _corners(extents):
