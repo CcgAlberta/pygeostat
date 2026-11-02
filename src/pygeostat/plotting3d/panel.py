@@ -52,6 +52,9 @@ class Panel:
 		trame_pyvista.ui._VIEWERS.pop(viewer.plotter._id_name, None)
 		self._view = get_viewer(viewer.plotter, server=self.server)
 		self.refresh()
+		self.state.change(*['slicer_origin_{}'.format(i) for i in range(3)],
+						  *['slicer_normal_{}'.format(i) for i in range(3)], 'slicer_tolerance')(
+			self._on_slicer_sliders)
 
 		with SinglePageWithDrawerLayout(self.server) as self.layout:
 			self.layout.title.set_text('Layers')
@@ -94,8 +97,7 @@ class Panel:
 								type='number', model_value=('layer.threshold_min',), hint='Press Enter to apply',
 								persistent_hint=True, density='compact', variant='outlined', classes='mt-1',
 								change=(self.set_threshold_min, '[layer.name, $event.target.value]'))
-				# The slicer is one plane for the whole scene, as in the prototype. Sliders move the
-				# plane and are applied when released (the end event), which cuts the layers once
+				# The slicer is one plane for the whole scene, as in the prototype
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
 						html.Div('Slicer', classes='text-caption')
@@ -104,16 +106,14 @@ class Panel:
 										   density='compact', hide_details=True)
 						for axis, name in enumerate('XYZ'):
 							self._slider('Origin ' + name, 'slicer_origin_{}'.format(axis),
-										 'slicer.bounds[{}]'.format(2 * axis), 'slicer.bounds[{}]'.format(2 * axis + 1),
-										 self.set_slicer_origin, axis)
+										 'slicer.bounds[{}]'.format(2 * axis), 'slicer.bounds[{}]'.format(2 * axis + 1))
 						for axis, name in enumerate('XYZ'):
-							self._slider('Normal ' + name, 'slicer_normal_{}'.format(axis), -1, 1,
-										 self.set_slicer_normal, axis, step=0.05)
+							self._slider('Normal ' + name, 'slicer_normal_{}'.format(axis), -1, 1, step=0.05)
 						with html.Div(classes='d-flex ga-1 mb-1'):
 							for orient in ('xy', 'xz', 'yz'):
 								vuetify3.VBtn(orient.upper(), size='x-small', variant='tonal',
 											  click=(self.snap_slicer, "['{}']".format(orient)))
-						self._slider('Tolerance', 'slicer_tolerance', 0, 50, self.set_slicer_tolerance, None)
+						self._slider('Tolerance', 'slicer_tolerance', 0, 50)
 						vuetify3.VCheckbox(label='Show drill holes on slice', model_value=('slicer.show_holes',),
 										   update_modelValue=(self.set_show_holes, '[$event]'),
 										   density='compact', hide_details=True)
@@ -137,16 +137,14 @@ class Panel:
 					self._view.ui(add_menu=False)
 
 	@staticmethod
-	def _slider(label, key, low, high, handler, axis, step=None):
-		"""A slider for a number of the slicer, as in the prototype: the thumb is a plain value of
-		the page (``key``), so it follows the mouse smoothly, and ``handler`` is called with
-		``axis`` (if any) and the value when it is let go, which cuts the layers once"""
+	def _slider(label, key, low, high, step=None):
+		"""A slider for a number of the slicer, as in the prototype: its value is a plain value of
+		the page (``key``) that the server follows on every move, so the cut changes while the
+		slider is dragged (see ``_on_slicer_sliders``)"""
 		from trame.widgets import vuetify3
-		arguments = '[{}$event]'.format('' if axis is None else '{}, '.format(axis))
 		options = {} if step is None else {'step': step}
 		vuetify3.VSlider(label=label, v_model=(key,), min=(str(low),), max=(str(high),),
-						 end=(handler, arguments), density='compact', hide_details=True,
-						 thumb_label=True, **options)
+						 density='compact', hide_details=True, thumb_label=True, **options)
 
 	@staticmethod
 	def _range_boxes(values, data_range, handler):
@@ -267,30 +265,19 @@ class Panel:
 		"""Switch the slicer on or off, like ``Viewer.set_slicer(enabled=...)``"""
 		self._guard(lambda: self.viewer.set_slicer(enabled=enabled))
 
-	def set_slicer_origin(self, axis, value):
-		"""Move the plane of the slicer along one axis (0 x, 1 y, 2 z)"""
-		def action():
-			origin = list(self._slicer_origin())
-			origin[axis] = _number(value)
-			self.viewer.set_slicer(origin=origin)
-		self._guard(action)
-
-	def set_slicer_normal(self, axis, value):
-		"""Tilt the plane of the slicer: one component (0 x, 1 y, 2 z) of the direction it faces"""
-		def action():
-			normal = list(self.viewer._slicer['normal'])
-			normal[axis] = _number(value)
-			self.viewer.set_slicer(normal=normal)
-		self._guard(action)
+	def _on_slicer_sliders(self, **changed):
+		"""The slicer's sliders moved: cut again with their values, as the slider is dragged"""
+		state, slicer = self.state, self.viewer._slicer
+		origin = tuple(float(state['slicer_origin_{}'.format(i)]) for i in range(3))
+		normal = tuple(float(state['slicer_normal_{}'.format(i)]) for i in range(3))
+		tolerance = float(state.slicer_tolerance)
+		if (origin, normal, tolerance) != (tuple(self._slicer_origin()), slicer['normal'], slicer['tolerance']):
+			self._guard(lambda: self.viewer.set_slicer(origin=origin, normal=normal, tolerance=tolerance))
 
 	def snap_slicer(self, orient):
 		"""Face the plane along an axis: 'xy' (plan, normal z), 'xz' (normal y) or 'yz' (normal x)"""
 		normal = {'xy': (0.0, 0.0, 1.0), 'xz': (0.0, 1.0, 0.0), 'yz': (1.0, 0.0, 0.0)}[orient]
 		self._guard(lambda: self.viewer.set_slicer(normal=normal))
-
-	def set_slicer_tolerance(self, value):
-		"""Set the thickness of the band of drill holes shown around the plane"""
-		self._guard(lambda: self.viewer.set_slicer(tolerance=_number(value)))
 
 	def set_show_holes(self, show):
 		"""Show the drill hole intervals that cross the plane"""
