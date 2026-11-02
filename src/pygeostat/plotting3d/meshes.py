@@ -7,6 +7,14 @@
 #-----------------------------------------------------------------------------
 
 
+# Arrays that a drill hole mesh carries for slicing, named so they do not clash with a variable
+SEGMENT = 'segment index'
+HOLE = 'hole index'
+UPPER = 'segment upper end'
+LOWER = 'segment lower end'
+RADIUS = 'tube radius'
+
+
 def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None, dh=None,
 				   trace=False, max_gap=None, radius=2.0, n_sides=20):
 	"""
@@ -119,6 +127,13 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 	mesh = pv.PolyData(points, lines=lines)
 	for v in var:
 		mesh.cell_data[v] = data[v].to_numpy(dtype=float)[rows]
+	# What a plane through the holes needs to find the intervals it crosses: each cell's interval
+	# and drill hole, and the intervals' ends and the radius
+	mesh.cell_data[SEGMENT] = np.arange(n)
+	mesh.cell_data[HOLE] = pd.factorize(data[dh])[0][rows] if dh is not None else np.arange(n)
+	mesh.field_data[UPPER] = upper
+	mesh.field_data[LOWER] = lower
+	mesh.field_data[RADIUS] = [radius]
 	# The tube filter drops cylinders with no length, so they would vanish silently
 	nzero = int((np.linalg.norm(upper - lower, axis=1) == 0).sum())
 	if nzero:
