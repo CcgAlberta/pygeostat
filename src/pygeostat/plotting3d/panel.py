@@ -1,12 +1,11 @@
-# !/usr/bin/env python
-#  -*- coding: utf-8 -*-
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """panel is the interactive layer panel of a Viewer, a web page (trame) with the controls beside the 3D view"""
-
-from .viewer import _corners
 
 #-----------------------------------------------------------------------------
 # Imports
 #-----------------------------------------------------------------------------
+from .viewer import _corners
 
 
 class Panel:
@@ -33,7 +32,7 @@ class Panel:
 			from trame.widgets import html, vuetify3
 			from trame_pyvista.ui import get_viewer
 		except ImportError:
-			raise ImportError("The layer panel requires trame: pip install pygeostat[view3d-panel]") from None
+			raise ImportError('The layer panel requires trame: pip install "pygeostat[view3d-panel]"') from None
 		self.viewer = viewer
 		self.views_folder = views_folder
 		# The lowest value typed for the threshold of each layer, kept while the threshold is off
@@ -86,7 +85,7 @@ class Panel:
 							html.Div('Colour limits', classes='text-caption')
 							with html.Div(classes='d-flex ga-2'):
 								self._range_boxes('layer.clim', 'layer.data_range', self.set_clim)
-						# As in the prototype: a checkbox, and the lowest value to show typed in a box
+						# A checkbox, and the lowest value to show typed in a box
 						with html.Div(v_if='layer.threshold_range', classes='mt-2'):
 							vuetify3.VCheckbox(label='Threshold', model_value=('layer.threshold_on',),
 											   update_modelValue=(self.set_threshold_on, '[layer.name, $event]'),
@@ -97,7 +96,7 @@ class Panel:
 								type='number', model_value=('layer.threshold_min',), hint='Press Enter to apply',
 								persistent_hint=True, density='compact', variant='outlined', classes='mt-1',
 								change=(self.set_threshold_min, '[layer.name, $event.target.value]'))
-				# The slicer is one plane for the whole scene, as in the prototype
+				# The slicer is one plane for the whole scene
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
 						html.Div('Slicer', classes='text-caption')
@@ -138,7 +137,7 @@ class Panel:
 
 	@staticmethod
 	def _slider(label, key, low, high, step=None):
-		"""A slider for a number of the slicer, as in the prototype: its value is a plain value of
+		"""A slider for a number of the slicer: its value is a plain value of
 		the page (``key``) that the server follows on every move, so the cut changes while the
 		slider is dragged (see ``_on_slicer_sliders``)"""
 		from trame.widgets import vuetify3
