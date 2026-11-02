@@ -42,7 +42,11 @@ class Panel:
 		self.state.view_name = ''
 		self.state.view_file = None
 		self._list_views()
-		self._view = get_viewer(viewer.plotter)
+		# trame_pyvista keeps one viewer per plotter, tied to the server it was made with, so one
+		# left from an earlier panel of this viewer would draw on that panel's server
+		import trame_pyvista.ui
+		trame_pyvista.ui._VIEWERS.pop(viewer.plotter._id_name, None)
+		self._view = get_viewer(viewer.plotter, server=self.server)
 		self.refresh()
 
 		with SinglePageWithDrawerLayout(self.server) as self.layout:
