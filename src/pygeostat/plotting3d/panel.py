@@ -17,12 +17,13 @@ class Panel:
 
 	Parameters:
 		viewer (gs.Viewer): the scene to control
+		views_folder (str): folder of the saved views, see :meth:`Viewer.panel() <pygeostat.plotting3d.viewer.Viewer.panel>`
 
 	Attributes:
 		layout: the page. A panel shows itself when it is the last line of a notebook cell
 	"""
 
-	def __init__(self, viewer):
+	def __init__(self, viewer, views_folder='views'):
 		import uuid
 		try:
 			from trame.app import get_server
@@ -32,10 +33,15 @@ class Panel:
 		except ImportError:
 			raise ImportError("The layer panel requires trame: pip install pygeostat[view3d-panel]") from None
 		self.viewer = viewer
+		self.views_folder = views_folder
 		# A new name each time: get_server caches by name, so a fixed one would share state
 		self.server = get_server('pygeostat_{}'.format(uuid.uuid4().hex[:8]), client_type='vue3')
 		self.state = self.server.state
 		self.state.message = ''
+		self.state.note = ''
+		self.state.view_name = ''
+		self.state.view_file = None
+		self._list_views()
 		self._view = get_viewer(viewer.plotter)
 		self.refresh()
 
@@ -95,6 +101,21 @@ class Panel:
 											label=(label,), type='number', model_value=('layer.slice.' + key,),
 											density='compact', hide_details=True, variant='outlined',
 											change=(handler, '[layer.name, $event.target.value]'))
+				with vuetify3.VCard(variant='outlined', classes='ma-2'):
+					with vuetify3.VCardText():
+						html.Div('Saved views', classes='text-caption')
+						with html.Div(classes='d-flex align-center ga-1'):
+							vuetify3.VTextField(v_model=('view_name',), label='Name (optional)', density='compact',
+												hide_details=True)
+							vuetify3.VBtn('Save', size='small', variant='tonal',
+										  click=(self.save_view, '[view_name]'))
+						with html.Div(classes='d-flex align-center ga-1 mt-2'):
+							vuetify3.VSelect(v_model=('view_file',), items=('view_files',), label='Saved views',
+											 density='compact', hide_details=True,
+											 no_data_text='None saved yet')
+							vuetify3.VBtn('Load', size='small', variant='tonal', disabled=('!view_file',),
+										  click=(self.load_view, '[view_file]'))
+						html.Div('{{ note }}', v_if='note', classes='text-caption mt-1')
 			with self.layout.content:
 				with vuetify3.VContainer(fluid=True, classes='pa-0 fill-height'):
 					self._view.ui(add_menu=False)
@@ -127,10 +148,18 @@ class Panel:
 	def _layer(self, name):
 		return self.viewer._layers[self.viewer.layers.index(name)]
 
+	def _list_views(self):
+		"""The saved views in the folder, for the list in the page"""
+		import os
+		folder = self.views_folder
+		self.state.view_files = sorted(f[:-5] for f in os.listdir(folder) if f.endswith('.json')) \
+			if os.path.isdir(folder) else []
+
 	def _guard(self, action):
 		"""Call ``action()``. A value that does not work is explained in the panel, and the page
 		goes back to the viewer as it is"""
 		try:
+			self.state.note = ''
 			action()
 			self.state.message = ''
 		except ValueError as error:
@@ -213,6 +242,45 @@ class Panel:
 		"""Count every axis from 0 at the lowest edge of the scene, like
 		``Viewer.set_axis_origin(from_zero=...)``"""
 		self.viewer.set_axis_origin(self.viewer._axis_origin, from_zero)
+
+	def _view_path(self, name):
+		"""The file of a saved view. The name is only a name, never a path"""
+		import os
+		import re
+		if not re.fullmatch(r'[\w\- ]+', name):
+			raise ValueError("A view name can only have letters, digits, spaces, - and _")
+		return os.path.join(self.views_folder, name + '.json')
+
+	def save_view(self, name):
+		"""Save the view (see ``Viewer.get_view``) as ``<views_folder>/<name>.json``. Without a
+		name, one is made from the time. Letters, digits, spaces, - and _ only"""
+		def action():
+			import json
+			import os
+			from datetime import datetime
+			view_name = (name or '').strip() or datetime.now().strftime('view %Y-%m-%d %H%M%S')
+			path = self._view_path(view_name)
+			os.makedirs(self.views_folder, exist_ok=True)
+			with open(path, 'w') as f:
+				json.dump(self.viewer.get_view(), f, indent=1)
+			self._list_views()
+			self.state.view_file = view_name
+			self.state.note = 'Saved ' + path
+		self._guard(action)
+
+	def load_view(self, name):
+		"""Show a view saved by :meth:`save_view`, like ``Viewer.set_view``"""
+		def action():
+			import json
+			path = self._view_path(name)
+			try:
+				with open(path) as f:
+					view = json.load(f)
+				self.viewer.set_view(view)
+			except (OSError, KeyError, TypeError) as error:
+				raise ValueError("Could not load {}: {}".format(path, error)) from None
+			self.state.note = 'Loaded ' + path
+		self._guard(action)
 
 
 def _number(value):
