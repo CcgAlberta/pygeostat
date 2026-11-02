@@ -16,8 +16,17 @@ Viewer
 ******
 
 .. autoclass:: pygeostat.plotting3d.Viewer
-   :members: layers, add, set_layer, add_ruler, set_vertical_exaggeration, get_camera, set_camera, show,
-              show_static
+   :members: layers, add, set_layer, add_ruler, set_axis_origin, set_vertical_exaggeration, get_camera,
+             set_camera, get_view, set_view, panel, show, show_static
+
+Panel
+*****
+
+The interactive panel made by :meth:`Viewer.panel() <pygeostat.plotting3d.Viewer.panel>`. Everything
+it does is also a method of the viewer, so a view set up by clicking can be reproduced by a script.
+
+.. autoclass:: pygeostat.plotting3d.panel.Panel
+   :members: refresh
 
 Meshes
 ******
