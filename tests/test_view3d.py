@@ -949,6 +949,14 @@ def test_slicer_defaults_and_errors(grid3d):
         viewer.set_slicer(tolerance=-1)
 
 
+def test_slicer_accepts_a_tolerance_of_zero(grid3d):
+    """A tolerance of 0 is allowed (only a negative one is refused)."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    viewer.set_slicer(tolerance=0)
+    assert viewer._slicer['tolerance'] == 0.0
+
+
 def test_slicer_with_threshold_and_a_plane_that_misses(grid3d):
     """A threshold applies to the cut too; a plane outside a layer leaves nothing to draw, which is
     not an error, and the layer comes back when the plane does."""
@@ -1031,6 +1039,17 @@ def test_slicer_shows_the_holes_that_cross_the_plane(two_holes):
     # A hole that only passes near the plane, further than its radius, is left out however wide the band
     viewer.set_slicer(origin=(10, 0, 0), normal=(1, 0, 0), tolerance=100)
     assert layer.crossing is None and layer.crossing_actor is None
+
+
+def test_slicer_holes_are_shown_while_the_plane_is_inside_the_tube(two_holes):
+    """Hole a (radius 3) is at x = 0: a plane 2 away cuts its tube, a plane 4 away does not,
+    whatever the tolerance."""
+    viewer = hole_viewer(two_holes)
+    layer = viewer._layers[0]
+    viewer.set_slicer(enabled=True, origin=(2, 0, 15), normal=(1, 0, 0), tolerance=100, show_holes=True)
+    assert layer.crossing is not None and set(layer.crossing.cell_data['segment index']) == {0, 1, 2}
+    viewer.set_slicer(origin=(4, 0, 15))
+    assert layer.crossing is None
 
 
 def test_slicer_holes_follow_the_threshold_and_switch_off(two_holes):
