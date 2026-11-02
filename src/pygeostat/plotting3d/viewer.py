@@ -265,6 +265,7 @@ class Viewer:
 		if tolerance is not None and not tolerance >= 0:
 			raise ValueError("`tolerance` must be 0 or more")
 		slicer = self._slicer
+		was_enabled = slicer['enabled']
 		if origin is not None:
 			slicer['origin'] = tuple(float(v) for v in origin)
 		if normal is not None:
@@ -287,12 +288,14 @@ class Viewer:
 		if slicer['enabled'] and slicer['origin'] is None:
 			lower, upper = _corners(self._extents)
 			slicer['origin'] = tuple(float(v) for v in (lower + upper) / 2)
-		for layer in self._layers:
-			if layer.kind == 'blocks' and layer.source is not None:
-				self._place(layer)
-			elif layer.kind == 'holes':
-				self._place_crossing(layer)
-		self._sync_scalar_bars()
+		# While the slicer is off (and was off), moving its plane changes nothing that is drawn
+		if slicer['enabled'] or was_enabled:
+			for layer in self._layers:
+				if layer.kind == 'blocks' and layer.source is not None:
+					self._place(layer)
+				elif layer.kind == 'holes':
+					self._place_crossing(layer)
+			self._sync_scalar_bars()
 		self._refresh_panel()
 
 	def _place_crossing(self, layer):
