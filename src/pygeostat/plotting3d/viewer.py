@@ -259,17 +259,22 @@ class Viewer:
 		if self._ruler is not None:
 			self._draw_ruler(self.plotter)
 
-	def panel(self):
+	def panel(self, views_folder='views'):
 		"""
-		The scene with a panel of controls beside it, to switch layers on and off and change their
-		opacity. Requires ``pip install pygeostat[view3d-panel]``. In a notebook, make the result the
-		last line of a cell to show it.
+		The scene with a panel of controls beside it: switch layers on and off, change their
+		opacity, colour limits, threshold and slice, move the origin of the ruler, and save the
+		view or load a saved one. Requires ``pip install pygeostat[view3d-panel]``. In a notebook,
+		make the result the last line of a cell to show it.
+
+		Parameters:
+			views_folder (str): folder for the saved views, one json file each (see
+				:meth:`get_view`). It is made when the first view is saved
 
 		Returns:
 			panel (pygeostat.plotting3d.panel.Panel): the panel
 		"""
 		from .panel import Panel
-		self._panel = Panel(self)
+		self._panel = Panel(self, views_folder)
 		return self._panel
 
 	def show(self, **kwargs):
@@ -302,6 +307,67 @@ class Viewer:
 			camera (dict): the view, as returned by :meth:`get_camera`
 		"""
 		_apply_camera(self.plotter, camera)
+
+	def get_view(self):
+		"""
+		Everything about how the scene is shown, as a dictionary of plain numbers and strings that
+		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
+		same layers: the camera, the vertical exaggeration, the origin of the ruler and, for each
+		layer, whether it is shown, its opacity, colour limits, threshold and slice.
+
+		Returns:
+			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
+			``axis_origin`` (list or None), ``axes_from_zero`` (bool) and ``layers`` (a list with
+			one dictionary per layer, with its ``name``)
+		"""
+		layers = []
+		for layer in self._layers:
+			layers.append({
+				'name': layer.name, 'visible': layer.visible,
+				'opacity': float(layer.kwargs.get('opacity', 1.0)),
+				'clim': None if layer.clim is None else [float(v) for v in layer.clim],
+				'threshold': None if layer.threshold is None else [float(v) for v in layer.threshold],
+				'slice': None if layer.section is None else {
+					k: None if v is None else v if k == 'orient' else float(v)
+					for k, v in layer.section.items()}})
+		return {'camera': self.get_camera(), 'vertical_exaggeration': float(self._vertical_exaggeration),
+				'axis_origin': self._axis_origin and list(self._axis_origin),
+				'axes_from_zero': self._axes_from_zero, 'layers': layers}
+
+	def set_view(self, view):
+		"""
+		Show the scene as saved by :meth:`get_view`. The layers are matched by name, and the scene
+		may have more layers than the view, which stay as they are. A view that cannot be shown
+		(it names a layer the scene does not have, or a threshold leaves nothing) is refused and the
+		scene stays as it was.
+
+		Parameters:
+			view (dict): the view, as returned by :meth:`get_view`
+		"""
+		missing = [saved['name'] for saved in view['layers'] if saved['name'] not in self.layers]
+		if missing:
+			raise ValueError("The view has layers {} that the scene does not; the layers are {}".format(
+				missing, self.layers))
+		before = self.get_view()
+		try:
+			self._apply_view(view)
+		except ValueError:
+			# e.g. a threshold that leaves nothing in this data: the scene goes back as it was
+			self._apply_view(before)
+			raise
+
+	def _apply_view(self, view):
+		for saved in view['layers']:
+			cut = dict(saved['slice'] or {'orient': False})
+			if cut.get('slice_number') is not None:
+				cut['slice_number'] = int(cut['slice_number'])
+			if cut.get('slice_thickness') is not None:
+				cut['slice_thickness'] = int(cut['slice_thickness'])
+			self.set_layer(saved['name'], visible=saved['visible'], opacity=saved['opacity'],
+						   clim=saved['clim'], threshold=saved['threshold'] or False, **cut)
+		self.set_axis_origin(view['axis_origin'], view['axes_from_zero'])
+		self.set_vertical_exaggeration(view['vertical_exaggeration'])
+		self.set_camera(view['camera'])
 
 	def show_static(self, figsize=None, dpi=None, title=None, cbar=True, ax=None):
 		"""
