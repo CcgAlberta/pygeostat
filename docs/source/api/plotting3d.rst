@@ -16,7 +16,7 @@ Viewer
 ******
 
 .. autoclass:: pygeostat.plotting3d.Viewer
-   :members: layers, add, set_layer, add_ruler, set_axis_origin, set_vertical_exaggeration, get_camera,
+   :members: layers, add, set_layer, set_slicer, add_ruler, set_axis_origin, set_vertical_exaggeration, get_camera,
              set_camera, get_view, set_view, panel, show, show_static
 
 Panel
