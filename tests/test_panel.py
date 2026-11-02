@@ -113,25 +113,39 @@ def test_panel_data_range_is_the_whole_layer():
 
 
 def test_panel_threshold(viewer):
-    """The boxes set one end of the threshold, starting from the range of the variable; All shows
-    every value again; a value that does not work is explained and changes nothing."""
+    """As in the prototype: a checkbox and a typed minimum. On shows the values from the minimum
+    up, which starts at the lowest of the data; off shows everything. The minimum typed while it
+    is off is kept, and one that does not work is explained."""
     panel = viewer.panel()
     layer = viewer._layers[0]
     low, high = layer.mesh.get_data_range('value')
-    assert panel.state.layers[0]['threshold_range'] == [low, high]
-    assert panel.state.layers[0]['threshold'] is None
-    set_threshold = triggered(panel, panel.set_threshold)
-    set_threshold('value', 0, '0.5')
+    row = panel.state.layers[0]
+    assert row['threshold_range'] == [low, high] and row['threshold_on'] is False and row['variable'] == 'value'
+    triggered(panel, panel.set_threshold_min)('value', '0.5')
+    assert layer.threshold is None and layer.mesh.n_cells == 40 ** 3
+    triggered(panel, panel.set_threshold_on)('value', True)
     assert layer.threshold == (0.5, high)
-    assert panel.state.layers[0]['threshold'] == [0.5, high]
-    assert layer.actor.mapper.dataset.n_cells < 40 ** 3
-    set_threshold('value', 1, '0.1')
-    assert layer.threshold == (0.5, high) and 'min not above max' in panel.state.message
-    set_threshold('value', 1, 'abc')
-    assert "'abc' is not a number" in panel.state.message
-    triggered(panel, panel.clear_threshold)('value')
-    assert layer.threshold is None and layer.actor.mapper.dataset.n_cells == 40 ** 3
-    assert panel.state.message == ''
+    values = layer.mesh.cell_data['value']
+    assert 0 < len(values) < 40 ** 3 and values.min() >= 0.5
+    assert panel.state.layers[0]['threshold_on'] and panel.state.layers[0]['threshold_min'] == 0.5
+    triggered(panel, panel.set_threshold_min)('value', '1')
+    assert layer.threshold == (1.0, high) and layer.mesh.cell_data['value'].min() >= 1
+    triggered(panel, panel.set_threshold_min)('value', 'abc')
+    assert "'abc' is not a number" in panel.state.message and layer.threshold == (1.0, high)
+    triggered(panel, panel.set_threshold_min)('value', str(high + 1))
+    assert 'min not above max' in panel.state.message and layer.threshold == (1.0, high)
+    triggered(panel, panel.set_threshold_on)('value', False)
+    assert layer.threshold is None and layer.mesh.n_cells == 40 ** 3
+    triggered(panel, panel.set_threshold_on)('value', True)
+    assert layer.threshold == (1.0, high)
+
+
+def test_panel_threshold_starts_at_the_lowest_value(viewer):
+    """With nothing typed, switching the threshold on keeps every value (the minimum is the lowest)."""
+    panel = viewer.panel()
+    triggered(panel, panel.set_threshold_on)('value', True)
+    assert viewer._layers[0].threshold == tuple(viewer._layers[0].mesh.get_data_range('value'))
+    assert viewer._layers[0].mesh.n_cells == 40 ** 3
 
 
 def test_panel_axis_origin():
@@ -260,3 +274,12 @@ def test_panel_slicer(viewer):
     assert "'abc' is not a number" in panel.state.message
     triggered(panel, panel.set_slicer_enabled)(False)
     assert holes.visible and blocks.mesh.n_cells == 40 ** 3 and holes.crossing is None
+
+
+def test_panel_threshold_keeps_a_maximum_set_from_a_script(viewer):
+    """Typing the minimum in the box does not drop an upper limit that a script set."""
+    panel = viewer.panel()
+    viewer.set_layer('value', threshold=(0.5, 2.0))
+    assert panel.state.layers[0]['threshold_on'] and panel.state.layers[0]['threshold_min'] == 0.5
+    triggered(panel, panel.set_threshold_min)('value', '1')
+    assert viewer._layers[0].threshold == (1.0, 2.0)
