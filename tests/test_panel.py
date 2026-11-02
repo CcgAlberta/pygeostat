@@ -113,7 +113,7 @@ def test_panel_data_range_is_the_whole_layer():
 
 
 def test_panel_threshold(viewer):
-    """As in the prototype: a checkbox and a typed minimum. On shows the values from the minimum
+    """A checkbox and a typed minimum. On shows the values from the minimum
     up, which starts at the lowest of the data; off shows everything. The minimum typed while it
     is off is kept, and one that does not work is explained."""
     panel = viewer.panel()
@@ -292,7 +292,7 @@ def test_panel_slicer(viewer):
 def test_panel_slicer_follows_the_slider_while_it_moves(viewer, monkeypatch):
     """As the slider moves up and down, the cut moves with every step, not only when it stops; and
     while the slicer is off, moving it draws nothing again. The sliders are plain values of the
-    page (v-model on their own key), as in the prototype."""
+    page (v-model on their own key)."""
     import asyncio
     panel = viewer.panel()
     html = panel.layout.html
