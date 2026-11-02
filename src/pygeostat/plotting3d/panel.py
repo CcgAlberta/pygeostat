@@ -103,17 +103,17 @@ class Panel:
 										   update_modelValue=(self.set_slicer_enabled, '[$event]'),
 										   density='compact', hide_details=True)
 						for axis, name in enumerate('XYZ'):
-							self._slider('Origin ' + name, 'slicer.origin[{}]'.format(axis),
+							self._slider('Origin ' + name, 'slicer_origin_{}'.format(axis),
 										 'slicer.bounds[{}]'.format(2 * axis), 'slicer.bounds[{}]'.format(2 * axis + 1),
 										 self.set_slicer_origin, axis)
 						for axis, name in enumerate('XYZ'):
-							self._slider('Normal ' + name, 'slicer.normal[{}]'.format(axis), -1, 1,
+							self._slider('Normal ' + name, 'slicer_normal_{}'.format(axis), -1, 1,
 										 self.set_slicer_normal, axis, step=0.05)
 						with html.Div(classes='d-flex ga-1 mb-1'):
 							for orient in ('xy', 'xz', 'yz'):
 								vuetify3.VBtn(orient.upper(), size='x-small', variant='tonal',
 											  click=(self.snap_slicer, "['{}']".format(orient)))
-						self._slider('Tolerance', 'slicer.tolerance', 0, 50, self.set_slicer_tolerance, None)
+						self._slider('Tolerance', 'slicer_tolerance', 0, 50, self.set_slicer_tolerance, None)
 						vuetify3.VCheckbox(label='Show drill holes on slice', model_value=('slicer.show_holes',),
 										   update_modelValue=(self.set_show_holes, '[$event]'),
 										   density='compact', hide_details=True)
@@ -137,15 +137,16 @@ class Panel:
 					self._view.ui(add_menu=False)
 
 	@staticmethod
-	def _slider(label, value, low, high, handler, axis, step=None):
-		"""A slider for a number of the slicer. The thumb follows the mouse in the page, and
-		``handler`` is called when it is let go, with ``axis`` (if any) and the value"""
+	def _slider(label, key, low, high, handler, axis, step=None):
+		"""A slider for a number of the slicer, as in the prototype: the thumb is a plain value of
+		the page (``key``), so it follows the mouse smoothly, and ``handler`` is called with
+		``axis`` (if any) and the value when it is let go, which cuts the layers once"""
 		from trame.widgets import vuetify3
 		arguments = '[{}$event]'.format('' if axis is None else '{}, '.format(axis))
 		options = {} if step is None else {'step': step}
-		vuetify3.VSlider(label=label, model_value=(value,), min=(str(low),), max=(str(high),),
-						 update_modelValue='{} = $event'.format(value), end=(handler, arguments),
-						 density='compact', hide_details=True, thumb_label=True, **options)
+		vuetify3.VSlider(label=label, v_model=(key,), min=(str(low),), max=(str(high),),
+						 end=(handler, arguments), density='compact', hide_details=True,
+						 thumb_label=True, **options)
 
 	@staticmethod
 	def _range_boxes(values, data_range, handler):
@@ -185,6 +186,10 @@ class Panel:
 			'normal': _floats(slicer['normal']), 'tolerance': slicer['tolerance'],
 			'show_holes': slicer['show_holes'],
 			'bounds': [float(v) for pair in zip(lower, upper) for v in pair]}
+		# The sliders' own values, which the page moves while they are dragged
+		self.state.update({'slicer_origin_{}'.format(i): v for i, v in enumerate(self.state.slicer['origin'])})
+		self.state.update({'slicer_normal_{}'.format(i): v for i, v in enumerate(self.state.slicer['normal'])})
+		self.state.slicer_tolerance = self.state.slicer['tolerance']
 		self.state.axes = {'has_ruler': self.viewer._ruler is not None,
 						   'origin': _floats(self.viewer._origin_values()),
 						   'from_zero': self.viewer._axes_from_zero}
