@@ -234,3 +234,21 @@ def test_panel_saves_and_loads_a_view(viewer, tmp_path):
     assert other.state.view_files == ['broken', 'first look']
     other.load_view('first look')
     assert fresh._layers[0].kwargs['opacity'] == 0.3
+
+
+def test_panel_shows_itself_in_a_notebook_without_await(viewer, monkeypatch):
+    """Displaying the panel gives a placeholder, which becomes the page (an iframe) once the server
+    is up, so the user needs no `await layout.ready`."""
+    import asyncio
+    import IPython.display
+    shown = []
+    monkeypatch.setattr(IPython.display, 'display', lambda widget, *a, **k: shown.append(widget))
+    panel = viewer.panel()
+
+    async def cell():
+        panel._ipython_display_()
+        assert 'Starting' in shown[0].value
+        await panel._starting
+        assert '<iframe' in shown[0].value and 'not running' not in shown[0].value
+        await panel.server.stop()
+    asyncio.run(cell())
