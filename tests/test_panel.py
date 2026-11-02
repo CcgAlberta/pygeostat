@@ -252,3 +252,13 @@ def test_panel_shows_itself_in_a_notebook_without_await(viewer, monkeypatch):
         assert '<iframe' in shown[0].value and 'not running' not in shown[0].value
         await panel.server.stop()
     asyncio.run(cell())
+
+
+def test_panel_view_uses_the_panels_server(viewer):
+    """The 3D view is drawn through the panel's own server (on another one the area stays empty),
+    also for a second panel of the same viewer."""
+    first = viewer.panel()
+    second = viewer.panel()
+    assert first._view.server is first.server
+    assert second._view.server is second.server
+    assert first.server is not second.server
