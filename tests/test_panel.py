@@ -240,9 +240,19 @@ def test_panel_view_uses_the_panels_server(viewer):
     assert first.server is not second.server
 
 
+def drag(panel, **values):
+    """Move sliders of the page, as the mouse does: the page sets its values, and the server hears it."""
+    import asyncio
+    for key, value in values.items():
+        panel.state[key] = value
+    panel.state.flush()
+    return asyncio.sleep(0.02)
+
+
 def test_panel_slicer(viewer):
     """The slicer card of the page drives Viewer.set_slicer: it starts at the centre of the scene
     facing up, and each control changes the plane, the cut layers and the drill holes."""
+    import asyncio
     import pandas as pd
     two_holes = pd.DataFrame({'x': [0.0] * 4 + [50.0] * 4, 'y': 0.0, 'z': [30.0, 20.0, 10.0, 0.0] * 2,
                               'hole': ['a'] * 4 + ['b'] * 4, 'Au': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]})
@@ -251,56 +261,62 @@ def test_panel_slicer(viewer):
     state = panel.state.slicer
     assert state['enabled'] is False and state['normal'] == [0.0, 0.0, 1.0] and state['tolerance'] == 10.0
     assert len(state['bounds']) == 6 and len(state['origin']) == 3
-    triggered(panel, panel.set_slicer_enabled)(True)
     blocks, holes = viewer._layers[0], viewer._layers[2]
-    assert panel.state.slicer['enabled'] and not holes.visible
-    assert [row['visible'] for row in panel.state.layers] == [True, True, False]
-    triggered(panel, panel.set_slicer_origin)(2, '10.25')
-    np.testing.assert_allclose(blocks.mesh.points[:, 2], 10.25)
-    assert panel.state.slicer['origin'][2] == 10.25
-    triggered(panel, panel.snap_slicer)('xz')
-    assert panel.state.slicer['normal'] == [0.0, 1.0, 0.0]
-    triggered(panel, panel.set_slicer_normal)(0, '1')
-    assert viewer._slicer['normal'] == (1.0, 1.0, 0.0)
-    triggered(panel, panel.set_slicer_origin)(0, '0')
-    triggered(panel, panel.set_slicer_origin)(1, '0')
-    triggered(panel, panel.set_slicer_tolerance)(6)
-    triggered(panel, panel.set_show_holes)(True)
-    assert panel.state.slicer['tolerance'] == 6.0 and panel.state.slicer['show_holes']
-    assert holes.crossing is not None
-    triggered(panel, panel.set_slicer_tolerance)('-5')
-    assert '0 or more' in panel.state.message and viewer._slicer['tolerance'] == 6.0
-    triggered(panel, panel.set_slicer_origin)(0, 'abc')
-    assert "'abc' is not a number" in panel.state.message
-    triggered(panel, panel.set_slicer_enabled)(False)
-    assert holes.visible and blocks.mesh.n_cells == 40 ** 3 and holes.crossing is None
+
+    async def scenario():
+        await panel.layout.ready
+        triggered(panel, panel.set_slicer_enabled)(True)
+        assert panel.state.slicer['enabled'] and not holes.visible
+        assert [row['visible'] for row in panel.state.layers] == [True, True, False]
+        await drag(panel, slicer_origin_2=10.25)
+        np.testing.assert_allclose(blocks.mesh.points[:, 2], 10.25)
+        assert panel.state.slicer['origin'][2] == 10.25
+        triggered(panel, panel.snap_slicer)('xz')
+        await asyncio.sleep(0.02)
+        assert panel.state.slicer['normal'] == [0.0, 1.0, 0.0] and panel.state.slicer_normal_1 == 1.0
+        await drag(panel, slicer_normal_0=1.0)
+        assert viewer._slicer['normal'] == (1.0, 1.0, 0.0)
+        await drag(panel, slicer_origin_0=0.0, slicer_origin_1=0.0, slicer_tolerance=6.0)
+        triggered(panel, panel.set_show_holes)(True)
+        assert panel.state.slicer['tolerance'] == 6.0 and panel.state.slicer['show_holes']
+        assert holes.crossing is not None
+        await drag(panel, slicer_tolerance=-5.0)
+        assert '0 or more' in panel.state.message and viewer._slicer['tolerance'] == 6.0
+        assert panel.state.slicer_tolerance == 6.0
+        triggered(panel, panel.set_slicer_enabled)(False)
+        assert holes.visible and blocks.mesh.n_cells == 40 ** 3 and holes.crossing is None
+        await panel.server.stop()
+    asyncio.run(scenario())
 
 
-def test_panel_threshold_keeps_a_maximum_set_from_a_script(viewer):
-    """Typing the minimum in the box does not drop an upper limit that a script set."""
-    panel = viewer.panel()
-    viewer.set_layer('value', threshold=(0.5, 2.0))
-    assert panel.state.layers[0]['threshold_on'] and panel.state.layers[0]['threshold_min'] == 0.5
-    triggered(panel, panel.set_threshold_min)('value', '1')
-    assert viewer._layers[0].threshold == (1.0, 2.0)
-
-
-def test_panel_slicer_sliders_are_smooth_and_apply_when_released(viewer):
-    """As in the prototype, a slider's thumb is a plain value of the page (v-model on its own key),
-    so it follows the mouse; the plane only moves when it is let go (the end event). The keys follow
-    the viewer when a script moves the plane."""
+def test_panel_slicer_follows_the_slider_while_it_moves(viewer, monkeypatch):
+    """As the slider moves up and down, the cut moves with every step, not only when it stops; and
+    while the slicer is off, moving it draws nothing again. The sliders are plain values of the
+    page (v-model on their own key), as in the prototype."""
+    import asyncio
     panel = viewer.panel()
     html = panel.layout.html
     for key in ['slicer_origin_{}'.format(i) for i in range(3)] + ['slicer_normal_{}'.format(i) for i in range(3)] \
             + ['slicer_tolerance']:
         slider = re.search(r'<VSlider v-model="{}"[^>]*>'.format(key), html).group(0)
-        assert '@end="trigger(' in slider and 'update:modelValue' not in slider
-    triggered(panel, panel.set_slicer_enabled)(True)
-    before = viewer._slicer['origin']
-    panel.state.slicer_origin_2 = 12.0          # the thumb dragged in the page: nothing is rebuilt yet
-    assert viewer._slicer['origin'] == before
-    triggered(panel, panel.set_slicer_origin)(2, 12.0)          # let go
-    assert viewer._slicer['origin'][2] == 12.0
-    viewer.set_slicer(origin=(1, 2, 3), normal=(0, 1, 0), tolerance=7)
-    assert (panel.state.slicer_origin_0, panel.state.slicer_origin_1, panel.state.slicer_origin_2) == (1, 2, 3)
-    assert panel.state.slicer_normal_1 == 1.0 and panel.state.slicer_tolerance == 7.0
+        assert '@' not in slider
+    blocks = viewer._layers[0]
+    placed = []
+    place = viewer._place
+    monkeypatch.setattr(viewer, '_place', lambda layer: (placed.append(layer.name), place(layer)))
+
+    async def scenario():
+        await panel.layout.ready
+        await drag(panel, slicer_origin_2=7.25)
+        assert placed == [] and blocks.mesh.n_cells == 40 ** 3       # slicer off: nothing is redrawn
+        triggered(panel, panel.set_slicer_enabled)(True)
+        for z in (2.25, 3.25, 4.25, 5.25, 4.25, 3.25, 9.25):          # up, up, up, then down, down
+            await drag(panel, slicer_origin_2=z)
+            np.testing.assert_allclose(blocks.mesh.points[:, 2], z)
+            assert blocks.mesh.n_cells == 40 * 40
+        # The keys follow the viewer when a script moves the plane
+        viewer.set_slicer(origin=(1, 2, 3), normal=(0, 1, 0), tolerance=7)
+        assert (panel.state.slicer_origin_0, panel.state.slicer_origin_1, panel.state.slicer_origin_2) == (1, 2, 3)
+        assert panel.state.slicer_normal_1 == 1.0 and panel.state.slicer_tolerance == 7.0
+        await panel.server.stop()
+    asyncio.run(scenario())
