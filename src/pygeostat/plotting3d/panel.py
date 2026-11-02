@@ -133,8 +133,19 @@ class Panel:
 				change=(handler, "[layer.name, {}, $event.target.value]".format(end)))
 
 	def _ipython_display_(self):
+		"""Show the panel in a notebook. trame's own display needs ``await layout.ready`` first,
+		because the server only starts when the cell is over, so a placeholder is shown that is
+		replaced by the page as soon as the server is up"""
+		import asyncio
 		from IPython.display import display
-		display(self.layout)
+		from ipywidgets import HTML
+		widget = HTML('Starting the panel ...')
+		display(widget)
+
+		async def show_page():
+			await self.layout.ready
+			widget.value = self.layout._jupyter_content()
+		self._starting = asyncio.ensure_future(show_page())
 
 	def refresh(self):
 		"""Show the viewer's layers as they are now. The viewer calls this when a layer is added or
