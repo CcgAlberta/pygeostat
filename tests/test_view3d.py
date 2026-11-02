@@ -1077,3 +1077,59 @@ def test_view_round_trip_with_the_slicer(two_holes, grid3d):
     assert fresh.get_view() == view
     assert not fresh._layers[0].visible and fresh._layers[0].crossing is not None
     assert fresh._layers[1].mesh.n_cells == viewer._layers[1].mesh.n_cells < 40 ** 3
+
+
+def test_slicer_moves_do_not_rebuild_the_legend_or_remove_the_slice(grid3d, monkeypatch):
+    """While the plane moves, the layer is replaced in place (same name, nothing removed first) and its
+    colour bar is the same object with the same limits, so the slice and the legend do not blink."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, clim=(-1, 1), viewer=gs.Viewer(off_screen=True))
+    viewer.set_slicer(enabled=True, origin=(40, 40, 10.25))
+    plotter = viewer.plotter
+    bar = plotter.scalar_bars['value']
+    n_actors = len(plotter.renderer.actors)
+    removed = []
+    remove = plotter.remove_actor
+    monkeypatch.setattr(plotter, 'remove_actor', lambda *a, **k: (removed.append(a), remove(*a, **k))[1])
+    for z in (11.25, 12.25, 13.25, 12.25, 11.25):
+        viewer.set_slicer(origin=(40, 40, z))
+        assert plotter.scalar_bars['value'] is bar
+        assert len(plotter.renderer.actors) == n_actors
+        assert list(plotter.renderer.actors).count('layer value') == 1
+        assert tuple(viewer._layers[0].actor.mapper.scalar_range) == (-1, 1)
+        assert tuple(bar.GetLookupTable().GetRange()) == (-1, 1)
+    assert removed == []
+
+
+def test_slicer_moves_keep_the_holes_on_the_slice_in_place(two_holes):
+    """The holes on the slice are also replaced in place, without leaving actors behind."""
+    viewer = hole_viewer(two_holes)
+    viewer.set_slicer(enabled=True, origin=(0, 0, 25), normal=(0, 0, 1), tolerance=8, show_holes=True)
+    n_actors = len(viewer.plotter.renderer.actors)
+    for z in (24, 22, 18, 12):
+        viewer.set_slicer(origin=(0, 0, z))
+        assert len(viewer.plotter.renderer.actors) == n_actors
+        assert viewer._layers[0].crossing is not None
+    viewer.set_slicer(show_holes=False)
+    assert len(viewer.plotter.renderer.actors) == n_actors - 1
+
+
+def test_colour_bars_of_different_titles_have_their_own_places(grid3d):
+    """Each colour bar gets its own place, side by side, so bars of several layers do not overlap."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=viewer)
+    gs.view3d(data, 'value', griddef=griddef, viewer=viewer)          # a second layer with the same title
+    first, second = (viewer.plotter.scalar_bars[t].GetPosition() for t in ('value', 'Estimate'))
+    assert first[0] != second[0] and list(viewer.plotter.scalar_bars.keys()) == ['value', 'Estimate']
+
+
+def test_colour_bars_stop_at_the_room_there_is():
+    """As PyVista does, more colour bars than there is room for is refused, not drawn off screen."""
+    viewer = gs.Viewer(off_screen=True)
+    with pytest.raises(RuntimeError, match='room for 10 colour bars'):
+        for i in range(12):
+            mesh = pv.Sphere(center=(i * 3, 0, 0), radius=1)
+            mesh.cell_data['v{}'.format(i)] = np.arange(mesh.n_cells, dtype=float)
+            gs.view3d(mesh, 'v{}'.format(i), viewer=viewer)
+    assert len(viewer.plotter.scalar_bars.keys()) == 10
