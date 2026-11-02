@@ -283,3 +283,24 @@ def test_panel_threshold_keeps_a_maximum_set_from_a_script(viewer):
     assert panel.state.layers[0]['threshold_on'] and panel.state.layers[0]['threshold_min'] == 0.5
     triggered(panel, panel.set_threshold_min)('value', '1')
     assert viewer._layers[0].threshold == (1.0, 2.0)
+
+
+def test_panel_slicer_sliders_are_smooth_and_apply_when_released(viewer):
+    """As in the prototype, a slider's thumb is a plain value of the page (v-model on its own key),
+    so it follows the mouse; the plane only moves when it is let go (the end event). The keys follow
+    the viewer when a script moves the plane."""
+    panel = viewer.panel()
+    html = panel.layout.html
+    for key in ['slicer_origin_{}'.format(i) for i in range(3)] + ['slicer_normal_{}'.format(i) for i in range(3)] \
+            + ['slicer_tolerance']:
+        slider = re.search(r'<VSlider v-model="{}"[^>]*>'.format(key), html).group(0)
+        assert '@end="trigger(' in slider and 'update:modelValue' not in slider
+    triggered(panel, panel.set_slicer_enabled)(True)
+    before = viewer._slicer['origin']
+    panel.state.slicer_origin_2 = 12.0          # the thumb dragged in the page: nothing is rebuilt yet
+    assert viewer._slicer['origin'] == before
+    triggered(panel, panel.set_slicer_origin)(2, 12.0)          # let go
+    assert viewer._slicer['origin'][2] == 12.0
+    viewer.set_slicer(origin=(1, 2, 3), normal=(0, 1, 0), tolerance=7)
+    assert (panel.state.slicer_origin_0, panel.state.slicer_origin_1, panel.state.slicer_origin_2) == (1, 2, 3)
+    assert panel.state.slicer_normal_1 == 1.0 and panel.state.slicer_tolerance == 7.0
