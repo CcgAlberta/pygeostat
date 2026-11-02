@@ -124,7 +124,72 @@ have a legend and be saved like any matplotlib figure. It draws the scene off sc
 vertical exaggeration and the camera of the viewer. It works without a display, which is also how the
 tests run.
 
+## Interactive panel
+
+`viewer.panel()` shows the scene with a panel of controls beside it. It needs a few more packages
+(trame), which are optional too:
+
+```bash
+pip install "pygeostat[view3d-panel]"
+```
+
+```python
+import pygeostat as gs
+
+blocks = gs.ExampleData('3d_grid')
+griddef = gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1])
+viewer = gs.view3d(blocks, 'value', griddef=griddef)
+gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=viewer)
+viewer.add_ruler()
+viewer.panel()    # last line of a notebook cell
+```
+
+For each layer the panel has:
+
+- a checkbox to show or hide it, and an opacity slider;
+- the colour limits (for a layer coloured by a continuous variable), with the range of the data in
+  each box label;
+- the values to show, a minimum and a maximum (the threshold). **All** shows every value again;
+- a slice: its orientation, its position (the slice number for data on a grid, a coordinate otherwise)
+  and its thickness (extra slices each side for data on a grid, a distance otherwise).
+
+Values that depend on the data are typed, and applied on Enter or when you leave the box. A value that
+does not work, such as a minimum above the maximum or a threshold that leaves nothing, is explained in
+the panel and changes nothing.
+
+With a ruler (`viewer.add_ruler()`) the panel also has boxes for East, North and Elev, and **All axes
+from 0**. The ruler then counts from that point instead of from the coordinates, which helps to
+compare two models whose coordinates are far apart. The axis titles say where the labels start.
+
+The name of a layer is its `label` (or its variable), so the panel shows the names of your own data,
+for example `gs.view3d(blocks, 'value', griddef=griddef, label='Block model value')`.
+
+**Saved views.** **Save** writes the whole view (the camera, the layers' settings and the ruler) to a
+json file in the folder `views/`, or in `viewer.panel(views_folder='...')`, and **Load** shows a saved
+view again. Without a name, a name is made from the time.
+
+### The same from a script
+
+Each control is a method of the viewer, so nothing needs to be clicked to get a view:
+
+```python
+viewer.set_layer('value', opacity=0.3, clim=(-2, 2))
+viewer.set_layer('value', threshold=(0.5, 1.0))                   # False shows all values again
+viewer.set_layer('value', orient='xz', slice_number=20, slice_thickness=2)
+viewer.set_layer('value', orient=False)                           # the whole layer again
+viewer.set_layer('Estimate', visible=False)
+viewer.set_axis_origin((0, 0, 0), from_zero=True)
+
+import json
+view = viewer.get_view()                  # plain numbers and strings, so json works
+json.dump(view, open('view.json', 'w'))
+viewer.set_view(json.load(open('view.json')))
+```
+
+`set_view` matches layers by name and refuses a view that names a layer the scene does not have.
+
 ## What is not included yet
 
-This first version is the scripting interface. An interactive layer panel (switching layers on and off,
-sliders for the slice, picking a block to see its values) and surfaces from DXF files will follow.
+Surfaces from DXF files, picking a block to see its values, and display options (drawing styles,
+choosing categories from the legend, the background colour, a flat 2D view of an axis) will follow
+in separate issues.
