@@ -36,6 +36,8 @@ class Panel:
 			raise ImportError("The layer panel requires trame: pip install pygeostat[view3d-panel]") from None
 		self.viewer = viewer
 		self.views_folder = views_folder
+		# The lowest value typed for the threshold of each layer, kept while the threshold is off
+		self._typed_min = {}
 		# A new name each time: get_server caches by name, so a fixed one would share state
 		self.server = get_server('pygeostat_{}'.format(uuid.uuid4().hex[:8]), client_type='vue3')
 		self.state = self.server.state
@@ -81,15 +83,17 @@ class Panel:
 							html.Div('Colour limits', classes='text-caption')
 							with html.Div(classes='d-flex ga-2'):
 								self._range_boxes('layer.clim', 'layer.data_range', self.set_clim)
+						# As in the prototype: a checkbox, and the lowest value to show typed in a box
 						with html.Div(v_if='layer.threshold_range', classes='mt-2'):
-							with html.Div(classes='d-flex align-center'):
-								html.Div('Show values between', classes='text-caption')
-								vuetify3.VBtn('All', size='x-small', variant='text', classes='ml-auto',
-											  disabled=('!layer.threshold',),
-											  click=(self.clear_threshold, '[layer.name]'))
-							with html.Div(classes='d-flex ga-2'):
-								self._range_boxes('(layer.threshold || layer.threshold_range)', 'layer.threshold_range',
-												  self.set_threshold)
+							vuetify3.VCheckbox(label='Threshold', model_value=('layer.threshold_on',),
+											   update_modelValue=(self.set_threshold_on, '[layer.name, $event]'),
+											   density='compact', hide_details=True)
+							vuetify3.VTextField(
+								label=("'Min ' + layer.variable + ' (data ' + Number(layer.threshold_range[0]).toPrecision(3)"
+									   " + ' to ' + Number(layer.threshold_range[1]).toPrecision(3) + ')'",),
+								type='number', model_value=('layer.threshold_min',), hint='Press Enter to apply',
+								persistent_hint=True, density='compact', variant='outlined', classes='mt-1',
+								change=(self.set_threshold_min, '[layer.name, $event.target.value]'))
 				# The slicer is one plane for the whole scene, as in the prototype. Sliders move the
 				# plane and are applied when released (the end event), which cuts the layers once
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
@@ -228,20 +232,31 @@ class Panel:
 			return {'clim': clim}
 		self._try(name, changes)
 
-	def set_threshold(self, name, end, value):
-		"""Set one end of the threshold of a layer (``end`` 0 for min, 1 for max), like
-		``Viewer.set_layer(name, threshold=...)``. A layer without one starts from the range of its
-		variable"""
-		def changes():
-			layer = self._layer(name)
-			threshold = list(layer.threshold or layer.source.mesh.get_data_range(layer.source.var))
-			threshold[end] = _number(value)
-			return {'threshold': threshold}
-		self._try(name, changes)
+	def _threshold(self, name):
+		"""The threshold a layer shows with its typed minimum: from the minimum up to the maximum
+		the layer already has (from a script), else the highest value of the data. The minimum is
+		the lowest of the data until one is typed"""
+		layer = self._layer(name)
+		low, high = layer.source.mesh.get_data_range(layer.source.var)
+		if layer.threshold is not None:
+			high = layer.threshold[1]
+		return (self._typed_min.get(name, low), high)
 
-	def clear_threshold(self, name):
-		"""Show all values of a layer again"""
-		self._try(name, lambda: {'threshold': False})
+	def set_threshold_on(self, name, on):
+		"""Show only the values from the typed minimum up (on), or all values (off), like
+		``Viewer.set_layer(name, threshold=...)``"""
+		self._try(name, lambda: {'threshold': self._threshold(name) if on else False})
+
+	def set_threshold_min(self, name, value):
+		"""Type the lowest value to show. It is applied when the threshold is on, and kept
+		when it is not; a value that does not work is explained and not kept"""
+		def action():
+			number = _number(value)
+			if self._layer(name).threshold is not None:
+				self.viewer.set_layer(name, threshold=(number, self._threshold(name)[1]))
+			self._typed_min[name] = number
+		self._guard(action)
+		self.refresh()
 
 	def set_slicer_enabled(self, enabled):
 		"""Switch the slicer on or off, like ``Viewer.set_slicer(enabled=...)``"""
@@ -359,4 +374,6 @@ def _row(layer):
 		threshold_range = _floats(source.mesh.get_data_range(source.var))
 	return {'name': layer.name, 'visible': layer.visible, 'opacity': layer.kwargs.get('opacity', 1.0),
 			'clim': _floats(layer.clim), 'data_range': _floats(layer.clim and layer.data_range),
-			'threshold_range': threshold_range, 'threshold': _floats(layer.threshold)}
+			'variable': source and source.var, 'threshold_range': threshold_range,
+			'threshold_on': layer.threshold is not None,
+			'threshold_min': None if layer.threshold is None else float(layer.threshold[0])}
