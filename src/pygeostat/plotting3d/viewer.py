@@ -234,7 +234,7 @@ class Viewer:
 				self.plotter.remove_actor(layer.actor)
 				layer.actor = None
 			return
-		# Replacing the actor by its name, as the prototype does, swaps the mesh at once and keeps
+		# Replacing the actor by its name swaps the mesh at once and keeps
 		# the colour bar: removing the actor first took its bar with it, and a new bar was made
 		# on every move of the slicer, so the slice and its legend blinked
 		layer.actor = self.plotter.add_mesh(layer.mesh, name=layer.key, **layer.kwargs)
@@ -316,8 +316,8 @@ class Viewer:
 		if show_holes is not None:
 			slicer['show_holes'] = bool(show_holes)
 		if enabled is not None:
-			# Like the prototype, switching the slicer on hides the drill holes, which would stand
-			# in front of the cut, and switching it off shows them again
+			# Switching the slicer on hides the drill holes, which would stand in front of the cut,
+			# and switching it off shows them again
 			if bool(enabled) != slicer['enabled']:
 				for layer in self._layers:
 					if layer.kind == 'holes':
@@ -340,7 +340,7 @@ class Viewer:
 
 	def _place_crossing(self, layer):
 		"""Draw the drill hole intervals of a layer that cross the plane, when the slicer is on and
-		``show_holes`` is set. As in the prototype: only holes whose tube reaches the plane, and of
+		``show_holes`` is set: only holes whose tube reaches the plane, and of
 		those the intervals within the tolerance band, clipped to the band. They follow the layer's
 		threshold and colours, and show even when the layer itself is hidden."""
 		import numpy as np
