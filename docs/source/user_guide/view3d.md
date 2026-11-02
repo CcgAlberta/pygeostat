@@ -161,7 +161,7 @@ Y and Z sliders, tilt it with the Normal X, Y and Z sliders, or press **XY**, **
 it along an axis. Block layers then show only the cut through the plane, and the drill holes are
 hidden. **Show drill holes on slice** shows the holes that cross the plane: only the holes whose tube
 reaches it, and of those the part within the **Tolerance** (the thickness, in the units of your data,
-of the band around the plane). The sliders are applied when you let go of them.
+of the band around the plane). The cut follows the sliders as you drag them.
 
 With a ruler (`viewer.add_ruler()`) the panel also has boxes for East, North and Elev, and **All axes
 from 0**. The ruler then counts from that point instead of from the coordinates, which helps to
