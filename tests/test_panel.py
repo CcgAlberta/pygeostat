@@ -4,6 +4,7 @@
 """Tests for the interactive layer panel of the 3D viewer (needs PyVista and trame)"""
 
 import re
+import numpy as np
 import pytest
 import pygeostat as gs
 
@@ -35,7 +36,7 @@ def rows(panel):
 def triggered(panel, handler):
     """The function the page calls for `handler`, found from the page's own HTML."""
     controller = panel.server.controller
-    names = re.findall(r"trigger\('(trigger__\d+)', \[layer.name[^\]]*\]\)", panel.layout.html)
+    names = re.findall(r"trigger\('(trigger__\d+)', \[[^\]]*\]\)", panel.layout.html)
     return next(controller.trigger_fn(n) for n in names if controller.trigger_fn(n) == handler)
 
 
@@ -133,45 +134,6 @@ def test_panel_threshold(viewer):
     assert panel.state.message == ''
 
 
-def test_panel_slice_of_a_grid(viewer):
-    """Slice starts in the middle of the grid, the boxes move and thicken it, and the layer is the
-    same as view3d with those arguments."""
-    panel = viewer.panel()
-    layer = viewer._layers[0]
-    triggered(panel, panel.set_slice_on)('value', True)
-    assert panel.state.layers[0]['slice'] == {
-        'orient': 'xz', 'position': 20, 'position_label': 'Slice number', 'width': 0,
-        'width_label': 'Extra slices each side'}
-    triggered(panel, panel.set_orient)('value', 'yz')
-    triggered(panel, panel.set_position)('value', '5')
-    triggered(panel, panel.set_width)('value', '2')
-    data = gs.ExampleData('3d_grid')
-    expected = gs.view3d(data, 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]), orient='yz',
-                         slice_number=5, slice_thickness=2, viewer=gs.Viewer(off_screen=True))
-    assert layer.mesh.n_cells == expected._layers[0].mesh.n_cells < 40 ** 3
-    triggered(panel, panel.set_position)('value', '500')
-    assert 'Nothing is left' in panel.state.message and layer.section['slice_number'] == 5
-    triggered(panel, panel.set_slice_on)('value', False)
-    assert panel.state.layers[0]['slice'] is None and layer.actor.mapper.dataset.n_cells == 40 ** 3
-
-
-def test_panel_slice_of_drill_holes():
-    """Data without a grid is sliced by coordinate and distance, starting in the middle of the
-    layer; a layer made from a mesh has no slice controls."""
-    data = gs.ExampleData('oilsands')
-    viewer = gs.view3d(data, 'Bitumen', viewer=gs.Viewer(off_screen=True))
-    viewer.add(pv.Sphere(), color='red')
-    panel = viewer.panel()
-    assert [row['can_slice'] for row in panel.state.layers] == [True, False]
-    triggered(panel, panel.set_slice_on)('Bitumen', True)
-    lower, upper = viewer._layers[0].source.mesh.bounds[2:4]
-    row = panel.state.layers[0]['slice']
-    assert row['position'] == (lower + upper) / 2 and row['width'] == (upper - lower) / 20
-    assert row['position_label'] == 'Coordinate' and row['width_label'] == 'Distance each side'
-    triggered(panel, panel.set_width)('Bitumen', '1000')
-    assert viewer._layers[0].section['pointtol'] == 1000
-
-
 def test_panel_axis_origin():
     """The boxes set where the ruler counts from, one axis at a time; All axes from 0 uses the
     lowest edge of the scene; the card is only there when the viewer has a ruler."""
@@ -262,3 +224,39 @@ def test_panel_view_uses_the_panels_server(viewer):
     assert first._view.server is first.server
     assert second._view.server is second.server
     assert first.server is not second.server
+
+
+def test_panel_slicer(viewer):
+    """The slicer card of the page drives Viewer.set_slicer: it starts at the centre of the scene
+    facing up, and each control changes the plane, the cut layers and the drill holes."""
+    import pandas as pd
+    two_holes = pd.DataFrame({'x': [0.0] * 4 + [50.0] * 4, 'y': 0.0, 'z': [30.0, 20.0, 10.0, 0.0] * 2,
+                              'hole': ['a'] * 4 + ['b'] * 4, 'Au': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]})
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3, viewer=viewer)
+    panel = viewer.panel()
+    state = panel.state.slicer
+    assert state['enabled'] is False and state['normal'] == [0.0, 0.0, 1.0] and state['tolerance'] == 10.0
+    assert len(state['bounds']) == 6 and len(state['origin']) == 3
+    triggered(panel, panel.set_slicer_enabled)(True)
+    blocks, holes = viewer._layers[0], viewer._layers[2]
+    assert panel.state.slicer['enabled'] and not holes.visible
+    assert [row['visible'] for row in panel.state.layers] == [True, True, False]
+    triggered(panel, panel.set_slicer_origin)(2, '10.25')
+    np.testing.assert_allclose(blocks.mesh.points[:, 2], 10.25)
+    assert panel.state.slicer['origin'][2] == 10.25
+    triggered(panel, panel.snap_slicer)('xz')
+    assert panel.state.slicer['normal'] == [0.0, 1.0, 0.0]
+    triggered(panel, panel.set_slicer_normal)(0, '1')
+    assert viewer._slicer['normal'] == (1.0, 1.0, 0.0)
+    triggered(panel, panel.set_slicer_origin)(0, '0')
+    triggered(panel, panel.set_slicer_origin)(1, '0')
+    triggered(panel, panel.set_slicer_tolerance)(6)
+    triggered(panel, panel.set_show_holes)(True)
+    assert panel.state.slicer['tolerance'] == 6.0 and panel.state.slicer['show_holes']
+    assert holes.crossing is not None
+    triggered(panel, panel.set_slicer_tolerance)('-5')
+    assert '0 or more' in panel.state.message and viewer._slicer['tolerance'] == 6.0
+    triggered(panel, panel.set_slicer_origin)(0, 'abc')
+    assert "'abc' is not a number" in panel.state.message
+    triggered(panel, panel.set_slicer_enabled)(False)
+    assert holes.visible and blocks.mesh.n_cells == 40 ** 3 and holes.crossing is None
