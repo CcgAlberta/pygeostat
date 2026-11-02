@@ -197,3 +197,40 @@ def test_panel_axis_origin():
     assert panel.state.axes == {'has_ruler': True, 'origin': [1000.0, 5000.0, 300.0], 'from_zero': True}
     handler(panel.set_from_zero)(False)
     assert panel.state.axes['origin'] == [1000.0, 0.0, 300.0]
+
+
+def test_panel_saves_and_loads_a_view(viewer, tmp_path):
+    """Save writes the view to a json file in the folder and lists it; Load gives it back, also on
+    a fresh viewer; a name with a path in it, a missing file and a file that is not a view are
+    explained and change nothing."""
+    import json
+    folder = str(tmp_path / 'views')
+    panel = viewer.panel(views_folder=folder)
+    assert panel.state.view_files == []
+    viewer.set_layer('value', opacity=0.3, threshold=(0, 1))
+    panel.save_view('first look')
+    assert panel.state.view_files == ['first look'] and panel.state.view_file == 'first look'
+    with open(folder + '/first look.json') as f:
+        assert json.load(f) == viewer.get_view()
+    viewer.set_layer('value', opacity=1, threshold=False)
+    panel.load_view('first look')
+    assert viewer._layers[0].kwargs['opacity'] == 0.3 and viewer._layers[0].threshold == (0.0, 1.0)
+    assert panel.state.note == 'Loaded {}/first look.json'.format(folder)
+    for bad in ('../escape', 'a/b'):
+        panel.save_view(bad)
+        assert 'letters, digits' in panel.state.message
+    assert sorted(p.name for p in tmp_path.iterdir()) == ['views']
+    panel.load_view('../views/first look')
+    assert 'letters, digits' in panel.state.message
+    panel.load_view('nothing')
+    assert 'Could not load' in panel.state.message
+    (tmp_path / 'views' / 'broken.json').write_text('{"layers": 3}')
+    panel.load_view('broken')
+    assert 'Could not load' in panel.state.message
+    fresh = gs.view3d(gs.ExampleData('3d_grid'), 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]),
+                      viewer=gs.Viewer(off_screen=True))
+    gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=fresh)
+    other = fresh.panel(views_folder=folder)
+    assert other.state.view_files == ['broken', 'first look']
+    other.load_view('first look')
+    assert fresh._layers[0].kwargs['opacity'] == 0.3
