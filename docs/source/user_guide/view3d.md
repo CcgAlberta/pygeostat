@@ -149,13 +149,19 @@ For each layer the panel has:
 - a checkbox to show or hide it, and an opacity slider;
 - the colour limits (for a layer coloured by a continuous variable), with the range of the data in
   each box label;
-- the values to show, a minimum and a maximum (the threshold). **All** shows every value again;
-- a slice: its orientation, its position (the slice number for data on a grid, a coordinate otherwise)
-  and its thickness (extra slices each side for data on a grid, a distance otherwise).
+- a **Threshold** checkbox and a typed minimum: with the box ticked, only the values from the minimum
+  up are shown. The box starts at the lowest value of the data.
 
 Values that depend on the data are typed, and applied on Enter or when you leave the box. A value that
 does not work, such as a minimum above the maximum or a threshold that leaves nothing, is explained in
 the panel and changes nothing.
+
+**Slicer.** One plane for the whole scene. Tick **Enable slicer** and move the plane with the Origin X,
+Y and Z sliders, tilt it with the Normal X, Y and Z sliders, or press **XY**, **XZ** or **YZ** to face
+it along an axis. Block layers then show only the cut through the plane, and the drill holes are
+hidden. **Show drill holes on slice** shows the holes that cross the plane: only the holes whose tube
+reaches it, and of those the part within the **Tolerance** (the thickness, in the units of your data,
+of the band around the plane). The sliders are applied when you let go of them.
 
 With a ruler (`viewer.add_ruler()`) the panel also has boxes for East, North and Elev, and **All axes
 from 0**. The ruler then counts from that point instead of from the coordinates, which helps to
@@ -175,9 +181,10 @@ Each control is a method of the viewer, so nothing needs to be clicked to get a 
 ```python
 viewer.set_layer('value', opacity=0.3, clim=(-2, 2))
 viewer.set_layer('value', threshold=(0.5, 1.0))                   # False shows all values again
-viewer.set_layer('value', orient='xz', slice_number=20, slice_thickness=2)
-viewer.set_layer('value', orient=False)                           # the whole layer again
 viewer.set_layer('Estimate', visible=False)
+viewer.set_slicer(enabled=True, origin=(40, 40, 10), normal=(1, 0, 1))   # the plane of the slicer
+viewer.set_slicer(tolerance=20, show_holes=True)
+viewer.set_slicer(enabled=False)
 viewer.set_axis_origin((0, 0, 0), from_zero=True)
 
 import json
@@ -187,6 +194,10 @@ viewer.set_view(json.load(open('view.json')))
 ```
 
 `set_view` matches layers by name and refuses a view that names a layer the scene does not have.
+
+A single layer can also be cut without the slicer, with the arguments of `gs.view3d()`:
+`viewer.set_layer('value', orient='xz', slice_number=20, slice_thickness=2)`, and
+`orient=False` shows the whole layer again.
 
 ## What is not included yet
 
