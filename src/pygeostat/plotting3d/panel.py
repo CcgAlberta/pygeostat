@@ -2,6 +2,8 @@
 #  -*- coding: utf-8 -*-
 """panel is the interactive layer panel of a Viewer, a web page (trame) with the controls beside the 3D view"""
 
+from .viewer import _corners
+
 #-----------------------------------------------------------------------------
 # Imports
 #-----------------------------------------------------------------------------
@@ -88,23 +90,29 @@ class Panel:
 							with html.Div(classes='d-flex ga-2'):
 								self._range_boxes('(layer.threshold || layer.threshold_range)', 'layer.threshold_range',
 												  self.set_threshold)
-						with html.Div(v_if='layer.can_slice', classes='mt-2'):
-							vuetify3.VCheckbox(label='Slice', model_value=('!!layer.slice',),
-											   update_modelValue=(self.set_slice_on, '[layer.name, $event]'),
-											   density='compact', hide_details=True)
-							with html.Div(v_if='layer.slice'):
-								vuetify3.VSelect(
-									items=([{'title': 'XY (plan)', 'value': 'xy'}, {'title': 'XZ (section)', 'value': 'xz'},
-											 {'title': 'YZ (section)', 'value': 'yz'}],), model_value=('layer.slice.orient',),
-									update_modelValue=(self.set_orient, '[layer.name, $event]'), density='compact',
-									hide_details=True)
-								with html.Div(classes='d-flex ga-2 mt-1'):
-									for key, label, handler in (('position', 'layer.slice.position_label', self.set_position),
-																('width', 'layer.slice.width_label', self.set_width)):
-										vuetify3.VTextField(
-											label=(label,), type='number', model_value=('layer.slice.' + key,),
-											density='compact', hide_details=True, variant='outlined',
-											change=(handler, '[layer.name, $event.target.value]'))
+				# The slicer is one plane for the whole scene, as in the prototype. Sliders move the
+				# plane and are applied when released (the end event), which cuts the layers once
+				with vuetify3.VCard(variant='outlined', classes='ma-2'):
+					with vuetify3.VCardText():
+						html.Div('Slicer', classes='text-caption')
+						vuetify3.VCheckbox(label='Enable slicer', model_value=('slicer.enabled',),
+										   update_modelValue=(self.set_slicer_enabled, '[$event]'),
+										   density='compact', hide_details=True)
+						for axis, name in enumerate('XYZ'):
+							self._slider('Origin ' + name, 'slicer.origin[{}]'.format(axis),
+										 'slicer.bounds[{}]'.format(2 * axis), 'slicer.bounds[{}]'.format(2 * axis + 1),
+										 self.set_slicer_origin, axis)
+						for axis, name in enumerate('XYZ'):
+							self._slider('Normal ' + name, 'slicer.normal[{}]'.format(axis), -1, 1,
+										 self.set_slicer_normal, axis, step=0.05)
+						with html.Div(classes='d-flex ga-1 mb-1'):
+							for orient in ('xy', 'xz', 'yz'):
+								vuetify3.VBtn(orient.upper(), size='x-small', variant='tonal',
+											  click=(self.snap_slicer, "['{}']".format(orient)))
+						self._slider('Tolerance', 'slicer.tolerance', 0, 50, self.set_slicer_tolerance, None)
+						vuetify3.VCheckbox(label='Show drill holes on slice', model_value=('slicer.show_holes',),
+										   update_modelValue=(self.set_show_holes, '[$event]'),
+										   density='compact', hide_details=True)
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
 						html.Div('Saved views', classes='text-caption')
@@ -123,6 +131,17 @@ class Panel:
 			with self.layout.content:
 				with vuetify3.VContainer(fluid=True, classes='pa-0 fill-height'):
 					self._view.ui(add_menu=False)
+
+	@staticmethod
+	def _slider(label, value, low, high, handler, axis, step=None):
+		"""A slider for a number of the slicer. The thumb follows the mouse in the page, and
+		``handler`` is called when it is let go, with ``axis`` (if any) and the value"""
+		from trame.widgets import vuetify3
+		arguments = '[{}$event]'.format('' if axis is None else '{}, '.format(axis))
+		options = {} if step is None else {'step': step}
+		vuetify3.VSlider(label=label, model_value=(value,), min=(str(low),), max=(str(high),),
+						 update_modelValue='{} = $event'.format(value), end=(handler, arguments),
+						 density='compact', hide_details=True, thumb_label=True, **options)
 
 	@staticmethod
 	def _range_boxes(values, data_range, handler):
@@ -155,6 +174,13 @@ class Panel:
 		"""Show the viewer's layers as they are now. The viewer calls this when a layer is added or
 		changed, so the page follows a script."""
 		self.state.layers = [_row(layer) for layer in self.viewer._layers]
+		slicer = self.viewer._slicer
+		lower, upper = _corners(self.viewer._extents) if self.viewer._extents else ([0.0] * 3, [1.0] * 3)
+		self.state.slicer = {
+			'enabled': slicer['enabled'], 'origin': _floats(self._slicer_origin()) if self.viewer._extents else [0.0] * 3,
+			'normal': _floats(slicer['normal']), 'tolerance': slicer['tolerance'],
+			'show_holes': slicer['show_holes'],
+			'bounds': [float(v) for pair in zip(lower, upper) for v in pair]}
 		self.state.axes = {'has_ruler': self.viewer._ruler is not None,
 						   'origin': _floats(self.viewer._origin_values()),
 						   'from_zero': self.viewer._axes_from_zero}
@@ -217,32 +243,46 @@ class Panel:
 		"""Show all values of a layer again"""
 		self._try(name, lambda: {'threshold': False})
 
-	def set_slice_on(self, name, on):
-		"""Show only a slice of a layer, in the middle of the layer, or all of it again"""
-		if on:
-			self._try(name, lambda: _middle_slice(self._layer(name), 'xz'))
-		else:
-			self._try(name, lambda: {'orient': False})
+	def set_slicer_enabled(self, enabled):
+		"""Switch the slicer on or off, like ``Viewer.set_slicer(enabled=...)``"""
+		self._guard(lambda: self.viewer.set_slicer(enabled=enabled))
 
-	def set_orient(self, name, orient):
-		"""Change the orientation of the slice of a layer, and put the slice in the middle"""
-		self._try(name, lambda: _middle_slice(self._layer(name), orient))
+	def set_slicer_origin(self, axis, value):
+		"""Move the plane of the slicer along one axis (0 x, 1 y, 2 z)"""
+		def action():
+			origin = list(self._slicer_origin())
+			origin[axis] = _number(value)
+			self.viewer.set_slicer(origin=origin)
+		self._guard(action)
 
-	def set_position(self, name, value):
-		"""Move the slice of a layer: to a slice number if it is set by one, else to a coordinate"""
-		def changes():
-			by_number = self._layer(name).section['slice_number'] is not None
-			return {'slice_number': int(_number(value))} if by_number else {'slice_coordinate': _number(value)}
-		self._try(name, changes)
+	def set_slicer_normal(self, axis, value):
+		"""Tilt the plane of the slicer: one component (0 x, 1 y, 2 z) of the direction it faces"""
+		def action():
+			normal = list(self.viewer._slicer['normal'])
+			normal[axis] = _number(value)
+			self.viewer.set_slicer(normal=normal)
+		self._guard(action)
 
-	def set_width(self, name, value):
-		"""Set how thick the slice of a layer is: extra slices each side for data on a grid, else
-		the distance each side"""
-		def changes():
-			gridded = self._layer(name).source.griddef is not None
-			return {'slice_thickness': int(_number(value))} if gridded else {'pointtol': _number(value)}
-		self._try(name, changes)
+	def snap_slicer(self, orient):
+		"""Face the plane along an axis: 'xy' (plan, normal z), 'xz' (normal y) or 'yz' (normal x)"""
+		normal = {'xy': (0.0, 0.0, 1.0), 'xz': (0.0, 1.0, 0.0), 'yz': (1.0, 0.0, 0.0)}[orient]
+		self._guard(lambda: self.viewer.set_slicer(normal=normal))
 
+	def set_slicer_tolerance(self, value):
+		"""Set the thickness of the band of drill holes shown around the plane"""
+		self._guard(lambda: self.viewer.set_slicer(tolerance=_number(value)))
+
+	def set_show_holes(self, show):
+		"""Show the drill hole intervals that cross the plane"""
+		self._guard(lambda: self.viewer.set_slicer(show_holes=show))
+
+	def _slicer_origin(self):
+		"""The origin of the plane: where it is, or the centre of the scene before it was moved"""
+		origin = self.viewer._slicer['origin']
+		if origin is None:
+			lower, upper = _corners(self.viewer._extents)
+			origin = (lower + upper) / 2
+		return origin
 
 	def set_origin(self, axis, value):
 		"""Set where the ruler counts from along one axis (0 east, 1 north, 2 elevation), like
@@ -306,20 +346,6 @@ def _number(value):
 		raise ValueError("'{}' is not a number".format(value)) from None
 
 
-def _middle_slice(layer, orient):
-	"""The arguments of set_layer for a slice of a layer in the middle of it along the axis not in
-	``orient``, as thick as the slice shown now, or 0 or a twentieth of the layer when there is none"""
-	axis = {'xy': 2, 'xz': 1, 'yz': 0}[orient]
-	source, section = layer.source, layer.section or {}
-	if source.griddef is not None:
-		size = (source.griddef.nx, source.griddef.ny, source.griddef.nz)[axis]
-		return {'orient': orient, 'slice_number': size // 2,
-				'slice_thickness': section.get('slice_thickness') or 0}
-	lower, upper = source.mesh.bounds[2 * axis:2 * axis + 2]
-	return {'orient': orient, 'slice_coordinate': (lower + upper) / 2,
-			'pointtol': section.get('pointtol') or (upper - lower) / 20}
-
-
 def _floats(values):
 	"""A list of plain floats, which the page can be given, or None"""
 	return None if values is None else [float(v) for v in values]
@@ -327,21 +353,10 @@ def _floats(values):
 
 def _row(layer):
 	"""What the page shows of a layer. The page is given plain numbers and strings"""
-	source, section = layer.source, layer.section
+	source = layer.source
 	threshold_range = None
 	if source is not None and source.var is not None:
 		threshold_range = _floats(source.mesh.get_data_range(source.var))
-	row = {'name': layer.name, 'visible': layer.visible, 'opacity': layer.kwargs.get('opacity', 1.0),
-		   'clim': _floats(layer.clim), 'data_range': _floats(layer.clim and layer.data_range),
-		   'threshold_range': threshold_range, 'threshold': _floats(layer.threshold),
-		   'can_slice': source is not None, 'slice': None}
-	if section is not None:
-		by_number = section['slice_number'] is not None
-		gridded = source.griddef is not None
-		row['slice'] = {
-			'orient': section['orient'],
-			'position': section['slice_number'] if by_number else section['slice_coordinate'],
-			'position_label': 'Slice number' if by_number else 'Coordinate',
-			'width': (section['slice_thickness'] or 0) if gridded else section['pointtol'],
-			'width_label': 'Extra slices each side' if gridded else 'Distance each side'}
-	return row
+	return {'name': layer.name, 'visible': layer.visible, 'opacity': layer.kwargs.get('opacity', 1.0),
+			'clim': _floats(layer.clim), 'data_range': _floats(layer.clim and layer.data_range),
+			'threshold_range': threshold_range, 'threshold': _floats(layer.threshold)}
