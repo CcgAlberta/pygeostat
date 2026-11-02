@@ -170,3 +170,30 @@ def test_panel_slice_of_drill_holes():
     assert row['position_label'] == 'Coordinate' and row['width_label'] == 'Distance each side'
     triggered(panel, panel.set_width)('Bitumen', '1000')
     assert viewer._layers[0].section['pointtol'] == 1000
+
+
+def test_panel_axis_origin():
+    """The boxes set where the ruler counts from, one axis at a time; All axes from 0 uses the
+    lowest edge of the scene; the card is only there when the viewer has a ruler."""
+    viewer = gs.Viewer(off_screen=True)
+    viewer.add(pv.Box(bounds=(1000, 1100, 5000, 5100, 300, 340)), color='red')
+    panel = viewer.panel()
+    assert panel.state.axes['has_ruler'] is False
+    viewer.add_ruler()
+    assert panel.state.axes == {'has_ruler': True, 'origin': [0.0, 0.0, 0.0], 'from_zero': False}
+
+    def handler(function):
+        controller = panel.server.controller
+        names = re.findall(r"trigger\('(trigger__\d+)', \[[^\]]*\]\)", panel.layout.html)
+        return next(controller.trigger_fn(n) for n in names if controller.trigger_fn(n) == function)
+
+    handler(panel.set_origin)(0, '1000')
+    handler(panel.set_origin)(2, '300')
+    assert viewer._axis_origin == (1000.0, 0.0, 300.0)
+    assert panel.state.axes['origin'] == [1000.0, 0.0, 300.0]
+    handler(panel.set_origin)(1, 'abc')
+    assert "'abc' is not a number" in panel.state.message and viewer._axis_origin == (1000.0, 0.0, 300.0)
+    handler(panel.set_from_zero)(True)
+    assert panel.state.axes == {'has_ruler': True, 'origin': [1000.0, 5000.0, 300.0], 'from_zero': True}
+    handler(panel.set_from_zero)(False)
+    assert panel.state.axes['origin'] == [1000.0, 0.0, 300.0]
