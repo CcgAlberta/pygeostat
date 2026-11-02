@@ -985,3 +985,95 @@ def test_slicer_leaves_samples_drawn_as_points():
     assert viewer._layers[0].mesh.n_points == len(data) and viewer._layers[0].actor is not None
     holes = gs.view3d(data, 'Bitumen', trace=True, radius=15, viewer=gs.Viewer(off_screen=True))
     assert holes._layers[0].kind == 'holes'
+
+
+@pytest.fixture
+def two_holes():
+    """Two vertical drill holes with samples every 10 down to 0, at x = 0 and x = 50."""
+    return pd.DataFrame({'x': [0.0] * 4 + [50.0] * 4, 'y': 0.0, 'z': [30.0, 20.0, 10.0, 0.0] * 2,
+                         'hole': ['a'] * 4 + ['b'] * 4, 'Au': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]})
+
+
+def hole_viewer(two_holes):
+    return gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3,
+                     viewer=gs.Viewer(off_screen=True))
+
+
+def test_slicer_hides_the_drill_holes_and_shows_them_again(two_holes, grid3d):
+    """Switching the slicer on hides drill hole layers (blocks are cut instead), and switching it
+    off shows them again."""
+    data, griddef = grid3d
+    viewer = hole_viewer(two_holes)
+    gs.view3d(data, 'value', griddef=griddef, viewer=viewer)
+    holes, blocks = viewer._layers
+    viewer.set_slicer(enabled=True, origin=(10, 0, 10), normal=(0, 0, 1))
+    assert not holes.visible and not holes.actor.visibility and blocks.visible
+    viewer.set_slicer(tolerance=5)
+    assert not holes.visible
+    viewer.set_slicer(enabled=False)
+    assert holes.visible and holes.actor.visibility
+
+
+def test_slicer_shows_the_holes_that_cross_the_plane(two_holes):
+    """Only holes whose tube reaches the plane are shown, with the intervals inside the tolerance
+    band, cut to the band."""
+    viewer = hole_viewer(two_holes)
+    layer = viewer._layers[0]
+    viewer.set_slicer(enabled=True, origin=(0, 0, 0), normal=(1, 0, 0), tolerance=4, show_holes=True)
+    # The plane x = 0 runs along hole a (all three intervals) and misses hole b
+    assert set(layer.crossing.cell_data['segment index']) == {0, 1, 2}
+    assert layer.crossing.bounds[0] >= -2 - 1e-5 and layer.crossing.bounds[1] <= 2 + 1e-5
+    # A plane across both holes within a thin band: the interval from z = 20 to 10 of each
+    viewer.set_slicer(origin=(0, 0, 15), normal=(0, 0, 1), tolerance=2)
+    assert set(layer.crossing.cell_data['segment index']) == {1, 4}
+    assert layer.crossing.bounds[4] >= 14 - 1e-5 and layer.crossing.bounds[5] <= 16 + 1e-5
+    assert layer.crossing_actor is not None
+    # A hole that only passes near the plane, further than its radius, is left out however wide the band
+    viewer.set_slicer(origin=(10, 0, 0), normal=(1, 0, 0), tolerance=100)
+    assert layer.crossing is None and layer.crossing_actor is None
+
+
+def test_slicer_holes_follow_the_threshold_and_switch_off(two_holes):
+    """The holes on the slice follow the layer's threshold, and leave with show_holes or the slicer."""
+    viewer = hole_viewer(two_holes)
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', threshold=(3, 8))
+    viewer.set_slicer(enabled=True, origin=(0, 0, 15), normal=(0, 0, 1), tolerance=100, show_holes=True)
+    assert layer.crossing.cell_data['Au'].min() >= 3
+    viewer.set_slicer(show_holes=False)
+    assert layer.crossing is None
+    viewer.set_slicer(show_holes=True)
+    assert layer.crossing is not None
+    viewer.set_slicer(enabled=False)
+    assert layer.crossing is None and layer.crossing_actor is None
+
+
+def test_slicer_colour_bar_and_static_picture_follow_the_holes(two_holes):
+    """A hidden layer loses its colour bar unless it has holes on the slice; show_static draws the
+    holes on the slice and their colour bar."""
+    viewer = hole_viewer(two_holes)
+    bar = viewer.plotter.scalar_bars['Au']
+    viewer.set_slicer(enabled=True, origin=(0, 0, 15), normal=(0, 0, 1), tolerance=5)
+    assert not bar.GetVisibility()
+    fig, ax = viewer.show_static()
+    without, bars = np.asarray(ax.images[0].get_array()), len(fig.axes)
+    viewer.set_slicer(show_holes=True)
+    assert bar.GetVisibility()
+    fig, ax = viewer.show_static()
+    assert len(fig.axes) == bars + 1 and not np.array_equal(without, np.asarray(ax.images[0].get_array()))
+
+
+def test_view_round_trip_with_the_slicer(two_holes, grid3d):
+    """get_view holds the slicer and set_view gives it back, with the holes hidden as saved."""
+    import json
+    data, griddef = grid3d
+    viewer = hole_viewer(two_holes)
+    gs.view3d(data, 'value', griddef=griddef, viewer=viewer)
+    viewer.set_slicer(enabled=True, origin=(10, 0, 10.25), normal=(0, 1, 1), tolerance=7, show_holes=True)
+    view = json.loads(json.dumps(viewer.get_view()))
+    fresh = hole_viewer(two_holes)
+    gs.view3d(data, 'value', griddef=griddef, viewer=fresh)
+    fresh.set_view(view)
+    assert fresh.get_view() == view
+    assert not fresh._layers[0].visible and fresh._layers[0].crossing is not None
+    assert fresh._layers[1].mesh.n_cells == viewer._layers[1].mesh.n_cells < 40 ** 3
