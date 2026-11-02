@@ -877,3 +877,111 @@ def test_set_view_that_fails_midway_changes_nothing(grid3d):
     with pytest.raises(ValueError, match='Nothing is left'):
         viewer.set_view(view)
     assert viewer.get_view()['layers'][0]['opacity'] == 1.0
+
+
+def test_drillhole_mesh_keeps_what_a_slice_needs():
+    """Tubes carry their interval, drill hole, ends and radius, so a plane can find the intervals
+    it crosses: with the ends of an interval, its hole, and for each cell the interval it is part of."""
+    from pygeostat.plotting3d.meshes import SEGMENT, HOLE, UPPER, LOWER, RADIUS
+    data = pd.DataFrame({'x': [0.0, 0.0, 0.0, 50.0, 50.0], 'y': 0.0, 'z': [30.0, 20.0, 10.0, 25.0, 15.0],
+                         'hole': ['a', 'a', 'a', 'b', 'b'], 'Au': [1.0, 2.0, 3.0, 4.0, 5.0]})
+    mesh = gs.drillhole_mesh(data, var='Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3)
+    np.testing.assert_array_equal(mesh.field_data[UPPER][:, 2], [30, 20, 25])
+    np.testing.assert_array_equal(mesh.field_data[LOWER][:, 2], [20, 10, 15])
+    np.testing.assert_array_equal(mesh.field_data[RADIUS], [3])
+    segment, hole = mesh.cell_data[SEGMENT], mesh.cell_data[HOLE]
+    assert set(segment) == {0, 1, 2}
+    # Each cell's value is the upper sample of its interval; intervals 0 and 1 are hole a, 2 is hole b
+    np.testing.assert_array_equal(mesh.cell_data['Au'], np.array([1.0, 2.0, 4.0])[segment])
+    hole_of = {s: set(hole[segment == s]) for s in (0, 1, 2)}
+    assert hole_of[0] == hole_of[1] and len(hole_of[0]) == 1 and hole_of[2] != hole_of[0]
+
+
+def test_drillhole_mesh_intervals_without_a_hole_id_are_their_own_hole(intervals):
+    from pygeostat.plotting3d.meshes import SEGMENT, HOLE
+    mesh = gs.drillhole_mesh(intervals, var='Au', start=('startx', 'starty', 'startz'),
+                             end=('endx', 'endy', 'endz'))
+    np.testing.assert_array_equal(np.unique(mesh.cell_data[HOLE]), [0, 1])
+    np.testing.assert_array_equal(mesh.cell_data[HOLE], mesh.cell_data[SEGMENT])
+
+
+def test_slicer_cuts_a_block_layer(grid3d):
+    """The slicer shows the cut through its plane, with the values of the blocks the plane runs
+    through (the same as the slice of those blocks), and off shows the whole layer again."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    viewer.set_slicer(enabled=True, origin=(40, 40, 10.25), normal=(0, 0, 1))
+    cut = viewer._layers[0].mesh
+    np.testing.assert_allclose(cut.points[:, 2], 10.25)
+    expected = gs.view3d(data, 'value', griddef=griddef, orient='xy', slice_number=10,
+                         viewer=gs.Viewer(off_screen=True))._layers[0].mesh
+    assert cut.n_cells == expected.n_cells == 40 * 40
+    np.testing.assert_array_equal(np.sort(cut.cell_data['value']), np.sort(expected.cell_data['value']))
+    viewer.set_slicer(enabled=False)
+    assert viewer._layers[0].mesh.n_cells == 40 ** 3
+
+
+def test_slicer_plane_can_be_tilted(grid3d):
+    """A tilted plane gives a cut whose points all lie on the plane."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    viewer.set_slicer(enabled=True, origin=(40, 40, 20), normal=(1, 1, 0))
+    points = viewer._layers[0].mesh.points
+    assert len(points)
+    np.testing.assert_allclose((points - (40, 40, 20)) @ (1, 1, 0), 0, atol=1e-9)
+
+
+def test_slicer_defaults_and_errors(grid3d):
+    """The plane starts at the centre of the scene facing up, a zero normal means up, and wrong
+    arguments are refused."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    viewer.set_slicer(enabled=True)
+    xmin, xmax, ymin, ymax, zmin, zmax = viewer._layers[0].source.mesh.bounds
+    assert viewer._slicer['origin'] == ((xmin + xmax) / 2, (ymin + ymax) / 2, (zmin + zmax) / 2)
+    viewer.set_slicer(normal=(0, 0, 0))
+    assert viewer._slicer['normal'] == (0.0, 0.0, 1.0)
+    with pytest.raises(ValueError, match='x, y, z'):
+        viewer.set_slicer(origin=(1, 2))
+    with pytest.raises(ValueError, match='nx, ny, nz'):
+        viewer.set_slicer(normal=(1, 2))
+    with pytest.raises(ValueError, match='0 or more'):
+        viewer.set_slicer(tolerance=-1)
+
+
+def test_slicer_with_threshold_and_a_plane_that_misses(grid3d):
+    """A threshold applies to the cut too; a plane outside a layer leaves nothing to draw, which is
+    not an error, and the layer comes back when the plane does."""
+    data, griddef = grid3d
+    viewer = gs.view3d(data, 'value', griddef=griddef, viewer=gs.Viewer(off_screen=True))
+    viewer.set_slicer(enabled=True, origin=(40, 40, 10.25), normal=(0, 0, 1))
+    viewer.set_layer('value', threshold=(0.5, 1.0))
+    values = viewer._layers[0].mesh.cell_data['value']
+    assert 0 < len(values) < 40 * 40 and values.min() >= 0.5 and values.max() <= 1.0
+    viewer.set_slicer(origin=(40, 40, 1000))
+    assert viewer._layers[0].actor is None and viewer._layers[0].mesh.n_cells == 0
+    viewer.set_layer('value', opacity=0.5, clim=(0, 1), visible=True)
+    fig, ax = viewer.show_static()
+    assert ax.images
+    viewer.set_slicer(origin=(40, 40, 10.25))
+    assert viewer._layers[0].actor is not None
+    assert viewer._layers[0].actor.prop.opacity == 0.5
+
+
+def test_slicer_leaves_layers_made_from_a_mesh(grid3d):
+    """A layer added as a ready mesh has nothing to cut from and stays as it is."""
+    viewer = gs.Viewer(off_screen=True)
+    viewer.add(pv.Sphere(radius=5), color='red')
+    viewer.set_slicer(enabled=True, origin=(0, 0, 0))
+    assert viewer._layers[0].mesh.n_cells == pv.Sphere(radius=5).n_cells
+
+
+def test_slicer_leaves_samples_drawn_as_points():
+    """Samples without intervals (points) are neither cut nor hidden by the slicer."""
+    data = gs.ExampleData('oilsands')
+    viewer = gs.view3d(data, 'Bitumen', viewer=gs.Viewer(off_screen=True))
+    assert viewer._layers[0].kind == 'points'
+    viewer.set_slicer(enabled=True)
+    assert viewer._layers[0].mesh.n_points == len(data) and viewer._layers[0].actor is not None
+    holes = gs.view3d(data, 'Bitumen', trace=True, radius=15, viewer=gs.Viewer(off_screen=True))
+    assert holes._layers[0].kind == 'holes'
