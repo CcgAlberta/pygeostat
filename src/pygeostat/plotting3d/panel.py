@@ -43,6 +43,19 @@ class Panel:
 			self.layout.title.set_text('Layers')
 			with self.layout.drawer:
 				html.Div('{{ message }}', v_if='message', classes='text-caption text-error ma-2')
+				with vuetify3.VCard(v_if='axes.has_ruler', variant='outlined', classes='ma-2'):
+					with vuetify3.VCardText():
+						html.Div('Axis labels count from', classes='text-caption')
+						with html.Div(classes='d-flex ga-2'):
+							for axis, label in enumerate(('East', 'North', 'Elev')):
+								vuetify3.VTextField(
+									label=label, type='number', model_value=('axes.origin[{}]'.format(axis),),
+									disabled=('axes.from_zero',), density='compact', hide_details=True,
+									variant='outlined',
+									change=(self.set_origin, '[{}, $event.target.value]'.format(axis)))
+						vuetify3.VCheckbox(label='All axes from 0', model_value=('axes.from_zero',),
+										   update_modelValue=(self.set_from_zero, '[$event]'),
+										   density='compact', hide_details=True)
 				with vuetify3.VCard(v_for='layer in layers', key='layer.name', variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
 						vuetify3.VCheckbox(label=('layer.name',), model_value=('layer.visible',),
@@ -106,20 +119,27 @@ class Panel:
 		"""Show the viewer's layers as they are now. The viewer calls this when a layer is added or
 		changed, so the page follows a script."""
 		self.state.layers = [_row(layer) for layer in self.viewer._layers]
+		self.state.axes = {'has_ruler': self.viewer._ruler is not None,
+						   'origin': _floats(self.viewer._origin_values()),
+						   'from_zero': self.viewer._axes_from_zero}
 		self._view.update()
 
 	def _layer(self, name):
 		return self.viewer._layers[self.viewer.layers.index(name)]
 
-	def _try(self, name, changes):
-		"""``Viewer.set_layer(name, **changes())``. A value that does not work is explained in the
-		panel, and the page goes back to the layer as it is"""
+	def _guard(self, action):
+		"""Call ``action()``. A value that does not work is explained in the panel, and the page
+		goes back to the viewer as it is"""
 		try:
-			self.viewer.set_layer(name, **changes())
+			action()
 			self.state.message = ''
 		except ValueError as error:
 			self.state.message = str(error)
 			self.refresh()
+
+	def _try(self, name, changes):
+		"""``Viewer.set_layer(name, **changes())``, guarded"""
+		self._guard(lambda: self.viewer.set_layer(name, **changes()))
 
 	def set_visible(self, name, visible):
 		"""Show or hide a layer, like ``Viewer.set_layer(name, visible=...)``"""
@@ -178,6 +198,21 @@ class Panel:
 			gridded = self._layer(name).source.griddef is not None
 			return {'slice_thickness': int(_number(value))} if gridded else {'pointtol': _number(value)}
 		self._try(name, changes)
+
+
+	def set_origin(self, axis, value):
+		"""Set where the ruler counts from along one axis (0 east, 1 north, 2 elevation), like
+		``Viewer.set_axis_origin(origin)``"""
+		def action():
+			origin = list(self.viewer._axis_origin or (0.0, 0.0, 0.0))
+			origin[axis] = _number(value)
+			self.viewer.set_axis_origin(origin, self.viewer._axes_from_zero)
+		self._guard(action)
+
+	def set_from_zero(self, from_zero):
+		"""Count every axis from 0 at the lowest edge of the scene, like
+		``Viewer.set_axis_origin(from_zero=...)``"""
+		self.viewer.set_axis_origin(self.viewer._axis_origin, from_zero)
 
 
 def _number(value):
