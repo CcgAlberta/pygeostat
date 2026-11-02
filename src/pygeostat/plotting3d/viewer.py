@@ -16,9 +16,10 @@ class _Source:
 		self.var = var
 		self.griddef = griddef
 
-	def cut(self, threshold, section):
+	def cut(self, threshold, section, plane=None):
 		"""The part of the mesh in the threshold (min, max of the variable) and in the slice
-		(a dictionary of the slice arguments of view3d), whole if either is None"""
+		(a dictionary of the slice arguments of view3d), whole if either is None. With a plane
+		(a dictionary with its ``origin`` and ``normal``), only the cut through that plane"""
 		mesh = self.mesh
 		if threshold is not None:
 			if self.var is None:
@@ -26,6 +27,8 @@ class _Source:
 			mesh = mesh.threshold(threshold, scalars=self.var)
 		if section is not None:
 			mesh = _slice(mesh, self.griddef, **section)
+		if plane is not None:
+			mesh = mesh.slice(normal=plane['normal'], origin=plane['origin'])
 		return mesh
 
 
@@ -33,8 +36,11 @@ class _Layer:
 	"""A mesh in the scene with the options it was drawn with, which the panel changes later"""
 
 	def __init__(self, name, mesh, kwargs, actor, data_range=None, source=None, threshold=None,
-				 section=None):
+				 section=None, kind='blocks'):
 		self.name = name
+		# 'blocks' (or any mesh) is cut by the slicer's plane, 'holes' are drill hole intervals and
+		# 'points' are samples, which the slicer does not cut (see set_slicer)
+		self.kind = kind
 		self.mesh = mesh
 		self.kwargs = kwargs
 		self.actor = actor
@@ -82,6 +88,8 @@ class Viewer:
 		self._extents = []
 		self._ruler = None
 		self._axis_origin = None
+		self._slicer = {'enabled': False, 'origin': None, 'normal': (0.0, 0.0, 1.0), 'tolerance': 10.0,
+						'show_holes': False}
 		self._axes_from_zero = False
 		self._vertical_exaggeration = 1.0
 		# The panel made by panel(), which shows the layers
@@ -93,7 +101,7 @@ class Viewer:
 		return [layer.name for layer in self._layers]
 
 	def add(self, mesh, extent=None, name=None, data_range=None, source=None, threshold=None,
-			section=None, **kwargs):
+			section=None, kind='blocks', **kwargs):
 		"""
 		Add a mesh to the scene. Keyword arguments go to ``pyvista.Plotter.add_mesh``.
 
@@ -108,6 +116,9 @@ class Viewer:
 			source (_Source): the whole mesh and what is needed to cut it, when ``mesh`` is a part
 				of it that :meth:`set_layer` can change. ``threshold`` and ``section`` are how
 				``mesh`` was cut from it
+			kind (str): ``'holes'`` for drill hole intervals, ``'points'`` for samples, otherwise
+				``'blocks'``; the slicer cuts a ``'blocks'`` layer, hides a ``'holes'`` layer and
+				leaves a ``'points'`` layer as it is
 		"""
 		name = name or 'Layer {}'.format(len(self._layers) + 1)
 		first, number = name, 1
@@ -115,7 +126,7 @@ class Viewer:
 			number += 1
 			name = '{} ({})'.format(first, number)
 		self._layers.append(_Layer(name, mesh, kwargs, self.plotter.add_mesh(mesh, **kwargs), data_range,
-								   source, threshold, section))
+								   source, threshold, section, kind))
 		self._extents.append(mesh.bounds if extent is None else extent)
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
@@ -174,24 +185,37 @@ class Viewer:
 			new_section = layer.section
 			if any(v is not None for v in slice_args):
 				new_section = _new_section(layer.section, *slice_args)
-			part = layer.source.cut(new_threshold, new_section)
-			if part.n_cells == 0:
+			# The slicer's plane may leave nothing of a layer, which is not an error, but a
+			# threshold or slice that leaves nothing is
+			if layer.source.cut(new_threshold, new_section).n_cells == 0:
 				raise ValueError("Nothing is left of layer '{}' with this threshold and slice".format(name))
 			layer.threshold, layer.section = new_threshold, new_section
-			self.plotter.remove_actor(layer.actor)
-			layer.mesh = part
-			layer.actor = self.plotter.add_mesh(part, **layer.kwargs)
-			layer.actor.visibility = layer.visible
+			self._place(layer)
 		if opacity is not None:
 			layer.kwargs['opacity'] = opacity
-			layer.actor.prop.opacity = opacity
+			if layer.actor is not None:
+				layer.actor.prop.opacity = opacity
 		if clim is not None:
 			layer.kwargs['clim'] = tuple(clim)
-			layer.actor.mapper.scalar_range = tuple(clim)
+			if layer.actor is not None:
+				layer.actor.mapper.scalar_range = tuple(clim)
 		if visible is not None:
 			layer.visible = bool(visible)
-			layer.actor.visibility = layer.visible
+			if layer.actor is not None:
+				layer.actor.visibility = layer.visible
 		self._refresh_panel()
+
+	def _place(self, layer):
+		"""Draw a layer again from its source, with its threshold, slice and, for blocks, the
+		slicer's plane. A plane that misses the layer leaves nothing to draw."""
+		plane = self._plane() if layer.kind == 'blocks' else None
+		layer.mesh = layer.source.cut(layer.threshold, layer.section, plane)
+		if layer.actor is not None:
+			self.plotter.remove_actor(layer.actor)
+			layer.actor = None
+		if layer.mesh.n_cells:
+			layer.actor = self.plotter.add_mesh(layer.mesh, **layer.kwargs)
+			layer.actor.visibility = layer.visible
 
 	def add_ruler(self, unit=None):
 		"""
@@ -211,6 +235,55 @@ class Viewer:
 					   'ztitle': Parameters['plotting.zname'] + unit}
 		self._draw_ruler(self.plotter)
 		self._refresh_panel()
+
+	def set_slicer(self, enabled=None, origin=None, normal=None, tolerance=None, show_holes=None):
+		"""
+		Cut the scene with a plane. Block layers show only the cut through the plane; the plane
+		can be tilted. (Drill holes are described at ``show_holes``.)
+
+		Parameters:
+			enabled (bool): switch the slicer on or off. If None, unchanged
+			origin (tuple): a point (x, y, z) on the plane. If None, unchanged; at first the
+				centre of the scene
+			normal (tuple): the direction (nx, ny, nz) the plane faces, e.g. (0, 0, 1) for a plan
+				view. If None, unchanged; at first (0, 0, 1). (0, 0, 0) is taken as (0, 0, 1)
+			tolerance (float): thickness in data units of the band of drill holes shown around the
+				plane (see ``show_holes``). If None, unchanged; at first 10
+			show_holes (bool): show the drill hole intervals that cross the plane. If None,
+				unchanged
+		"""
+		if origin is not None and len(origin) != 3:
+			raise ValueError("`origin` must be (x, y, z)")
+		if normal is not None and len(normal) != 3:
+			raise ValueError("`normal` must be (nx, ny, nz)")
+		if tolerance is not None and not tolerance >= 0:
+			raise ValueError("`tolerance` must be 0 or more")
+		slicer = self._slicer
+		if origin is not None:
+			slicer['origin'] = tuple(float(v) for v in origin)
+		if normal is not None:
+			normal = tuple(float(v) for v in normal)
+			slicer['normal'] = normal if any(normal) else (0.0, 0.0, 1.0)
+		if tolerance is not None:
+			slicer['tolerance'] = float(tolerance)
+		if show_holes is not None:
+			slicer['show_holes'] = bool(show_holes)
+		if enabled is not None:
+			slicer['enabled'] = bool(enabled)
+		if slicer['origin'] is None:
+			lower, upper = _corners(self._extents)
+			slicer['origin'] = tuple(float(v) for v in (lower + upper) / 2)
+		for layer in self._layers:
+			if layer.kind == 'blocks' and layer.source is not None:
+				self._place(layer)
+		self._refresh_panel()
+
+	def _plane(self):
+		"""The plane of the slicer, or None when it is off"""
+		slicer = self._slicer
+		if not slicer['enabled']:
+			return None
+		return {'origin': slicer['origin'], 'normal': slicer['normal']}
 
 	def set_axis_origin(self, origin=None, from_zero=False):
 		"""
@@ -399,7 +472,7 @@ class Viewer:
 
 		# PyVista's colour bars overlap the picture at small sizes, so matplotlib draws them instead.
 		# They go on first because they shrink the axis, and the picture is rendered at its size.
-		shown = [layer for layer in self._layers if layer.visible]
+		shown = [layer for layer in self._layers if layer.visible and layer.actor is not None]
 		cbars = {}
 		for layer in shown:
 			kwargs = layer.kwargs
@@ -432,6 +505,13 @@ class Viewer:
 		if title is not None:
 			ax.set_title(title)
 		return fig, ax
+
+
+def _corners(extents):
+	"""The lowest and the highest corner (x, y, z) of a list of bounds"""
+	import numpy as np
+	bounds = np.array(extents, dtype=float).reshape(-1, 3, 2)
+	return bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
 
 
 def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0)):
@@ -628,7 +708,7 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 
 	"""
 	from ..data.data import DataFile
-	from .meshes import drillhole_mesh, block_mesh
+	from .meshes import drillhole_mesh, block_mesh, SEGMENT
 	from ..plotting.utils import _get_cmap
 	try:
 		import pyvista as pv
@@ -638,6 +718,7 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 	if var is None and isinstance(data, DataFile) and isinstance(data.variables, str):
 		var = data.variables
 	griddef = None
+	kind = 'blocks'
 	if isinstance(data, pv.DataSet):
 		mesh = data
 	elif 'griddef' in kwargs or 'size' in kwargs or getattr(data, 'griddef', None) is not None:
@@ -646,6 +727,7 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			griddef = kwargs['griddef'] if 'griddef' in kwargs else data.griddef
 	else:
 		mesh = drillhole_mesh(data, var=var, **kwargs)
+		kind = 'holes' if SEGMENT in mesh.cell_data else 'points'
 	categorical = var is not None and (catdict is not None or (
 		isinstance(data, DataFile) and var == data.cat))
 	if categorical:
@@ -672,15 +754,15 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		viewer = Viewer()
 	name = label or var
 	if var is None:
-		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section,
+		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section, kind=kind,
 				   color=color, opacity=opacity)
 	elif categorical:
-		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section,
+		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section, kind=kind,
 				   scalars=_CATEGORY, cmap=cmap, opacity=opacity,
 				   clim=(-0.5, len(annotations) - 0.5), n_colors=len(annotations),
 				   annotations=annotations, scalar_bar_args={'title': label or var})
 	else:
-		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section,
+		viewer.add(mesh, extent=extent, name=name, source=source, threshold=threshold, section=section, kind=kind,
 				   data_range=data_range, scalars=var, cmap=_get_cmap(cmap, False, None), clim=clim,
 				   opacity=opacity, scalar_bar_args={'title': label or var})
 	return viewer
