@@ -81,6 +81,8 @@ class Viewer:
 		# The extent of each layer before any threshold, which the ruler wraps
 		self._extents = []
 		self._ruler = None
+		self._axis_origin = None
+		self._axes_from_zero = False
 		self._vertical_exaggeration = 1.0
 		# The panel made by panel(), which shows the layers
 		self._panel = None
@@ -118,9 +120,8 @@ class Viewer:
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
 		elif self._ruler is not None:
-			_draw_ruler(self.plotter, self._extents, self._ruler)
-		if self._panel is not None:
-			self._panel.refresh()
+			self._draw_ruler(self.plotter)
+		self._refresh_panel()
 
 	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
 				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None):
@@ -190,8 +191,7 @@ class Viewer:
 		if visible is not None:
 			layer.visible = bool(visible)
 			layer.actor.visibility = layer.visible
-		if self._panel is not None:
-			self._panel.refresh()
+		self._refresh_panel()
 
 	def add_ruler(self, unit=None):
 		"""
@@ -209,7 +209,41 @@ class Viewer:
 		self._ruler = {'xtitle': Parameters['plotting.xname'] + unit,
 					   'ytitle': Parameters['plotting.yname'] + unit,
 					   'ztitle': Parameters['plotting.zname'] + unit}
-		_draw_ruler(self.plotter, self._extents, self._ruler, self._vertical_exaggeration)
+		self._draw_ruler(self.plotter)
+		self._refresh_panel()
+
+	def set_axis_origin(self, origin=None, from_zero=False):
+		"""
+		Count the labels of the ruler from a point instead of from the coordinates, e.g. to
+		compare two models whose coordinates are far apart. The titles say where the labels start.
+
+		Parameters:
+			origin (tuple): (easting, northing, elevation) that the label 0 stands for. If None,
+				the coordinates are shown as they are
+			from_zero (bool): start every axis at 0 on the lowest edge of the scene, instead of
+				``origin``
+		"""
+		if origin is not None and len(origin) != 3:
+			raise ValueError("`origin` must be (easting, northing, elevation)")
+		self._axis_origin = None if origin is None else tuple(float(v) for v in origin)
+		self._axes_from_zero = bool(from_zero)
+		if self._ruler is not None:
+			self._draw_ruler(self.plotter)
+		self._refresh_panel()
+
+	def _origin_values(self):
+		"""The point the ruler counts from, as three numbers"""
+		import numpy as np
+		if self._axes_from_zero and self._extents:
+			return tuple(np.array(self._extents, dtype=float).reshape(-1, 3, 2)[:, :, 0].min(axis=0))
+		return self._axis_origin or (0.0, 0.0, 0.0)
+
+	def _draw_ruler(self, plotter):
+		_draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration, self._origin_values())
+
+	def _refresh_panel(self):
+		if self._panel is not None:
+			self._panel.refresh()
 
 	def set_vertical_exaggeration(self, factor):
 		"""
@@ -223,7 +257,7 @@ class Viewer:
 		self.plotter.set_scale(zscale=factor)
 		# set_scale also stretches the ruler, so it is drawn again
 		if self._ruler is not None:
-			_draw_ruler(self.plotter, self._extents, self._ruler, factor)
+			self._draw_ruler(self.plotter)
 
 	def panel(self):
 		"""
@@ -321,7 +355,7 @@ class Viewer:
 			static.add_mesh(layer.mesh, show_scalar_bar=False, **layer.kwargs)
 		static.set_scale(zscale=self._vertical_exaggeration)
 		if self._ruler is not None:
-			_draw_ruler(static, self._extents, self._ruler, self._vertical_exaggeration)
+			self._draw_ruler(static)
 		if self.plotter.camera_set:
 			_apply_camera(static, self.get_camera())
 		image = static.screenshot(return_img=True)
@@ -334,13 +368,15 @@ class Viewer:
 		return fig, ax
 
 
-def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0):
+def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0)):
 	"""Draw the ruler around the layers' extents. They come from the layers, not the plotter,
 	which also holds the ruler itself, so redrawing it never grows the box. With vertical
-	exaggeration the box is stretched like the scene but labelled with the real elevations."""
+	exaggeration the box is stretched like the scene but labelled with the real elevations. The
+	labels count from ``origin``: the box is rounded in those counts, then moved back."""
 	import numpy as np
 	bounds = np.array(extents, dtype=float).reshape(-1, 3, 2)
-	lower, upper = bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
+	origin = np.array(origin, dtype=float)
+	lower, upper = bounds[:, :, 0].min(axis=0) - origin, bounds[:, :, 1].max(axis=0) - origin
 	# VTK spaces the labels evenly over the box, so for round labels the box ends on multiples of
 	# a round step (1, 2 or 5 times a power of 10). The longest axis on screen gets about 5 labels
 	# and a shorter one proportionally fewer, so labels on a short axis don't run together
@@ -357,7 +393,10 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0):
 		box += [lo, hi]
 		nlabels.append(int(round((hi - lo) / step)) + 1)
 		decimals.append(max(0, int(-np.floor(np.log10(step)))))
-	stretched = box[:4] + [box[4] * vertical_exaggeration, box[5] * vertical_exaggeration]
+	placed = [v + origin[i // 2] for i, v in enumerate(box)]
+	stretched = placed[:4] + [placed[4] * vertical_exaggeration, placed[5] * vertical_exaggeration]
+	titles = {key: title + (' from {:g}'.format(origin[i]) if origin[i] else '')
+			  for i, (key, title) in enumerate(titles.items())}
 	axes = plotter.show_bounds(bounds=stretched, axes_ranges=box, grid='back', location='outer', ticks='both',
 							   minor_ticks=False, font_size=9, n_xlabels=nlabels[0],
 							   n_ylabels=nlabels[1], n_zlabels=nlabels[2], color='black', **titles)
