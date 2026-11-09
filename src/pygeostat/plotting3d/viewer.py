@@ -32,6 +32,11 @@ class _Source:
 		return mesh
 
 
+# The scene's background and the colour of the text on it. 'black' is a dark grey: the low end of
+# plasma, viridis and turbo is near-black and would disappear against pure black
+_BACKGROUNDS = {'white': ('white', 'black'), 'black': ('#3a3a3a', 'white')}
+
+
 def _actor_name(layer_name):
 	"""The name a layer's actor has in the plotter, so that a layer can be drawn again in its place"""
 	return 'layer ' + layer_name
@@ -106,6 +111,7 @@ class Viewer:
 		# The place of the colour bar of each title, in the order they were first needed
 		self._bar_slots = {}
 		self._vertical_exaggeration = 1.0
+		self._background = 'white'
 		# The panel made by panel(), which shows the layers
 		self._panel = None
 
@@ -253,8 +259,8 @@ class Viewer:
 		if slot >= MAX_N_COLOR_BARS:
 			raise RuntimeError("There is room for {} colour bars, name fewer variables or labels".format(
 				MAX_N_COLOR_BARS))
-		return {**bar_args, 'vertical': True, 'width': theme.width, 'height': theme.height,
-				'position_x': theme.position_x - slot * (theme.width + 0.2 * theme.width),
+		return {'color': _BACKGROUNDS[self._background][1], **bar_args, 'vertical': True,
+				'width': theme.width, 'height': theme.height, 'position_x': theme.position_x - slot * (theme.width + 0.2 * theme.width),
 				'position_y': theme.position_y}
 
 	def _keep_clim(self, layer):
@@ -427,7 +433,8 @@ class Viewer:
 		return self._axis_origin or (0.0, 0.0, 0.0)
 
 	def _draw_ruler(self, plotter):
-		_draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration, self._origin_values())
+		_draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration, self._origin_values(),
+					_BACKGROUNDS[self._background][1])
 
 	def _refresh_panel(self):
 		if self._panel is not None:
@@ -444,6 +451,31 @@ class Viewer:
 		self._vertical_exaggeration = factor
 		self.plotter.set_scale(zscale=factor)
 		# set_scale also stretches the ruler, so it is drawn again
+		if self._ruler is not None:
+			self._draw_ruler(self.plotter)
+		self._refresh_panel()
+
+	def set_background(self, background):
+		"""
+		Change the colour of the scene's background. The ruler and the colour bars change their
+		text colour to stay readable.
+
+		Parameters:
+			background (str): ``'white'`` or ``'black'`` (a dark grey)
+		"""
+		import pyvista as pv
+		key = str(background).lower()
+		if key not in _BACKGROUNDS:
+			raise ValueError("`background` must be one of {}".format(list(_BACKGROUNDS)))
+		self._background = key
+		fill, text = _BACKGROUNDS[key]
+		self.plotter.set_background(fill)
+		rgb = pv.Color(text).float_rgb
+		# A colour bar that exists keeps the colour it was made with, so it is set on the bar
+		for bar in self.plotter.scalar_bars.values():
+			for properties in (bar.GetTitleTextProperty(), bar.GetLabelTextProperty(),
+							   bar.GetAnnotationTextProperty()):
+				properties.SetColor(rgb)
 		if self._ruler is not None:
 			self._draw_ruler(self.plotter)
 		self._refresh_panel()
@@ -501,12 +533,12 @@ class Viewer:
 		"""
 		Everything about how the scene is shown, as a dictionary of plain numbers and strings that
 		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
-		same layers: the camera, the vertical exaggeration, the origin of the ruler, the slicer and, for each
+		same layers: the camera, the vertical exaggeration, the background, the origin of the ruler, the slicer and, for each
 		layer, whether it is shown, its opacity, colour limits, threshold and slice.
 
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
-			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``slicer`` (``enabled``,
+			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``background``, ``slicer`` (``enabled``,
 			``origin``, ``normal``, ``tolerance`` and ``show_holes``) and ``layers`` (a list with
 			one dictionary per layer, with its ``name``)
 		"""
@@ -526,7 +558,7 @@ class Viewer:
 		return {'camera': self.get_camera(), 'slicer': slicer,
 				'vertical_exaggeration': float(self._vertical_exaggeration),
 				'axis_origin': self._axis_origin and list(self._axis_origin),
-				'axes_from_zero': self._axes_from_zero, 'layers': layers}
+				'axes_from_zero': self._axes_from_zero, 'background': self._background, 'layers': layers}
 
 	def set_view(self, view):
 		"""
@@ -564,6 +596,8 @@ class Viewer:
 						   clim=saved['clim'], threshold=saved['threshold'] or False, **cut)
 		self.set_axis_origin(view['axis_origin'], view['axes_from_zero'])
 		self.set_vertical_exaggeration(view['vertical_exaggeration'])
+		# Views saved before the background could be changed have none
+		self.set_background(view.get('background', 'white'))
 		self.set_camera(view['camera'])
 
 	def show_static(self, figsize=None, dpi=None, title=None, cbar=True, ax=None):
@@ -620,6 +654,7 @@ class Viewer:
 		for layer in self._layers:
 			if layer.crossing is not None:
 				static.add_mesh(layer.crossing, show_scalar_bar=False, nan_color='lightgray', **layer.kwargs)
+		static.set_background(_BACKGROUNDS[self._background][0])
 		static.set_scale(zscale=self._vertical_exaggeration)
 		if self._ruler is not None:
 			self._draw_ruler(static)
@@ -652,7 +687,7 @@ def _corners(extents):
 	return bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
 
 
-def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0)):
+def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0), color='black'):
 	"""Draw the ruler around the layers' extents. They come from the layers, not the plotter,
 	which also holds the ruler itself, so redrawing it never grows the box. With vertical
 	exaggeration the box is stretched like the scene but labelled with the real elevations. The
@@ -683,7 +718,7 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0
 			  for i, (key, title) in enumerate(titles.items())}
 	axes = plotter.show_bounds(bounds=stretched, axes_ranges=box, grid='back', location='outer', ticks='both',
 							   minor_ticks=False, font_size=9, n_xlabels=nlabels[0],
-							   n_ylabels=nlabels[1], n_zlabels=nlabels[2], color='black', **titles)
+							   n_ylabels=nlabels[1], n_zlabels=nlabels[2], color=color, **titles)
 	axes.x_label_format = '%.{}f'.format(decimals[0])
 	axes.y_label_format = '%.{}f'.format(decimals[1])
 	axes.z_label_format = '%.{}f'.format(decimals[2])
