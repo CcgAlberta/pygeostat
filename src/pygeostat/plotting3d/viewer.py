@@ -72,6 +72,14 @@ class _Layer:
 		return _actor_name(self.name)
 
 	@property
+	def cmap(self):
+		"""The name of the colormap of a layer coloured by a continuous variable, else None"""
+		if self.clim is None:
+			return None
+		cmap = self.kwargs['cmap']
+		return getattr(cmap, 'name', cmap)
+
+	@property
 	def clim(self):
 		"""The colour limits (min, max) of a layer coloured by a continuous variable, else None"""
 		if 'scalars' not in self.kwargs or 'annotations' in self.kwargs:
@@ -169,7 +177,8 @@ class Viewer:
 		self._refresh_panel()
 
 	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
-				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None):
+				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None,
+				  cmap=None, edges=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
 		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
@@ -191,6 +200,10 @@ class Viewer:
 			slice_thickness (int): extra grid slices each side, which stays as it is if None
 			pointtol (float): distance each side for a layer not on a grid, which stays as it is
 				if None
+			cmap (str or mpl.colors.Colormap): colormap of a layer coloured by a continuous
+				variable, as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`. If None,
+				unchanged
+			edges (bool): draw the edges of the cells of a block layer. If None, unchanged
 
 		The slice arguments work as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`.
 		Changing a slice that is already shown needs only the arguments that change. A layer
@@ -208,6 +221,16 @@ class Viewer:
 				raise ValueError("Layer '{}' is not coloured by a continuous variable".format(name))
 			if not clim[0] < clim[1]:
 				raise ValueError("`clim` must be (min, max) with min below max")
+		if cmap is not None:
+			import matplotlib as mpl
+			from ..plotting.utils import _get_cmap
+			if layer.clim is None:
+				raise ValueError("Layer '{}' is not coloured by a continuous variable".format(name))
+			cmap = _get_cmap(cmap, False, None)
+			if not isinstance(cmap, mpl.colors.Colormap):
+				raise ValueError("Unknown colormap '{}'".format(cmap))
+		if edges is not None and layer.kind != 'blocks':
+			raise ValueError("Layer '{}' is not a block layer, so it has no cell edges".format(name))
 		slice_args = (orient, slice_number, slice_coordinate, slice_thickness, pointtol)
 		cut = threshold is not None or any(v is not None for v in slice_args)
 		if cut:
@@ -229,6 +252,13 @@ class Viewer:
 			layer.kwargs['opacity'] = opacity
 			if layer.actor is not None:
 				layer.actor.prop.opacity = opacity
+		if cmap is not None:
+			layer.kwargs['cmap'] = cmap
+			self._draw_again(layer)
+		if edges is not None:
+			layer.kwargs['show_edges'] = bool(edges)
+			if layer.actor is not None:
+				layer.actor.prop.show_edges = bool(edges)
 		if clim is not None:
 			layer.kwargs['clim'] = tuple(clim)
 			if layer.actor is not None:
@@ -241,6 +271,15 @@ class Viewer:
 			self._place_crossing(layer)
 		self._sync_scalar_bars()
 		self._refresh_panel()
+
+	def _draw_again(self, layer):
+		"""Draw a layer again with the options it has now"""
+		if layer.source is not None:
+			self._place(layer)
+			return
+		layer.actor = self.plotter.add_mesh(layer.mesh, name=layer.key, **layer.kwargs)
+		layer.actor.visibility = layer.visible
+		self._keep_clim(layer)
 
 	def _place(self, layer):
 		"""Draw a layer again from its source, with its threshold, slice and, for blocks, the
@@ -723,7 +762,7 @@ class Viewer:
 		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
 		same layers: the camera, the vertical exaggeration, the background, the origin and ticks of
 		the ruler, what is drawn around the layers, the slicer and, for each layer, whether it is
-		shown, its opacity, colour limits, threshold and slice.
+		shown, its opacity, colormap, cell edges, colour limits, threshold and slice.
 
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
@@ -738,6 +777,8 @@ class Viewer:
 				'name': layer.name, 'visible': layer.visible,
 				'opacity': float(layer.kwargs.get('opacity', 1.0)),
 				'clim': None if layer.clim is None else [float(v) for v in layer.clim],
+				'cmap': layer.cmap,
+				'edges': bool(layer.kwargs.get('show_edges', False)) if layer.kind == 'blocks' else None,
 				'threshold': None if layer.threshold is None else [float(v) for v in layer.threshold],
 				'slice': None if layer.section is None else {
 					k: None if v is None else v if k == 'orient' else float(v)
@@ -786,8 +827,12 @@ class Viewer:
 				cut['slice_number'] = int(cut['slice_number'])
 			if cut.get('slice_thickness') is not None:
 				cut['slice_thickness'] = int(cut['slice_thickness'])
+			layer = self._layers[self.layers.index(saved['name'])]
+			# A colormap made by hand has a name that cannot be found again, so only a changed one is set
+			cmap = saved.get('cmap')
 			self.set_layer(saved['name'], visible=saved['visible'], opacity=saved['opacity'],
-						   clim=saved['clim'], threshold=saved['threshold'] or False, **cut)
+						   clim=saved['clim'], threshold=saved['threshold'] or False,
+						   cmap=None if cmap == layer.cmap else cmap, edges=saved.get('edges'), **cut)
 		self.set_axis_origin(view['axis_origin'], view['axes_from_zero'])
 		self.set_vertical_exaggeration(view['vertical_exaggeration'])
 		# Views saved before the background could be changed have none
