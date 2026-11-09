@@ -361,3 +361,33 @@ def test_panel_background(viewer):
         assert panel.state.background == 'White'
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def test_panel_scene_and_ticks(viewer):
+    """The boxes of the scene and the tick selects call the viewer, the page follows a script, and a
+    spacing that does not fit is explained in the page."""
+    import asyncio
+    viewer.add_ruler()
+    panel = viewer.panel()
+    state = panel.state
+    assert (state.ruler_visible, state.outline_visible, state.axis_arrows, state.axes_visible) == (
+        True, False, False, False)
+    assert state.tick_spacing_xy == 'Auto' and state.tick_options_xy[0] == {'title': 'Auto', 'value': 'Auto'}
+    assert [o['value'] for o in state.tick_options_xy[1:]] == [10.0, 20.0]
+
+    async def scenario():
+        await panel.layout.ready
+        await drag(panel, outline_visible=True, axis_arrows=True, axes_visible=True)
+        assert (viewer._outline, viewer._axis_arrows, viewer._corner_axes) == (True, True, True)
+        await drag(panel, ruler_visible=False)
+        assert viewer.plotter.renderer.cube_axes_actor is None and not viewer._ruler_visible
+        await drag(panel, ruler_visible=True)
+        await drag(panel, tick_spacing_xy=20)
+        assert viewer._tick_spacing == (20.0, None) and viewer.plotter.renderer.cube_axes_actor is not None
+        await drag(panel, tick_spacing_z=1.0)
+        assert state.tick_note.startswith('Elevation: 1 does not fit')
+        viewer.set_scene(outline=False)
+        viewer.set_axis_ticks()
+        assert (state.outline_visible, state.tick_spacing_xy, state.tick_note) == (False, 'Auto', '')
+        await panel.server.stop()
+    asyncio.run(scenario())
