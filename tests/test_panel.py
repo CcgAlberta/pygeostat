@@ -320,3 +320,22 @@ def test_panel_slicer_follows_the_slider_while_it_moves(viewer, monkeypatch):
         assert panel.state.slicer_normal_1 == 1.0 and panel.state.slicer_tolerance == 7.0
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def test_panel_vertical_exaggeration_follows_the_slider(viewer):
+    """The slider is a plain value of the page that stretches the scene as it moves, and it
+    follows the viewer when a script sets the exaggeration."""
+    import asyncio
+    panel = viewer.panel()
+    slider = re.search(r'<VSlider v-model="vertical_exaggeration"[^>]*>', panel.layout.html).group(0)
+    assert '@' not in slider and panel.state.vertical_exaggeration == 1.0
+
+    async def scenario():
+        await panel.layout.ready
+        await drag(panel, vertical_exaggeration=4.0)
+        assert viewer._vertical_exaggeration == 4.0
+        assert viewer.plotter.scale[2] == 4.0
+        viewer.set_vertical_exaggeration(2.5)
+        assert panel.state.vertical_exaggeration == 2.5
+        await panel.server.stop()
+    asyncio.run(scenario())
