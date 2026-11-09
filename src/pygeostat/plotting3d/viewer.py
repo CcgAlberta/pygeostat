@@ -122,6 +122,8 @@ class Viewer:
 		# round spacing that suits the scene. A note says when a spacing could not be used
 		self._tick_spacing = (None, None)
 		self._tick_note = ''
+		# The axis ('x', 'y' or 'z') a flat view looks along, which the ruler leaves out
+		self._hidden_axis = None
 		# The panel made by panel(), which shows the layers
 		self._panel = None
 
@@ -448,7 +450,7 @@ class Viewer:
 			return
 		self._tick_note = _draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration,
 									  self._origin_values(), _BACKGROUNDS[self._background][1],
-									  self._tick_spacing)
+									  self._tick_spacing, self._hidden_axis)
 
 	def _draw_extras(self, plotter):
 		"""Draw everything around the layers again: the ruler, the box and the arrows. They are
@@ -526,6 +528,88 @@ class Viewer:
 							   bar.GetAnnotationTextProperty()):
 				properties.SetColor(rgb)
 		self._draw_extras(self.plotter)
+		self._refresh_panel()
+
+	def fit_view(self):
+		"""
+		Frame the whole scene, with the viewing direction as it is. With a ruler, its box is
+		framed, which reaches out to the next round tick.
+		"""
+		import numpy as np
+		if not self._extents:
+			return
+		if self._ruler is not None and self._ruler_visible:
+			bounds = _ruler_layout(self._extents, self._vertical_exaggeration, self._origin_values(),
+								   self._tick_spacing)[0]
+		else:
+			lower, upper = _corners(self._extents)
+			bounds = np.stack([lower, upper], axis=1).ravel()
+			bounds[4:] *= self._vertical_exaggeration
+		camera = self.plotter.camera
+		camera.SetWindowCenter(*_WINDOW_CENTER)
+		# Fitting the box's outline on the screen, which fitting a sphere around it did not do for
+		# a tall scene: it ran off the top and the bottom of the view
+		self.plotter.renderer.ResetCameraScreenSpace(*bounds, _FILL)
+		if camera.parallel_projection:
+			self._move_camera_far()
+		self.plotter.renderer.ResetCameraClippingRange()
+
+	def _move_camera_far(self):
+		"""Move a parallel camera far from the scene, keeping the picture. VTK sizes the ruler's labels
+		from their distance to the camera and the view angle even when the projection is parallel,
+		where neither changes the picture, so with the camera close the labels came out too big or
+		too small. Far away every label is about as far as the others, and the view angle matched
+		to the parallel scale gives them the size they have in perspective."""
+		import numpy as np
+		camera = self.plotter.camera
+		lower, upper = _corners(self._extents)
+		size = np.linalg.norm((upper - lower) * [1, 1, self._vertical_exaggeration])
+		distance = _FAR_CAMERA * size / 2
+		camera.position = tuple(np.array(camera.focal_point) - np.array(camera.direction) * distance)
+		camera.view_angle = 2 * np.degrees(np.arctan(camera.parallel_scale / distance))
+
+	def set_parallel_projection(self, parallel):
+		"""
+		Switch between a parallel projection (the scene does not shrink with distance, as in a
+		plan or a section) and a perspective one. The scene keeps its size on the screen.
+
+		Parameters:
+			parallel (bool): ``True`` for a parallel projection
+		"""
+		import numpy as np
+		camera = self.plotter.camera
+		if camera.parallel_projection == bool(parallel):
+			return
+		if parallel:
+			self.plotter.enable_parallel_projection()
+			self._move_camera_far()
+		else:
+			half_height = camera.parallel_scale
+			camera.disable_parallel_projection()
+			camera.view_angle = 30.0
+			# Where a view of 30 degrees shows the height the parallel view showed
+			camera.position = tuple(np.array(camera.focal_point) - np.array(camera.direction)
+									* half_height / np.tan(np.radians(15.0)))
+		self.plotter.renderer.ResetCameraClippingRange()
+		self._refresh_panel()
+
+	def set_camera_view(self, view):
+		"""
+		Look at the scene from a direction, fitted to the window. ``'top'``, ``'east'`` and
+		``'north'`` are flat views (a parallel projection) of a plan and the two sections, and leave
+		out the axis they look along from the ruler. ``'x'``, ``'y'`` and ``'z'`` look along an axis
+		in perspective, with the whole ruler, and ``'iso'`` looks from a corner.
+
+		Parameters:
+			view (str): ``'iso'``, ``'x'``, ``'y'``, ``'z'``, ``'top'``, ``'east'`` or ``'north'``
+		"""
+		if view not in _VIEWS:
+			raise ValueError("`view` must be one of {}".format(list(_VIEWS)))
+		position, parallel, self._hidden_axis = _VIEWS[view]
+		self.set_parallel_projection(parallel)
+		self.plotter.camera_position = position
+		self._draw_ruler(self.plotter)
+		self.fit_view()
 		self._refresh_panel()
 
 	def set_scene(self, outline=None, ruler=None, axis_arrows=None, corner_axes=None):
@@ -644,7 +728,7 @@ class Viewer:
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
 			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``background``, ``axis_ticks`` (the two tick spacings), ``scene`` (``outline``, ``ruler``,
-			``axis_arrows`` and ``corner_axes``), ``slicer`` (``enabled``,
+			``axis_arrows``, ``corner_axes`` and the ``hidden_axis`` of a flat view), ``slicer`` (``enabled``,
 			``origin``, ``normal``, ``tolerance`` and ``show_holes``) and ``layers`` (a list with
 			one dictionary per layer, with its ``name``)
 		"""
@@ -668,7 +752,7 @@ class Viewer:
 				'axis_ticks': list(self._tick_spacing),
 				'scene': {'outline': self._outline, 'ruler': self._ruler is not None and self._ruler_visible,
 						  'axis_arrows': self._axis_arrows,
-						  'corner_axes': self._corner_axes}, 'layers': layers}
+						  'corner_axes': self._corner_axes, 'hidden_axis': self._hidden_axis}, 'layers': layers}
 
 	def set_view(self, view):
 		"""
@@ -709,8 +793,10 @@ class Viewer:
 		# Views saved before the background could be changed have none
 		self.set_background(view.get('background', 'white'))
 		self.set_axis_ticks(*view.get('axis_ticks', (None, None)))
-		self.set_scene(**view.get('scene', {'outline': False, 'ruler': True, 'axis_arrows': False,
-											'corner_axes': False}))
+		scene = dict(view.get('scene', {'outline': False, 'ruler': True, 'axis_arrows': False,
+										'corner_axes': False}))
+		self._hidden_axis = scene.pop('hidden_axis', None)
+		self.set_scene(**scene)
 		self.set_camera(view['camera'])
 
 	def show_static(self, figsize=None, dpi=None, title=None, cbar=True, ax=None):
@@ -801,6 +887,19 @@ def _corners(extents):
 	return bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
 
 
+# The camera of each view of :meth:`Viewer.set_camera_view`: the direction pyvista looks along, whether
+# the projection is parallel, and the axis the ruler leaves out, which a flat view looks along
+_VIEWS = {'iso': ('iso', False, None), 'x': ('yz', False, None), 'y': ('xz', False, None),
+		  'z': ('xy', False, None), 'top': ('xy', True, 'z'), 'east': ('xz', True, 'y'),
+		  'north': ('yz', True, 'x')}
+# Where the scene is framed: the centre of the projection moves left by 3% of the width (VTK's
+# window coordinates run from -1 to 1), so the scene is centred in what the colour bars on the
+# right leave free, and fills 72% of the view, which leaves room for the ruler's labels
+_WINDOW_CENTER = (0.06, 0.0)
+_FILL = 0.72
+# How far a parallel camera sits from the scene, in half diagonals of the scene
+_FAR_CAMERA = 50
+
 # The directions of the axis arrows in the usual red, green and blue
 _ARROW_COLOURS = ('#d62728', '#2ca02c', '#1f77b4')
 _ARROW_LABELS = ('X (Easting)', 'Y (Northing)', 'Z (Elevation)')
@@ -837,14 +936,14 @@ def _chosen_step(lo, hi, chosen):
 	raise ValueError("No tick spacing of {:g} or a multiple of it fits {:g} to {:g}".format(chosen, lo, hi))
 
 
-def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0), color='black',
-				spacing=(None, None)):
-	"""Draw the ruler around the layers' extents. They come from the layers, not the plotter,
+def _ruler_layout(extents, vertical_exaggeration, origin, spacing):
+	"""Where the ruler goes around the layers' extents. They come from the layers, not the plotter,
 	which also holds the ruler itself, so redrawing it never grows the box. With vertical
 	exaggeration the box is stretched like the scene but labelled with the real elevations. The
 	labels count from ``origin``: the box is rounded in those counts, then moved back. ``spacing``
 	is the chosen spacing of east and north, and of elevation (None for a round one that suits the
-	scene). Returns a note on a spacing that could not be used, or an empty string."""
+	scene). Returns the stretched bounds of the box, the numbers its axes show, their number of
+	labels and decimals, and a note on a spacing that could not be used (empty if there is none)."""
 	import numpy as np
 	bounds = np.array(extents, dtype=float).reshape(-1, 3, 2)
 	origin = np.array(origin, dtype=float)
@@ -871,6 +970,15 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0
 		decimals.append(next(d for d in range(7) if abs(step * 10 ** d - round(step * 10 ** d)) < 1e-9))
 	placed = [v + origin[i // 2] for i, v in enumerate(box)]
 	stretched = placed[:4] + [placed[4] * vertical_exaggeration, placed[5] * vertical_exaggeration]
+	return stretched, box, nlabels, decimals, '; '.join(notes)
+
+
+def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0), color='black',
+				spacing=(None, None), hidden_axis=None):
+	"""Draw the ruler laid out by :func:`_ruler_layout`, without the axis ``hidden_axis`` ('x', 'y' or
+	'z', or None). Returns the layout's note on a spacing that could not be used."""
+	stretched, box, nlabels, decimals, note = _ruler_layout(extents, vertical_exaggeration, origin, spacing)
+	origin = list(origin)
 	titles = {key: title + (' from {:g}'.format(origin[i]) if origin[i] else '')
 			  for i, (key, title) in enumerate(titles.items())}
 	axes = plotter.show_bounds(bounds=stretched, axes_ranges=box, grid='back', location='outer', ticks='both',
@@ -879,7 +987,11 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0
 	axes.x_label_format = '%.{}f'.format(decimals[0])
 	axes.y_label_format = '%.{}f'.format(decimals[1])
 	axes.z_label_format = '%.{}f'.format(decimals[2])
-	return '; '.join(notes)
+	# show_bounds(show_zaxis=False) left the axis visible (checked with pyvista 0.49), so it is set here
+	if hidden_axis is not None:
+		setattr(axes, '{}_axis_visibility'.format(hidden_axis), False)
+		setattr(axes, '{}_label_visibility'.format(hidden_axis), False)
+	return note
 
 
 # Cell array with each cell's category as 0, 1, 2, ... in code order, which is what gets coloured
