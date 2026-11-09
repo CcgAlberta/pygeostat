@@ -5,6 +5,8 @@
 #-----------------------------------------------------------------------------
 # Imports
 #-----------------------------------------------------------------------------
+from contextlib import contextmanager
+
 from .viewer import _corners, _MAX_LABELS
 
 
@@ -35,6 +37,8 @@ class Panel:
 			raise ImportError('The layer panel requires trame: pip install "pygeostat[view3d-panel]"') from None
 		self.viewer = viewer
 		self.views_folder = views_folder
+		# Set while a button changes the scene in several steps, so the page is sent only the result
+		self._paused = False
 		# The lowest value typed for the threshold of each layer, kept while the threshold is off
 		self._typed_min = {}
 		# A new name each time: get_server caches by name, so a fixed one would share state
@@ -58,6 +62,7 @@ class Panel:
 		self.state.change('background')(self._on_background)
 		self.state.change('outline_visible', 'ruler_visible', 'axis_arrows', 'axes_visible')(self._on_scene)
 		self.state.change('tick_spacing_xy', 'tick_spacing_z')(self._on_tick_spacing)
+		self.state.change('parallel_projection')(self._on_parallel_projection)
 
 		with SinglePageWithDrawerLayout(self.server) as self.layout:
 			self.layout.title.set_text('Layers')
@@ -138,6 +143,23 @@ class Panel:
 						html.Div('{{ tick_note }}', v_if='tick_note', classes='text-caption text-warning')
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
+						html.Div('Camera', classes='text-caption')
+						html.Div('2D views (flat, no perspective)', classes='text-caption')
+						with html.Div(classes='d-flex flex-wrap ga-1 mb-2'):
+							for label, view in (('Top 2D', 'top'), ('East-Elev 2D', 'east'), ('North-Elev 2D', 'north')):
+								vuetify3.VBtn(label, size='small', variant='tonal',
+											  click=(self.show_view, "['{}']".format(view)))
+						html.Div('3D views (perspective)', classes='text-caption')
+						with html.Div(classes='d-flex flex-wrap ga-1 mb-2'):
+							for label, view in (('Iso 3D', 'iso'), ('X 3D', 'x'), ('Y 3D', 'y'), ('Z 3D', 'z')):
+								vuetify3.VBtn(label, size='small', variant='tonal',
+											  click=(self.show_view, "['{}']".format(view)))
+						vuetify3.VCheckbox(label='Parallel projection', v_model=('parallel_projection',),
+										   density='compact', hide_details=True)
+						vuetify3.VBtn('Fit view', size='small', variant='tonal', classes='mt-1',
+									  click=(self.fit_view, '[]'))
+				with vuetify3.VCard(variant='outlined', classes='ma-2'):
+					with vuetify3.VCardText():
 						html.Div('Saved views', classes='text-caption')
 						with html.Div(classes='d-flex align-center ga-1'):
 							vuetify3.VTextField(v_model=('view_name',), label='Name (optional)', density='compact',
@@ -212,7 +234,8 @@ class Panel:
 		viewer = self.viewer
 		self.state.update({'outline_visible': viewer._outline, 'axis_arrows': viewer._axis_arrows,
 						   'axes_visible': viewer._corner_axes, 'ruler_visible': self._ruler_shown(),
-						   'tick_note': viewer._tick_note})
+						   'tick_note': viewer._tick_note,
+						   'parallel_projection': bool(viewer.plotter.camera.parallel_projection)})
 		spans = (_corners(viewer._extents)[1] - _corners(viewer._extents)[0]) if viewer._extents else None
 		for key, chosen, span in zip(('xy', 'z'), viewer._tick_spacing,
 									 (None if spans is None else spans[:2].max(), None if spans is None else spans[2])):
@@ -221,7 +244,25 @@ class Panel:
 		self.state.axes = {'has_ruler': self.viewer._ruler is not None,
 						   'origin': _floats(self.viewer._origin_values()),
 						   'from_zero': self.viewer._axes_from_zero}
-		self._view.update()
+		if not self._paused:
+			self._view.update()
+
+	@contextmanager
+	def _one_frame(self):
+		"""Change the scene in several steps and send the page only the result. trame_pyvista draws
+		the page again on every render of the plotter, and pyvista renders inside several of its
+		camera calls, so a button used to send half-done frames first (no ruler, not yet fitted).
+		pyvista has no public way to pause that, so its set of callbacks is swapped out."""
+		plotter = self.viewer.plotter
+		callbacks = plotter._on_render_callbacks
+		plotter._on_render_callbacks = set()
+		self._paused = True
+		try:
+			yield
+		finally:
+			plotter._on_render_callbacks = callbacks
+			self._paused = False
+		self.refresh()
 
 	def _layer(self, name):
 		return self.viewer._layers[self.viewer.layers.index(name)]
@@ -337,6 +378,22 @@ class Panel:
 					   for key in ('xy', 'z'))
 		if chosen != tuple(self.viewer._tick_spacing):
 			self._guard(lambda: self.viewer.set_axis_ticks(*chosen))
+
+	def show_view(self, view):
+		"""Look from a direction, like ``Viewer.set_camera_view``"""
+		with self._one_frame():
+			self._guard(lambda: self.viewer.set_camera_view(view))
+
+	def fit_view(self):
+		"""Frame the whole scene, like ``Viewer.fit_view``"""
+		with self._one_frame():
+			self.viewer.fit_view()
+
+	def _on_parallel_projection(self, parallel_projection, **changed):
+		"""The box was ticked: like ``Viewer.set_parallel_projection``"""
+		if bool(parallel_projection) != bool(self.viewer.plotter.camera.parallel_projection):
+			with self._one_frame():
+				self.viewer.set_parallel_projection(bool(parallel_projection))
 
 	def snap_slicer(self, orient):
 		"""Face the plane along an axis: 'xy' (plan, normal z), 'xz' (normal y) or 'yz' (normal x)"""
