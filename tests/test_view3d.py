@@ -834,7 +834,7 @@ def two_layer_viewer(grid3d):
 def test_view_round_trip(grid3d):
     """get_view survives json and gives the same scene back on a fresh viewer: the layers'
     visibility, opacity, colour limits, threshold and slice, the ruler origin, the exaggeration,
-    the background and the camera."""
+    the background, the ruler's ticks, what is drawn around the layers and the camera."""
     import json
     viewer = two_layer_viewer(grid3d)
     viewer.set_layer('value', opacity=0.4, clim=(-1, 1), threshold=(-2, 2), orient='xz', slice_number=7,
@@ -843,6 +843,9 @@ def test_view_round_trip(grid3d):
     viewer.set_axis_origin((1, 2, 3))
     viewer.set_vertical_exaggeration(4)
     viewer.set_background('black')
+    viewer.add_ruler()
+    viewer.set_axis_ticks(xy=20)
+    viewer.set_scene(outline=True, axis_arrows=True, corner_axes=True)
     viewer.plotter.camera.position = (300, -400, 200)
     view = json.loads(json.dumps(viewer.get_view()))
     fresh = two_layer_viewer(grid3d)
@@ -850,6 +853,7 @@ def test_view_round_trip(grid3d):
     assert fresh.get_view() == view
     assert fresh._layers[0].mesh.n_cells == viewer._layers[0].mesh.n_cells
     assert not fresh._layers[1].actor.visibility
+    assert fresh._ruler is not None and fresh._tick_spacing == (20, None) and 'outline' in fresh.plotter.renderer.actors
 
 
 def test_set_view_with_other_layers(grid3d):
@@ -1185,3 +1189,86 @@ def test_show_static_uses_the_background(grid3d):
     viewer.set_background('white')
     fig, ax = viewer.show_static(figsize=(3, 3), cbar=False)
     np.testing.assert_array_equal(ax.images[0].get_array()[0, 0][:3], [255, 255, 255])
+
+
+def test_set_scene(grid3d):
+    """The box, the arrows and the corner marker are drawn when asked for and taken away when not,
+    and the ruler is added by asking for it and stays hidden when switched off."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    def actors():
+        return viewer.plotter.renderer.actors
+
+    assert 'outline' not in actors() and 'axis arrows' not in actors() and viewer._ruler is None
+    viewer.set_scene(outline=True, axis_arrows=True, corner_axes=True, ruler=True)
+    assert viewer._ruler is not None and viewer.plotter.renderer.cube_axes_actor is not None
+    np.testing.assert_allclose(actors()['outline'].mapper.dataset.bounds, viewer._layers[0].mesh.bounds)
+    assert 'axis arrows' in actors() and 'axis arrow labels-labels' in actors()
+    assert viewer.plotter.renderer.axes_widget.GetEnabled()
+    viewer.set_scene(outline=False, axis_arrows=False, corner_axes=False, ruler=False)
+    assert 'outline' not in actors() and 'axis arrows' not in actors() and 'axis arrow labels-labels' not in actors()
+    assert not viewer.plotter.renderer.axes_widget.GetEnabled()
+    assert viewer.plotter.renderer.cube_axes_actor is None
+    # Drawing again (a new layer, the exaggeration) does not bring the ruler back
+    viewer.set_vertical_exaggeration(2)
+    assert viewer.plotter.renderer.cube_axes_actor is None
+
+
+def test_set_scene_follows_the_layers_and_the_scale(grid3d):
+    """The box wraps every layer added after it was switched on; the z arrow has the scene's
+    exaggeration in its length but not in its shape (its actor is not scaled again)."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_scene(outline=True, axis_arrows=True)
+    viewer.set_vertical_exaggeration(3)
+    gs.view3d(gs.ExampleData('oilsands'), 'Bitumen', viewer=viewer)
+    lower, upper = gs.plotting3d.viewer._corners(viewer._extents)
+    np.testing.assert_allclose(viewer.plotter.renderer.actors['outline'].mapper.dataset.bounds,
+                               np.stack([lower, upper], axis=1).ravel())
+    assert viewer.plotter.renderer.actors['axis arrows'].GetScale() == (1.0, 1.0, 1.0)
+    bounds = viewer.plotter.renderer.actors['axis arrows'].mapper.dataset.bounds
+    assert bounds[5] - bounds[4] == pytest.approx(bounds[1] - bounds[0], rel=0.2)
+
+
+def test_set_axis_ticks(grid3d):
+    """A chosen spacing sets the labels of the ruler; one that VTK does not label is replaced by a
+    multiple of it, with a note; a spacing of 0 or less is refused and changes nothing."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    cube = viewer.plotter.renderer.cube_axes_actor
+    viewer.set_axis_ticks(xy=20)
+    assert cube.GetBounds()[:2] == (0.0, 80.0) and cube.GetXAxisRange() == (0.0, 80.0)
+    assert viewer.tick_note == ''
+    # 9 labels are asked for along the 40 high elevation, but VTK puts 5 and not 0, 5, 10 ... 40
+    viewer.set_axis_ticks(z=5)
+    assert viewer.tick_note == 'Elevation: 5 does not fit, using 10'
+    assert viewer.plotter.renderer.cube_axes_actor.GetZAxisRange() == (0.0, 40.0)
+    # Only a multiple of the spacing replaces it: 10 would fit, 20 is the multiple of 4 that does
+    viewer.set_axis_ticks(z=4)
+    assert viewer.tick_note == 'Elevation: 4 does not fit, using 20'
+    viewer.set_axis_ticks(xy=1, z=1)
+    assert viewer.tick_note.startswith('Easting: 1 does not fit, using 10; Northing:')
+    viewer.set_axis_ticks()
+    assert viewer.tick_note == '' and viewer._tick_spacing == (None, None)
+    viewer.set_axis_ticks(xy=20)
+    with pytest.raises(ValueError, match='above 0'):
+        viewer.set_axis_ticks(xy=0)
+    assert viewer._tick_spacing == (20, None)
+
+
+def test_view_without_a_ruler_does_not_add_one(grid3d):
+    """A view saved with no ruler says so, and showing it on a scene with none adds none."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    view = viewer.get_view()
+    assert view['scene']['ruler'] is False
+    viewer.set_view(view)
+    assert viewer._ruler is None
+
+
+def test_set_axis_ticks_with_an_origin(grid3d):
+    """The labels still land on multiples of the chosen spacing when they count from another origin
+    (the box starts at -1240 in those counts, which is -5.5 in the scene)."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_axis_origin((1234.5, 0, 0))
+    viewer.set_axis_ticks(xy=20)
+    cube = viewer.plotter.renderer.cube_axes_actor
+    assert cube.GetXAxisRange() == (-1240.0, -1140.0) and cube.GetBounds()[0] == pytest.approx(-5.5)
