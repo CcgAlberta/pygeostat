@@ -55,6 +55,7 @@ class Panel:
 						  *['slicer_normal_{}'.format(i) for i in range(3)], 'slicer_tolerance')(
 			self._on_slicer_sliders)
 		self.state.change('vertical_exaggeration')(self._on_vertical_exaggeration)
+		self.state.change('background')(self._on_background)
 
 		with SinglePageWithDrawerLayout(self.server) as self.layout:
 			self.layout.title.set_text('Layers')
@@ -119,7 +120,10 @@ class Panel:
 										   density='compact', hide_details=True)
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
+						html.Div('Scene', classes='text-caption')
 						self._slider('Vertical exaggeration', 'vertical_exaggeration', 1, 10, step=0.5)
+						vuetify3.VSelect(v_model=('background',), items=(['White', 'Black'],), label='Background',
+										 density='compact', hide_details=True, classes='mt-2')
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
 						html.Div('Saved views', classes='text-caption')
@@ -192,6 +196,7 @@ class Panel:
 		self.state.update({'slicer_normal_{}'.format(i): v for i, v in enumerate(self.state.slicer['normal'])})
 		self.state.slicer_tolerance = self.state.slicer['tolerance']
 		self.state.vertical_exaggeration = self.viewer._vertical_exaggeration
+		self.state.background = self.viewer._background.capitalize()
 		self.state.axes = {'has_ruler': self.viewer._ruler is not None,
 						   'origin': _floats(self.viewer._origin_values()),
 						   'from_zero': self.viewer._axes_from_zero}
@@ -283,6 +288,11 @@ class Panel:
 		factor = float(vertical_exaggeration)
 		if factor != self.viewer._vertical_exaggeration:
 			self._guard(lambda: self.viewer.set_vertical_exaggeration(factor))
+
+	def _on_background(self, background, **changed):
+		"""The background was chosen: change it, like ``Viewer.set_background``"""
+		if background.lower() != self.viewer._background:
+			self._guard(lambda: self.viewer.set_background(background))
 
 	def snap_slicer(self, orient):
 		"""Face the plane along an axis: 'xy' (plan, normal z), 'xz' (normal y) or 'yz' (normal x)"""
