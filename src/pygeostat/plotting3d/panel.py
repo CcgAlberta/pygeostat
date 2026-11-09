@@ -5,7 +5,7 @@
 #-----------------------------------------------------------------------------
 # Imports
 #-----------------------------------------------------------------------------
-from .viewer import _corners
+from .viewer import _corners, _MAX_LABELS
 
 
 class Panel:
@@ -56,6 +56,8 @@ class Panel:
 			self._on_slicer_sliders)
 		self.state.change('vertical_exaggeration')(self._on_vertical_exaggeration)
 		self.state.change('background')(self._on_background)
+		self.state.change('outline_visible', 'ruler_visible', 'axis_arrows', 'axes_visible')(self._on_scene)
+		self.state.change('tick_spacing_xy', 'tick_spacing_z')(self._on_tick_spacing)
 
 		with SinglePageWithDrawerLayout(self.server) as self.layout:
 			self.layout.title.set_text('Layers')
@@ -124,6 +126,16 @@ class Panel:
 						self._slider('Vertical exaggeration', 'vertical_exaggeration', 1, 10, step=0.5)
 						vuetify3.VSelect(v_model=('background',), items=(['White', 'Black'],), label='Background',
 										 density='compact', hide_details=True, classes='mt-2')
+						for label, key in (('Outline', 'outline_visible'), ('Axis', 'ruler_visible'),
+										   ('X/Y/Z arrows in the scene', 'axis_arrows'),
+										   ('Coordinate legend (corner)', 'axes_visible')):
+							vuetify3.VCheckbox(label=label, v_model=(key,), density='compact', hide_details=True)
+						html.Div('Axis ticks (same settings = comparable pictures)', classes='text-caption mt-2')
+						with html.Div(classes='d-flex ga-2'):
+							for label, key in (('East/North', 'tick_spacing_xy'), ('Elevation', 'tick_spacing_z')):
+								vuetify3.VSelect(label=label, v_model=(key,), items=(key.replace('spacing', 'options'),),
+												 density='compact', hide_details=True)
+						html.Div('{{ tick_note }}', v_if='tick_note', classes='text-caption text-warning')
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
 						html.Div('Saved views', classes='text-caption')
@@ -197,6 +209,15 @@ class Panel:
 		self.state.slicer_tolerance = self.state.slicer['tolerance']
 		self.state.vertical_exaggeration = self.viewer._vertical_exaggeration
 		self.state.background = self.viewer._background.capitalize()
+		viewer = self.viewer
+		self.state.update({'outline_visible': viewer._outline, 'axis_arrows': viewer._axis_arrows,
+						   'axes_visible': viewer._corner_axes, 'ruler_visible': self._ruler_shown(),
+						   'tick_note': viewer._tick_note})
+		spans = (_corners(viewer._extents)[1] - _corners(viewer._extents)[0]) if viewer._extents else None
+		for key, chosen, span in zip(('xy', 'z'), viewer._tick_spacing,
+									 (None if spans is None else spans[:2].max(), None if spans is None else spans[2])):
+			self.state['tick_spacing_' + key] = 'Auto' if chosen is None else chosen
+			self.state['tick_options_' + key] = _tick_options(span, chosen)
 		self.state.axes = {'has_ruler': self.viewer._ruler is not None,
 						   'origin': _floats(self.viewer._origin_values()),
 						   'from_zero': self.viewer._axes_from_zero}
@@ -294,6 +315,29 @@ class Panel:
 		if background.lower() != self.viewer._background:
 			self._guard(lambda: self.viewer.set_background(background))
 
+	def _ruler_shown(self):
+		"""Whether the scene has a ruler that is drawn"""
+		return self.viewer._ruler is not None and self.viewer._ruler_visible
+
+	def _on_scene(self, **changed):
+		"""A box of the scene was ticked or unticked: change what the viewer draws around the
+		layers, like ``Viewer.set_scene``"""
+		viewer, state = self.viewer, self.state
+		wanted = {'outline': state.outline_visible, 'ruler': state.ruler_visible,
+				  'axis_arrows': state.axis_arrows, 'corner_axes': state.axes_visible}
+		current = {'outline': viewer._outline, 'ruler': self._ruler_shown(),
+				   'axis_arrows': viewer._axis_arrows, 'corner_axes': viewer._corner_axes}
+		differ = {key: bool(value) for key, value in wanted.items() if bool(value) != current[key]}
+		if differ:
+			self._guard(lambda: viewer.set_scene(**differ))
+
+	def _on_tick_spacing(self, **changed):
+		"""A tick spacing was chosen: like ``Viewer.set_axis_ticks``"""
+		chosen = tuple(None if self.state['tick_spacing_' + key] == 'Auto' else float(self.state['tick_spacing_' + key])
+					   for key in ('xy', 'z'))
+		if chosen != tuple(self.viewer._tick_spacing):
+			self._guard(lambda: self.viewer.set_axis_ticks(*chosen))
+
 	def snap_slicer(self, orient):
 		"""Face the plane along an axis: 'xy' (plan, normal z), 'xz' (normal y) or 'yz' (normal x)"""
 		normal = {'xy': (0.0, 0.0, 1.0), 'xz': (0.0, 1.0, 0.0), 'yz': (1.0, 0.0, 0.0)}[orient]
@@ -363,6 +407,17 @@ class Panel:
 				raise ValueError("Could not load {}: {}".format(path, error)) from None
 			self.state.note = 'Loaded ' + path
 		self._guard(action)
+
+
+def _tick_options(span, chosen):
+	"""The tick spacings to choose from for an axis ``span`` long, as the page's list: 'Auto' and the
+	round spacings (1, 2 or 5 times a power of 10) that give 3 to 10 labels, and the ``chosen``
+	one when a script chose another"""
+	steps = [] if span is None else [f * 10.0 ** p for p in range(-3, 10) for f in (1, 2, 5)
+									 if 2 <= span / (f * 10.0 ** p) <= _MAX_LABELS - 1]
+	if chosen is not None and chosen not in steps:
+		steps = sorted(steps + [chosen])
+	return [{'title': 'Auto', 'value': 'Auto'}] + [{'title': '{:g}'.format(step), 'value': step} for step in steps]
 
 
 def _number(value):
