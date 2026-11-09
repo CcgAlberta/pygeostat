@@ -112,6 +112,16 @@ class Viewer:
 		self._bar_slots = {}
 		self._vertical_exaggeration = 1.0
 		self._background = 'white'
+		# What is drawn around the layers: the ruler (drawn once add_ruler has been called), the
+		# box of the scene, the x, y and z arrows and the orientation marker in the corner
+		self._ruler_visible = True
+		self._outline = False
+		self._axis_arrows = False
+		self._corner_axes = False
+		# The spacing of the ruler's ticks along east and north, and along elevation. None is a
+		# round spacing that suits the scene. A note says when a spacing could not be used
+		self._tick_spacing = (None, None)
+		self._tick_note = ''
 		# The panel made by panel(), which shows the layers
 		self._panel = None
 
@@ -152,8 +162,8 @@ class Viewer:
 		self._extents.append(mesh.bounds if extent is None else extent)
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
-		elif self._ruler is not None:
-			self._draw_ruler(self.plotter)
+		else:
+			self._draw_extras(self.plotter)
 		self._refresh_panel()
 
 	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
@@ -285,6 +295,7 @@ class Viewer:
 		self._ruler = {'xtitle': Parameters['plotting.xname'] + unit,
 					   'ytitle': Parameters['plotting.yname'] + unit,
 					   'ztitle': Parameters['plotting.zname'] + unit}
+		self._ruler_visible = True
 		self._draw_ruler(self.plotter)
 		self._refresh_panel()
 
@@ -421,8 +432,7 @@ class Viewer:
 			raise ValueError("`origin` must be (easting, northing, elevation)")
 		self._axis_origin = None if origin is None else tuple(float(v) for v in origin)
 		self._axes_from_zero = bool(from_zero)
-		if self._ruler is not None:
-			self._draw_ruler(self.plotter)
+		self._draw_ruler(self.plotter)
 		self._refresh_panel()
 
 	def _origin_values(self):
@@ -433,8 +443,48 @@ class Viewer:
 		return self._axis_origin or (0.0, 0.0, 0.0)
 
 	def _draw_ruler(self, plotter):
-		_draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration, self._origin_values(),
-					_BACKGROUNDS[self._background][1])
+		"""Draw the ruler, if there is one and it is not switched off"""
+		if self._ruler is None or not self._ruler_visible:
+			return
+		self._tick_note = _draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration,
+									  self._origin_values(), _BACKGROUNDS[self._background][1],
+									  self._tick_spacing)
+
+	def _draw_extras(self, plotter):
+		"""Draw everything around the layers again: the ruler, the box and the arrows. They are
+		drawn from the extent of the layers, so this is called when that or the scene's scale,
+		background or ruler changes"""
+		import numpy as np
+		import pyvista as pv
+		self._draw_ruler(plotter)
+		plotter.remove_actor('outline')
+		plotter.remove_actor('axis arrows')
+		plotter.remove_actor('axis arrow labels')
+		if not self._extents:
+			return
+		text = _BACKGROUNDS[self._background][1]
+		lower, upper = _corners(self._extents)
+		if self._outline:
+			plotter.add_mesh(pv.Box(bounds=np.stack([lower, upper], axis=1).ravel()).outline(), color=text,
+							 name='outline', pickable=False)
+		if self._axis_arrows:
+			# Drawn in the stretched scene, each a quarter of its longest side, so that the three
+			# are as long as each other on the screen. A new actor takes the scene's vertical
+			# scale, which would stretch the z arrow, so the scale of the arrows is put back to 1
+			stretch = np.array([1.0, 1.0, self._vertical_exaggeration])
+			start, longest = lower * stretch, 0.25 * ((upper - lower) * stretch).max()
+			arrows = pv.PolyData()
+			for axis, colour in enumerate(_ARROW_COLOURS):
+				arrow = pv.Arrow(start=start, direction=np.eye(3)[axis], scale=longest, shaft_radius=0.02,
+								 tip_radius=0.06, tip_length=0.15)
+				arrow.cell_data['colour'] = np.tile(pv.Color(colour).int_rgb, (arrow.n_cells, 1))
+				arrows += arrow
+			plotter.add_mesh(arrows, scalars='colour', rgb=True, name='axis arrows', pickable=False)
+			plotter.renderer.actors['axis arrows'].SetScale(1.0, 1.0, 1.0)
+			plotter.add_point_labels(start + np.eye(3) * longest * 1.08, list(_ARROW_LABELS),
+									 name='axis arrow labels', shape=None, show_points=False,
+									 always_visible=True, font_size=14, bold=True, text_color=text,
+									 pickable=False)
 
 	def _refresh_panel(self):
 		if self._panel is not None:
@@ -451,8 +501,7 @@ class Viewer:
 		self._vertical_exaggeration = factor
 		self.plotter.set_scale(zscale=factor)
 		# set_scale also stretches the ruler, so it is drawn again
-		if self._ruler is not None:
-			self._draw_ruler(self.plotter)
+		self._draw_extras(self.plotter)
 		self._refresh_panel()
 
 	def set_background(self, background):
@@ -476,9 +525,64 @@ class Viewer:
 			for properties in (bar.GetTitleTextProperty(), bar.GetLabelTextProperty(),
 							   bar.GetAnnotationTextProperty()):
 				properties.SetColor(rgb)
-		if self._ruler is not None:
-			self._draw_ruler(self.plotter)
+		self._draw_extras(self.plotter)
 		self._refresh_panel()
+
+	def set_scene(self, outline=None, ruler=None, axis_arrows=None, corner_axes=None):
+		"""
+		Show or hide what is drawn around the layers. If None, a setting stays as it is.
+
+		Parameters:
+			outline (bool): a box around the scene. At first off
+			ruler (bool): the ruler of :meth:`add_ruler`. ``True`` adds it if there is none
+			axis_arrows (bool): large x, y and z arrows at the lowest corner of the scene. At
+				first off
+			corner_axes (bool): the small marker in the corner that shows the directions of the
+				axes. At first off
+		"""
+		if outline is not None:
+			self._outline = bool(outline)
+		if axis_arrows is not None:
+			self._axis_arrows = bool(axis_arrows)
+		if ruler is not None:
+			self._ruler_visible = bool(ruler)
+			if ruler and self._ruler is None:
+				self.add_ruler()
+			elif not ruler:
+				self.plotter.remove_bounds_axes()
+				self._tick_note = ''
+		if corner_axes is not None:
+			self._corner_axes = bool(corner_axes)
+			if corner_axes:
+				self.plotter.show_axes()
+			else:
+				self.plotter.hide_axes()
+		self._draw_extras(self.plotter)
+		self._refresh_panel()
+
+	def set_axis_ticks(self, xy=None, z=None):
+		"""
+		Choose the spacing of the ruler's ticks, so that two pictures with the same spacing have
+		grid lines the same distance apart. The ruler is widened to a whole number of spacings,
+		and a spacing that gives more labels than the ruler can show is replaced by the smallest round
+		multiple of it that works. :attr:`tick_note` says so.
+
+		Parameters:
+			xy (float): spacing along east and north, in the units of the coordinates. If None, a
+				round spacing that suits the scene
+			z (float): spacing along elevation. If None, a round spacing that suits the scene
+		"""
+		for spacing in (xy, z):
+			if spacing is not None and not spacing > 0:
+				raise ValueError("A tick spacing must be above 0")
+		self._tick_spacing = (xy, z)
+		self._draw_ruler(self.plotter)
+		self._refresh_panel()
+
+	@property
+	def tick_note(self):
+		"""Which tick spacing of :meth:`set_axis_ticks` was replaced and why, or an empty string (str)"""
+		return self._tick_note
 
 	def panel(self, views_folder='views'):
 		"""
@@ -533,12 +637,14 @@ class Viewer:
 		"""
 		Everything about how the scene is shown, as a dictionary of plain numbers and strings that
 		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
-		same layers: the camera, the vertical exaggeration, the background, the origin of the ruler, the slicer and, for each
-		layer, whether it is shown, its opacity, colour limits, threshold and slice.
+		same layers: the camera, the vertical exaggeration, the background, the origin and ticks of
+		the ruler, what is drawn around the layers, the slicer and, for each layer, whether it is
+		shown, its opacity, colour limits, threshold and slice.
 
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
-			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``background``, ``slicer`` (``enabled``,
+			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``background``, ``axis_ticks`` (the two tick spacings), ``scene`` (``outline``, ``ruler``,
+			``axis_arrows`` and ``corner_axes``), ``slicer`` (``enabled``,
 			``origin``, ``normal``, ``tolerance`` and ``show_holes``) and ``layers`` (a list with
 			one dictionary per layer, with its ``name``)
 		"""
@@ -558,7 +664,11 @@ class Viewer:
 		return {'camera': self.get_camera(), 'slicer': slicer,
 				'vertical_exaggeration': float(self._vertical_exaggeration),
 				'axis_origin': self._axis_origin and list(self._axis_origin),
-				'axes_from_zero': self._axes_from_zero, 'background': self._background, 'layers': layers}
+				'axes_from_zero': self._axes_from_zero, 'background': self._background,
+				'axis_ticks': list(self._tick_spacing),
+				'scene': {'outline': self._outline, 'ruler': self._ruler is not None and self._ruler_visible,
+						  'axis_arrows': self._axis_arrows,
+						  'corner_axes': self._corner_axes}, 'layers': layers}
 
 	def set_view(self, view):
 		"""
@@ -598,6 +708,9 @@ class Viewer:
 		self.set_vertical_exaggeration(view['vertical_exaggeration'])
 		# Views saved before the background could be changed have none
 		self.set_background(view.get('background', 'white'))
+		self.set_axis_ticks(*view.get('axis_ticks', (None, None)))
+		self.set_scene(**view.get('scene', {'outline': False, 'ruler': True, 'axis_arrows': False,
+											'corner_axes': False}))
 		self.set_camera(view['camera'])
 
 	def show_static(self, figsize=None, dpi=None, title=None, cbar=True, ax=None):
@@ -656,8 +769,9 @@ class Viewer:
 				static.add_mesh(layer.crossing, show_scalar_bar=False, nan_color='lightgray', **layer.kwargs)
 		static.set_background(_BACKGROUNDS[self._background][0])
 		static.set_scale(zscale=self._vertical_exaggeration)
-		if self._ruler is not None:
-			self._draw_ruler(static)
+		self._draw_extras(static)
+		if self._corner_axes:
+			static.show_axes()
 		if self.plotter.camera_set:
 			_apply_camera(static, self.get_camera())
 		image = static.screenshot(return_img=True)
@@ -687,11 +801,50 @@ def _corners(extents):
 	return bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
 
 
-def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0), color='black'):
+# The directions of the axis arrows in the usual red, green and blue
+_ARROW_COLOURS = ('#d62728', '#2ca02c', '#1f77b4')
+_ARROW_LABELS = ('X (Easting)', 'Y (Northing)', 'Z (Elevation)')
+_AXES = ('Easting', 'Northing', 'Elevation')
+# The most labels VTK puts on an axis at every multiple of a spacing (checked for spacings of 1 to 100
+# over 1 to 59 spacings): it labels fewer than asked for when it won't space that many
+_MAX_LABELS = 10
+
+
+def _snap(lo, hi, step):
+	"""The axis from ``lo`` to ``hi`` widened to whole steps, and its number of labels"""
+	import numpy as np
+	lo, hi = np.floor(lo / step) * step, np.ceil(hi / step) * step
+	if hi == lo:
+		hi = lo + step
+	return lo, hi, int(round((hi - lo) / step)) + 1
+
+
+def _chosen_step(lo, hi, chosen):
+	"""The spacing ``chosen`` for an axis from ``lo`` to ``hi``, or the smallest round multiple of
+	it (1, 2, 2.5 or 5 times a power of 10) at which VTK labels every multiple of the spacing.
+	VTK puts the labels itself, and labels fewer than it is asked for when it won't space that many"""
+	import numpy as np
+	from pyvista.plotting.cube_axes_actor import make_axis_labels
+	power = int(np.floor(np.log10(chosen)))
+	for step in (f * 10.0 ** p for p in range(power, power + 7) for f in (1, 2, 2.5, 5)):
+		if step < chosen or not np.isclose(step / chosen, round(step / chosen)):
+			continue
+		lo_s, hi_s, n = _snap(lo, hi, step)
+		labels = make_axis_labels(vmin=lo_s, vmax=hi_s, n=n, fmt='%.6f')
+		drawn = np.array([float(labels.GetValue(i)) for i in range(labels.GetNumberOfValues())])
+		if len(drawn) == n:
+			return step
+	raise ValueError("No tick spacing of {:g} or a multiple of it fits {:g} to {:g}".format(chosen, lo, hi))
+
+
+def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0), color='black',
+				spacing=(None, None)):
 	"""Draw the ruler around the layers' extents. They come from the layers, not the plotter,
 	which also holds the ruler itself, so redrawing it never grows the box. With vertical
 	exaggeration the box is stretched like the scene but labelled with the real elevations. The
-	labels count from ``origin``: the box is rounded in those counts, then moved back."""
+	labels count from ``origin``: the box is rounded in those counts, then moved back. ``spacing``
+	is the chosen spacing of east and north, and of elevation (None for a round one that suits the
+	scene). Returns a note on a spacing that could not be used, or an empty string."""
 	import numpy as np
 	bounds = np.array(extents, dtype=float).reshape(-1, 3, 2)
 	origin = np.array(origin, dtype=float)
@@ -701,17 +854,21 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0
 	# and a shorter one proportionally fewer, so labels on a short axis don't run together
 	spans = np.where(upper > lower, upper - lower, 1.0)
 	on_screen = spans * [1, 1, vertical_exaggeration]
-	box, nlabels, decimals = [], [], []
-	for lo, hi, span, shown in zip(lower, upper, spans, on_screen):
-		intervals = max(2, round(4 * shown / on_screen.max()))
-		power = 10 ** np.floor(np.log10(span / intervals))
-		step = next(m * power for m in (1, 2, 5, 10) if m * power >= span / intervals)
-		lo, hi = np.floor(lo / step) * step, np.ceil(hi / step) * step
-		if hi == lo:
-			hi = lo + step
+	box, nlabels, decimals, notes = [], [], [], []
+	for axis, (lo, hi, span, shown) in enumerate(zip(lower, upper, spans, on_screen)):
+		chosen = (spacing[0], spacing[0], spacing[1])[axis]
+		if chosen is None:
+			intervals = max(2, round(4 * shown / on_screen.max()))
+			power = 10 ** np.floor(np.log10(span / intervals))
+			step = next(m * power for m in (1, 2, 5, 10) if m * power >= span / intervals)
+		else:
+			step = _chosen_step(lo, hi, chosen)
+			if step != chosen:
+				notes.append('{}: {:g} does not fit, using {:g}'.format(_AXES[axis], chosen, step))
+		lo, hi, n = _snap(lo, hi, step)
 		box += [lo, hi]
-		nlabels.append(int(round((hi - lo) / step)) + 1)
-		decimals.append(max(0, int(-np.floor(np.log10(step)))))
+		nlabels.append(n)
+		decimals.append(next(d for d in range(7) if abs(step * 10 ** d - round(step * 10 ** d)) < 1e-9))
 	placed = [v + origin[i // 2] for i, v in enumerate(box)]
 	stretched = placed[:4] + [placed[4] * vertical_exaggeration, placed[5] * vertical_exaggeration]
 	titles = {key: title + (' from {:g}'.format(origin[i]) if origin[i] else '')
@@ -722,6 +879,7 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0
 	axes.x_label_format = '%.{}f'.format(decimals[0])
 	axes.y_label_format = '%.{}f'.format(decimals[1])
 	axes.z_label_format = '%.{}f'.format(decimals[2])
+	return '; '.join(notes)
 
 
 # Cell array with each cell's category as 0, 1, 2, ... in code order, which is what gets coloured
