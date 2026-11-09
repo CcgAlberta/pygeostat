@@ -833,8 +833,8 @@ def two_layer_viewer(grid3d):
 
 def test_view_round_trip(grid3d):
     """get_view survives json and gives the same scene back on a fresh viewer: the layers'
-    visibility, opacity, colour limits, threshold and slice, the ruler origin, the exaggeration
-    and the camera."""
+    visibility, opacity, colour limits, threshold and slice, the ruler origin, the exaggeration,
+    the background and the camera."""
     import json
     viewer = two_layer_viewer(grid3d)
     viewer.set_layer('value', opacity=0.4, clim=(-1, 1), threshold=(-2, 2), orient='xz', slice_number=7,
@@ -842,6 +842,7 @@ def test_view_round_trip(grid3d):
     viewer.set_layer('Bitumen', visible=False)
     viewer.set_axis_origin((1, 2, 3))
     viewer.set_vertical_exaggeration(4)
+    viewer.set_background('black')
     viewer.plotter.camera.position = (300, -400, 200)
     view = json.loads(json.dumps(viewer.get_view()))
     fresh = two_layer_viewer(grid3d)
@@ -1152,3 +1153,35 @@ def test_colour_bars_stop_at_the_room_there_is():
             mesh.cell_data['v{}'.format(i)] = np.arange(mesh.n_cells, dtype=float)
             gs.view3d(mesh, 'v{}'.format(i), viewer=viewer)
     assert len(viewer.plotter.scalar_bars.keys()) == 10
+
+
+def test_set_background(grid3d):
+    """The background and the text on it change together, also for a colour bar made afterwards,
+    and a view saved before the background existed shows with the white one."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_background('Black')
+    assert viewer._background == 'black'
+    assert pv.Color(viewer.plotter.background_color) == pv.Color('#3a3a3a')
+    gs.view3d(gs.ExampleData('oilsands'), 'Bitumen', viewer=viewer)
+    for bar in viewer.plotter.scalar_bars.values():
+        assert bar.GetTitleTextProperty().GetColor() == (1.0, 1.0, 1.0)
+    view = viewer.get_view()
+    del view['background']
+    viewer.set_view(view)
+    assert viewer._background == 'white'
+    assert pv.Color(viewer.plotter.background_color) == pv.Color('white')
+    with pytest.raises(ValueError, match="'white', 'black'"):
+        viewer.set_background('red')
+    assert viewer._background == 'white'
+
+
+def test_show_static_uses_the_background(grid3d):
+    """The picture has the scene's background colour in its corner."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_background('black')
+    fig, ax = viewer.show_static(figsize=(3, 3), cbar=False)
+    np.testing.assert_array_equal(ax.images[0].get_array()[0, 0][:3], [0x3a, 0x3a, 0x3a])
+    viewer.set_background('white')
+    fig, ax = viewer.show_static(figsize=(3, 3), cbar=False)
+    np.testing.assert_array_equal(ax.images[0].get_array()[0, 0][:3], [255, 255, 255])
