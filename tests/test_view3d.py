@@ -1272,3 +1272,140 @@ def test_set_axis_ticks_with_an_origin(grid3d):
     viewer.set_axis_ticks(xy=20)
     cube = viewer.plotter.renderer.cube_axes_actor
     assert cube.GetXAxisRange() == (-1240.0, -1140.0) and cube.GetBounds()[0] == pytest.approx(-5.5)
+
+
+def screen_box(viewer, bounds):
+    """(lowest, highest) corner of a box as fractions of the window, as it is drawn now."""
+    renderer = viewer.plotter.renderer
+    width, height = viewer.plotter.window_size
+    points = []
+    for x in bounds[:2]:
+        for y in bounds[2:4]:
+            for z in bounds[4:]:
+                renderer.SetWorldPoint(x, y, z, 1.0)
+                renderer.WorldToDisplay()
+                display = renderer.GetDisplayPoint()
+                points.append((display[0] / width, display[1] / height))
+    return np.min(points, axis=0), np.max(points, axis=0)
+
+
+@pytest.mark.parametrize('exaggeration', [1, 3])
+@pytest.mark.parametrize('view', ['iso', 'x', 'y', 'z', 'top', 'east', 'north'])
+def test_set_camera_view_fits_the_ruler(grid3d, view, exaggeration):
+    """Every view shows the whole ruler inside the window, left of the colour bars, not tiny."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_vertical_exaggeration(exaggeration)
+    viewer.set_camera_view(view)
+    box = screen_box(viewer, _ruler_bounds(viewer))
+    assert (box[0] > 0.02).all() and (box[1][1] < 0.98) and box[1][0] < 0.88
+    # The box fills 72% of the window in its longer direction in a flat view
+    if view in ('top', 'east', 'north'):
+        assert max(box[1] - box[0]) == pytest.approx(0.72, abs=0.08)
+
+
+def _ruler_bounds(viewer):
+    return viewer.plotter.renderer.cube_axes_actor.GetBounds()
+
+
+def test_set_camera_view_directions(grid3d):
+    """Each view looks along its axis; flat views are parallel and leave out that axis of the ruler,
+    the others are in perspective with all three axes; a name that is not a view changes nothing."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    looking = {'top': (0, 0, -1), 'east': (0, 1, 0), 'north': (-1, 0, 0), 'z': (0, 0, -1), 'y': (0, 1, 0), 'x': (-1, 0, 0)}
+    for view, direction in looking.items():
+        viewer.set_camera_view(view)
+        np.testing.assert_allclose(viewer.plotter.camera.direction, direction, atol=1e-6)
+        flat = view in ('top', 'east', 'north')
+        assert viewer.plotter.camera.parallel_projection == flat
+        hidden = {'top': 'z', 'east': 'y', 'north': 'x'}.get(view)
+        cube = viewer.plotter.renderer.cube_axes_actor
+        shown = [cube.GetXAxisVisibility(), cube.GetYAxisVisibility(), cube.GetZAxisVisibility()]
+        assert shown == [axis != hidden for axis in 'xyz']
+    viewer.set_camera_view('iso')
+    assert not viewer.plotter.camera.parallel_projection and viewer._hidden_axis is None
+    position = viewer.get_camera()['position']
+    with pytest.raises(ValueError, match="'top'"):
+        viewer.set_camera_view('up')
+    assert viewer.get_camera()['position'] == position
+
+
+def test_set_parallel_projection_keeps_the_size(grid3d):
+    """Switching to a parallel projection and back keeps the scene about as big on the screen."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    bounds = viewer._layers[0].mesh.bounds
+    before = screen_box(viewer, bounds)
+    viewer.set_parallel_projection(True)
+    assert viewer.plotter.camera.parallel_projection
+    parallel = screen_box(viewer, bounds)
+    viewer.set_parallel_projection(False)
+    assert not viewer.plotter.camera.parallel_projection
+    after = screen_box(viewer, bounds)
+    for box in (parallel, after):
+        np.testing.assert_allclose(box[1] - box[0], before[1] - before[0], rtol=0.15)
+
+
+def test_fit_view_frames_the_scene_without_turning_it(grid3d):
+    """Fit view brings a zoomed or moved scene back into the window and keeps the direction."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    direction = viewer.plotter.camera.direction
+    viewer.plotter.camera.zoom(4)
+    viewer.fit_view()
+    box = screen_box(viewer, viewer._layers[0].mesh.bounds)
+    assert (box[0] > 0.02).all() and (box[1] < 0.98).all()
+    np.testing.assert_allclose(viewer.plotter.camera.direction, direction, atol=1e-6)
+
+
+def test_view_saves_a_flat_view(grid3d):
+    """A flat view comes back from a saved view with its axis left out of the ruler."""
+    import json
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_camera_view('east')
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['scene']['hidden_axis'] == 'y' and view['camera']['parallel_projection']
+    fresh = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    fresh.add_ruler()
+    fresh.set_view(view)
+    assert fresh.get_view() == view
+    assert not fresh.plotter.renderer.cube_axes_actor.GetYAxisVisibility()
+
+
+def test_fit_view_leaves_room_for_the_colour_bars(grid3d):
+    """The fitted box sits left of the middle of the window, where the colour bars leave room."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_camera_view('top')
+    box = screen_box(viewer, _ruler_bounds(viewer))
+    assert 0.40 < (box[0][0] + box[1][0]) / 2 < 0.49
+
+
+def test_flat_views_keep_the_camera_far_away(grid3d):
+    """A parallel camera is far from the scene (more than the scene's diagonal times 20), which keeps
+    the ruler's labels the size they have in perspective."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    diagonal = np.linalg.norm(np.diff(np.reshape(viewer._layers[0].mesh.bounds, (3, 2)), axis=1))
+    for view in ('top', 'east'):
+        viewer.set_camera_view(view)
+        camera = viewer.plotter.camera
+        assert np.linalg.norm(np.subtract(camera.position, camera.focal_point)) > 20 * diagonal
+    viewer.set_parallel_projection(False)
+    camera = viewer.plotter.camera
+    assert np.linalg.norm(np.subtract(camera.position, camera.focal_point)) < 20 * diagonal
+
+
+def test_perspective_views_start_from_the_same_angle(grid3d):
+    """Showing the same perspective view again gives the same picture, whatever view came between
+    (the fit narrows the view angle, so each view starts again from 30 degrees)."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    first = viewer.get_camera()
+    for view in ('x', 'top', 'z', 'iso'):
+        viewer.set_camera_view(view)
+    again = viewer.get_camera()
+    assert again['view_angle'] == pytest.approx(first['view_angle'], rel=1e-3)
+    np.testing.assert_allclose(again['position'], first['position'], rtol=1e-3)
