@@ -423,3 +423,36 @@ def test_panel_camera_buttons(viewer):
             panel.viewer.set_camera_view('up')
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def test_panel_colormap_and_cell_edges(viewer):
+    """The colormap list and the edges box call the viewer; the page lists the colormaps in groups
+    with a preview bar each, adds one made by hand, and follows a script."""
+    import asyncio
+    from matplotlib.colors import ListedColormap
+    gs.view3d(gs.ExampleData('3d_grid'), 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]),
+              cmap=ListedColormap(['red', 'blue'], name='mine'), label='mine', viewer=viewer)
+    panel = viewer.panel()
+    state = panel.state
+    assert [(row['name'], row['cmap'], row['edges']) for row in state.layers] == [
+        ('value', 'viridis', False), ('Estimate', 'viridis', None), ('mine', 'mine', False)]
+    items = state.cmap_items
+    groups = [item['title'] for item in items if item.get('type') == 'subheader']
+    assert groups[:2] == ['In the scene', 'pygeostat'] and 'Perceptually uniform' in groups
+    names = {item['value']: item['gradient'] for item in items if 'value' in item}
+    assert {'mine', 'topo1', 'viridis', 'plasma'} <= set(names)
+    assert names['mine'].startswith('linear-gradient(to right, #ff0000') and names['mine'].endswith('#0000ff)')
+    assert panel._cmap_items() == items
+
+    async def scenario():
+        await panel.layout.ready
+        triggered(panel, panel.set_cmap)('value', 'plasma')
+        assert viewer._layers[0].cmap == 'plasma' and state.layers[0]['cmap'] == 'plasma'
+        triggered(panel, panel.set_edges)('value', True)
+        assert viewer._layers[0].actor.prop.show_edges and state.layers[0]['edges'] is True
+        triggered(panel, panel.set_cmap)('Estimate', 'nonsense')
+        assert "Unknown colormap 'nonsense'" in state.message and state.layers[1]['cmap'] == 'viridis'
+        viewer.set_layer('value', cmap='magma', edges=False)
+        assert (state.layers[0]['cmap'], state.layers[0]['edges']) == ('magma', False)
+        await panel.server.stop()
+    asyncio.run(scenario())
