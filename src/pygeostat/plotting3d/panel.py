@@ -54,6 +54,7 @@ class Panel:
 		self.state.change(*['slicer_origin_{}'.format(i) for i in range(3)],
 						  *['slicer_normal_{}'.format(i) for i in range(3)], 'slicer_tolerance')(
 			self._on_slicer_sliders)
+		self.state.change('vertical_exaggeration')(self._on_vertical_exaggeration)
 
 		with SinglePageWithDrawerLayout(self.server) as self.layout:
 			self.layout.title.set_text('Layers')
@@ -116,6 +117,9 @@ class Panel:
 						vuetify3.VCheckbox(label='Show drill holes on slice', model_value=('slicer.show_holes',),
 										   update_modelValue=(self.set_show_holes, '[$event]'),
 										   density='compact', hide_details=True)
+				with vuetify3.VCard(variant='outlined', classes='ma-2'):
+					with vuetify3.VCardText():
+						self._slider('Vertical exaggeration', 'vertical_exaggeration', 1, 10, step=0.5)
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
 						html.Div('Saved views', classes='text-caption')
@@ -187,6 +191,7 @@ class Panel:
 		self.state.update({'slicer_origin_{}'.format(i): v for i, v in enumerate(self.state.slicer['origin'])})
 		self.state.update({'slicer_normal_{}'.format(i): v for i, v in enumerate(self.state.slicer['normal'])})
 		self.state.slicer_tolerance = self.state.slicer['tolerance']
+		self.state.vertical_exaggeration = self.viewer._vertical_exaggeration
 		self.state.axes = {'has_ruler': self.viewer._ruler is not None,
 						   'origin': _floats(self.viewer._origin_values()),
 						   'from_zero': self.viewer._axes_from_zero}
@@ -272,6 +277,12 @@ class Panel:
 		tolerance = float(state.slicer_tolerance)
 		if (origin, normal, tolerance) != (tuple(self._slicer_origin()), slicer['normal'], slicer['tolerance']):
 			self._guard(lambda: self.viewer.set_slicer(origin=origin, normal=normal, tolerance=tolerance))
+
+	def _on_vertical_exaggeration(self, vertical_exaggeration, **changed):
+		"""The slider moved: stretch the scene with its value, as the slider is dragged"""
+		factor = float(vertical_exaggeration)
+		if factor != self.viewer._vertical_exaggeration:
+			self._guard(lambda: self.viewer.set_vertical_exaggeration(factor))
 
 	def snap_slicer(self, orient):
 		"""Face the plane along an axis: 'xy' (plan, normal z), 'xz' (normal y) or 'yz' (normal x)"""
