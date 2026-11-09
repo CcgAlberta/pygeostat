@@ -446,13 +446,14 @@ class Viewer:
 		# set_scale also stretches the ruler, so it is drawn again
 		if self._ruler is not None:
 			self._draw_ruler(self.plotter)
+		self._refresh_panel()
 
 	def panel(self, views_folder='views'):
 		"""
 		The scene with a panel of controls beside it: switch layers on and off, change their
-		opacity, colour limits, threshold and slice, move the origin of the ruler, and save the
-		view or load a saved one. Requires ``pip install pygeostat[view3d-panel]``. In a notebook,
-		make the result the last line of a cell to show it.
+		opacity, colour limits, threshold and slice, stretch the scene vertically, move the origin of
+		the ruler, and save the view or load a saved one. Requires
+		``pip install pygeostat[view3d-panel]``. In a notebook, make the result the last line of a cell to show it.
 
 		Parameters:
 			views_folder (str): folder for the saved views, one json file each (see
