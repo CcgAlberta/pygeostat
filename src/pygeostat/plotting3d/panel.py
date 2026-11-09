@@ -10,6 +10,22 @@ from contextlib import contextmanager
 from .viewer import _corners, _MAX_LABELS
 
 
+# The colormaps offered for a layer coloured by a continuous variable: pygeostat's own two (its
+# hillshading maps) and a curated set of matplotlib's. The diverging ones are reversed so that high
+# values are red
+_CMAP_GROUPS = {
+	'pygeostat': ['topo1', 'topo2'],
+	'Perceptually uniform': ['viridis', 'plasma', 'inferno', 'magma', 'cividis'],
+	'Rainbow': ['turbo', 'jet', 'rainbow'],
+	'Diverging': ['coolwarm', 'RdYlBu_r', 'Spectral_r', 'RdBu_r', 'seismic'],
+	'Sequential': ['YlOrRd', 'hot', 'Reds', 'Blues', 'Greys'],
+	'Earth': ['terrain', 'gist_earth'],
+}
+# How a colormap's preview bar looks beside its name in the list and beside the chosen one
+_PREVIEW_STYLE = ("{ background: item.raw.gradient, width: '64px', height: '10px', "
+				  "borderRadius: '2px', flexShrink: 0 }",)
+
+
 class Panel:
 	"""
 	The controls of a :class:`~pygeostat.plotting3d.viewer.Viewer`, shown beside its 3D view.
@@ -37,6 +53,8 @@ class Panel:
 			raise ImportError('The layer panel requires trame: pip install "pygeostat[view3d-panel]"') from None
 		self.viewer = viewer
 		self.views_folder = views_folder
+		# The preview bar of each colormap offered, made once
+		self._gradients = {}
 		# Set while a button changes the scene in several steps, so the page is sent only the result
 		self._paused = False
 		# The lowest value typed for the threshold of each layer, kept while the threshold is off
@@ -90,6 +108,21 @@ class Panel:
 										 density='compact', hide_details=True, thumb_label=True,
 										 update_modelValue=(self.set_opacity, '[layer.name, $event]'))
 						# Values tied to the data are typed, with the data's own range in the label
+						with html.Div(v_if='layer.cmap', classes='mt-2'):
+							with vuetify3.VSelect(
+									label='Colormap', model_value=('layer.cmap',), items=('cmap_items',),
+									density='compact', hide_details=True,
+									update_modelValue=(self.set_cmap, '[layer.name, $event]')):
+								with vuetify3.Template(v_slot_item='{ props, item }'):
+									with vuetify3.VListItem(v_bind='props', density='compact'):
+										with vuetify3.Template(v_slot_append=True):
+											html.Div(style=_PREVIEW_STYLE, classes='ml-4')
+								with vuetify3.Template(v_slot_selection='{ item }'):
+									html.Span('{{ item.title }}', classes='mr-3')
+									html.Div(style=_PREVIEW_STYLE)
+						vuetify3.VCheckbox(v_if='layer.edges !== null', label='Show cell edges',
+										   model_value=('layer.edges',), density='compact', hide_details=True,
+										   update_modelValue=(self.set_edges, '[layer.name, $event]'))
 						with html.Div(v_if='layer.clim', classes='mt-2'):
 							html.Div('Colour limits', classes='text-caption')
 							with html.Div(classes='d-flex ga-2'):
@@ -232,6 +265,7 @@ class Panel:
 		self.state.vertical_exaggeration = self.viewer._vertical_exaggeration
 		self.state.background = self.viewer._background.capitalize()
 		viewer = self.viewer
+		self.state.cmap_items = self._cmap_items()
 		self.state.update({'outline_visible': viewer._outline, 'axis_arrows': viewer._axis_arrows,
 						   'axes_visible': viewer._corner_axes, 'ruler_visible': self._ruler_shown(),
 						   'tick_note': viewer._tick_note,
@@ -296,6 +330,39 @@ class Panel:
 	def set_opacity(self, name, opacity):
 		"""Set the opacity of a layer, like ``Viewer.set_layer(name, opacity=...)``"""
 		self.viewer.set_layer(name, opacity=opacity)
+
+	def _cmap_items(self):
+		"""The list of colormaps in the page: groups under their names, each colormap with a preview
+		bar drawn from the colours pyvista gives it. A colormap in the scene that is not in a group
+		is added, so that it can be shown as the chosen one"""
+		import pyvista as pv
+		from ..plotting.utils import _get_cmap
+
+		def entry(name):
+			if name not in self._gradients:
+				cmap = scene_cmaps.get(name) or _get_cmap(name, False, None)
+				colours = ['#{:02x}{:02x}{:02x}'.format(*rgba[:3])
+						   for rgba in pv.LookupTable(cmap=cmap, n_values=32).values]
+				self._gradients[name] = 'linear-gradient(to right, {})'.format(', '.join(colours))
+			return {'title': name, 'value': name, 'gradient': self._gradients[name]}
+		groups = dict(_CMAP_GROUPS)
+		known = {name for names in groups.values() for name in names}
+		scene_cmaps = {layer.cmap: layer.kwargs['cmap'] for layer in self.viewer._layers
+					   if layer.cmap is not None and layer.cmap not in known}
+		if scene_cmaps:
+			groups = {'In the scene': sorted(scene_cmaps), **groups}
+		items = []
+		for group, names in groups.items():
+			items += [{'type': 'subheader', 'title': group}] + [entry(name) for name in names]
+		return items
+
+	def set_cmap(self, name, cmap):
+		"""Set the colormap of a layer, like ``Viewer.set_layer(name, cmap=...)"""
+		self._try(name, lambda: {'cmap': cmap})
+
+	def set_edges(self, name, edges):
+		"""Show or hide the cell edges of a block layer, like ``Viewer.set_layer(name, edges=...)"""
+		self.viewer.set_layer(name, edges=edges)
 
 	def set_clim(self, name, end, value):
 		"""Set one end of the colour limits of a layer (``end`` 0 for min, 1 for max), like
@@ -497,6 +564,7 @@ def _row(layer):
 	if source is not None and source.var is not None:
 		threshold_range = _floats(source.mesh.get_data_range(source.var))
 	return {'name': layer.name, 'visible': layer.visible, 'opacity': layer.kwargs.get('opacity', 1.0),
+			'cmap': layer.cmap, 'edges': bool(layer.kwargs.get('show_edges', False)) if layer.kind == 'blocks' else None,
 			'clim': _floats(layer.clim), 'data_range': _floats(layer.clim and layer.data_range),
 			'variable': source and source.var, 'threshold_range': threshold_range,
 			'threshold_on': layer.threshold is not None,
