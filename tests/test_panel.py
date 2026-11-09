@@ -391,3 +391,35 @@ def test_panel_scene_and_ticks(viewer):
         assert (state.outline_visible, state.tick_spacing_xy, state.tick_note) == (False, 'Auto', '')
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def test_panel_camera_buttons(viewer):
+    """The view buttons, the projection box and Fit view call the viewer, and the page follows a
+    script; each button sends the page one frame."""
+    import asyncio
+    panel = viewer.panel()
+    assert panel.state.parallel_projection is False
+    sent = []
+    update = panel._view.update
+    panel._view.update = lambda *args, **kwargs: (sent.append(1), update(*args, **kwargs))
+    viewer.plotter._on_render_callbacks.add(lambda *args: sent.append(1))
+
+    async def scenario():
+        await panel.layout.ready
+        triggered(panel, panel.show_view)('top')
+        assert sent == [1]
+        assert viewer.plotter.camera.parallel_projection and panel.state.parallel_projection
+        assert viewer._hidden_axis == 'z'
+        triggered(panel, panel.show_view)('iso')
+        assert not panel.state.parallel_projection and viewer._hidden_axis is None
+        await drag(panel, parallel_projection=True)
+        assert viewer.plotter.camera.parallel_projection
+        viewer.plotter.camera.zoom(5)
+        triggered(panel, panel.fit_view)()
+        assert viewer.plotter.camera.parallel_projection
+        viewer.set_camera_view('x')
+        assert panel.state.parallel_projection is False
+        with pytest.raises(ValueError):
+            panel.viewer.set_camera_view('up')
+        await panel.server.stop()
+    asyncio.run(scenario())
