@@ -339,3 +339,25 @@ def test_panel_vertical_exaggeration_follows_the_slider(viewer):
         assert panel.state.vertical_exaggeration == 2.5
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def test_panel_background(viewer):
+    """Choosing the background changes the scene's background and the text colour of the ruler and
+    the colour bars, and the page follows a script."""
+    import asyncio
+    viewer.add_ruler()
+    panel = viewer.panel()
+    assert panel.state.background == 'White'
+
+    async def scenario():
+        await panel.layout.ready
+        await drag(panel, background='Black')
+        assert viewer._background == 'black'
+        assert pv.Color(viewer.plotter.background_color) == pv.Color('#3a3a3a')
+        assert viewer.plotter.renderer.cube_axes_actor.GetXAxesLinesProperty().GetColor() == (1.0, 1.0, 1.0)
+        assert all(bar.GetTitleTextProperty().GetColor() == (1.0, 1.0, 1.0)
+                   for bar in viewer.plotter.scalar_bars.values())
+        viewer.set_background('white')
+        assert panel.state.background == 'White'
+        await panel.server.stop()
+    asyncio.run(scenario())
