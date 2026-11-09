@@ -1409,3 +1409,91 @@ def test_perspective_views_start_from_the_same_angle(grid3d):
     again = viewer.get_camera()
     assert again['view_angle'] == pytest.approx(first['view_angle'], rel=1e-3)
     np.testing.assert_allclose(again['position'], first['position'], rtol=1e-3)
+
+
+def lookup_start(table):
+    """The first colour of a lookup table."""
+    return np.array(table.GetTableValue(0)[:3])
+
+
+def test_set_layer_colormap(grid3d):
+    """A new colormap colours the layer and its colour bar, keeping the layer's threshold, slice and
+    hiding; it is refused for a layer with no continuous variable, or for a name that is not a
+    colormap, and then nothing changes."""
+    import matplotlib as mpl
+    viewer = two_layer_viewer(grid3d)
+    blocks, holes = viewer._layers
+    viewer.set_layer('value', threshold=(0, 2), visible=False, cmap='plasma')
+    expected = np.array(mpl.colormaps['plasma'](0)[:3])
+    np.testing.assert_allclose(lookup_start(blocks.actor.mapper.lookup_table), expected, atol=0.01)
+    np.testing.assert_allclose(lookup_start(viewer.plotter.scalar_bars['value'].GetLookupTable()), expected, atol=0.01)
+    assert blocks.cmap == 'plasma' and not blocks.actor.visibility
+    assert blocks.mesh.n_cells == blocks.source.cut((0, 2), None).n_cells
+    viewer.set_layer('value', cmap='topo1')
+    np.testing.assert_allclose(lookup_start(blocks.actor.mapper.lookup_table), [1, 1, 1], atol=0.01)
+    with pytest.raises(ValueError, match="Unknown colormap 'nonsense'"):
+        viewer.set_layer('Bitumen', cmap='nonsense')
+    points = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 1.0], 'z': [0.0, 1.0], 'code': [1, 3]})
+    gs.view3d(points, 'code', x='x', y='y', z='z', catdict={1: 'a', 3: 'b'}, label='cat', viewer=viewer)
+    with pytest.raises(ValueError, match="'cat' is not coloured by a continuous variable"):
+        viewer.set_layer('cat', cmap='viridis')
+    assert blocks.cmap == 'topo1'
+
+
+def test_set_layer_colormap_on_holes_follows_the_slice(two_holes):
+    """The holes on the slice have the layer's new colormap too."""
+    import matplotlib as mpl
+    viewer = hole_viewer(two_holes)
+    layer = viewer._layers[0]
+    viewer.set_slicer(enabled=True, origin=(0, 0, 0), normal=(1, 0, 0), tolerance=4, show_holes=True)
+    viewer.set_layer('Au', cmap='plasma')
+    assert layer.crossing_actor is not None
+    np.testing.assert_allclose(lookup_start(layer.crossing_actor.mapper.lookup_table),
+                               mpl.colormaps['plasma'](0)[:3], atol=0.01)
+
+
+def test_set_layer_edges(grid3d):
+    """Cell edges are drawn for a block layer, and refused for other layers."""
+    viewer = two_layer_viewer(grid3d)
+    blocks = viewer._layers[0]
+    assert not blocks.actor.prop.show_edges
+    viewer.set_layer('value', edges=True)
+    assert blocks.actor.prop.show_edges
+    viewer.set_layer('value', threshold=(0, 2))
+    assert blocks.actor.prop.show_edges
+    viewer.set_layer('value', edges=False)
+    assert not blocks.actor.prop.show_edges
+    with pytest.raises(ValueError, match="'Bitumen' is not a block layer"):
+        viewer.set_layer('Bitumen', edges=True)
+
+
+def test_view_saves_colormaps_and_edges(grid3d):
+    """A saved view brings back the colormap and the cell edges; a colormap made by hand, whose name
+    cannot be found, stays as it is."""
+    import json
+    from matplotlib.colors import ListedColormap
+    viewer = two_layer_viewer(grid3d)
+    viewer.set_layer('value', cmap='plasma', edges=True)
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert [(l['cmap'], l['edges']) for l in view['layers']] == [('plasma', True), (viewer._layers[1].cmap, None)]
+    fresh = two_layer_viewer(grid3d)
+    fresh.set_view(view)
+    assert fresh.get_view() == view
+    custom = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], cmap=ListedColormap(['red', 'blue'], name='mine'),
+                       viewer=gs.Viewer(off_screen=True))
+    custom.set_view(custom.get_view())
+    assert custom._layers[0].cmap == 'mine'
+
+
+def test_set_layer_colormap_on_a_ready_mesh():
+    """A layer added as a mesh, with no data behind it, can change its colormap too."""
+    import matplotlib as mpl
+    mesh = pv.Sphere()
+    mesh['height'] = mesh.points[:, 2]
+    viewer = gs.Viewer(off_screen=True)
+    viewer.add(mesh, name='height', scalars='height', cmap='viridis', clim=(-0.5, 0.5),
+               scalar_bar_args={'title': 'height'})
+    viewer.set_layer('height', cmap='plasma')
+    layer = viewer._layers[0]
+    np.testing.assert_allclose(lookup_start(layer.actor.mapper.lookup_table), mpl.colormaps['plasma'](0)[:3], atol=0.01)
+    assert layer.cmap == 'plasma' and layer.clim == (-0.5, 0.5)
