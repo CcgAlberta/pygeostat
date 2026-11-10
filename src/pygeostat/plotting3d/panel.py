@@ -21,6 +21,15 @@ _CMAP_GROUPS = {
 	'Sequential': ['YlOrRd', 'hot', 'Reds', 'Blues', 'Greys'],
 	'Earth': ['terrain', 'gist_earth'],
 }
+# The palettes offered for a layer coloured by categories: pygeostat's own, matplotlib's qualitative
+# maps, and continuous maps cut into evenly spaced colours (the only ones with no limit on the
+# number of categories)
+_PALETTE_GROUPS = {
+	'pygeostat': ['cat_vibrant', 'cat_pastel', 'cat_dark'],
+	'matplotlib': ['tab10', 'tab20', 'tab20b', 'tab20c', 'Set1', 'Set2', 'Set3', 'Dark2', 'Paired', 'Accent',
+				   'Pastel1'],
+	'From a continuous map': ['turbo', 'viridis', 'Spectral', 'rainbow'],
+}
 # How a colormap's preview bar looks beside its name in the list and beside the chosen one
 _PREVIEW_STYLE = ("{ background: item.raw.gradient, width: '64px', height: '10px', "
 				  "borderRadius: '2px', flexShrink: 0 }",)
@@ -110,18 +119,24 @@ class Panel:
 										 density='compact', hide_details=True, thumb_label=True,
 										 update_modelValue=(self.set_opacity, '[layer.name, $event]'))
 						# Values tied to the data are typed, with the data's own range in the label
-						with html.Div(v_if='layer.cmap', classes='mt-2'):
-							with vuetify3.VSelect(
-									label='Colormap', model_value=('layer.cmap',), items=('cmap_items',),
-									density='compact', hide_details=True,
-									update_modelValue=(self.set_cmap, '[layer.name, $event]')):
-								with vuetify3.Template(v_slot_item='{ props, item }'):
-									with vuetify3.VListItem(v_bind='props', density='compact'):
-										with vuetify3.Template(v_slot_append=True):
-											html.Div(style=_PREVIEW_STYLE, classes='ml-4')
-								with vuetify3.Template(v_slot_selection='{ item }'):
-									html.Span('{{ item.title }}', classes='mr-3')
-									html.Div(style=_PREVIEW_STYLE)
+						vuetify3.VSelect(v_if='layer.color_options.length > 1', label='Colour by',
+										 model_value=('layer.color_by',), items=('layer.color_options',),
+										 density='compact', hide_details=True, classes='mt-2',
+										 update_modelValue=(self.set_color_by, '[layer.name, $event]'))
+						for kind, label, items in (('continuous', 'Colormap', 'cmap_items'),
+												   ('categorical', 'Palette', 'layer.palette_items')):
+							with html.Div(v_if="layer.cmap_kind === '{}'".format(kind), classes='mt-2'):
+								with vuetify3.VSelect(
+										label=label, model_value=('layer.cmap',), items=(items,),
+										density='compact', hide_details=True,
+										update_modelValue=(self.set_cmap, '[layer.name, $event]')):
+									with vuetify3.Template(v_slot_item='{ props, item }'):
+										with vuetify3.VListItem(v_bind='props', density='compact'):
+											with vuetify3.Template(v_slot_append=True):
+												html.Div(style=_PREVIEW_STYLE, classes='ml-4')
+									with vuetify3.Template(v_slot_selection='{ item }'):
+										html.Span('{{ item.title }}', classes='mr-3')
+										html.Div(style=_PREVIEW_STYLE)
 						vuetify3.VCheckbox(v_if='layer.edges !== null', label='Show cell edges',
 										   model_value=('layer.edges',), density='compact', hide_details=True,
 										   update_modelValue=(self.set_edges, '[layer.name, $event]'))
@@ -358,7 +373,7 @@ class Panel:
 		groups = dict(_CMAP_GROUPS)
 		known = {name for names in groups.values() for name in names}
 		scene_cmaps = {layer.cmap: layer.kwargs['cmap'] for layer in self.viewer._layers
-					   if layer.cmap is not None and layer.cmap not in known}
+					   if layer.clim is not None and layer.cmap not in known}
 		if scene_cmaps:
 			groups = {'In the scene': sorted(scene_cmaps), **groups}
 		items = []
@@ -370,6 +385,13 @@ class Panel:
 		"""What the page shows of a layer: :func:`_row` and the range of its tube radius slider, from a
 		quarter to four times the radius the layer first had"""
 		row = _row(layer)
+		source = layer.source
+		row['color_by'] = layer.color_var
+		row['color_options'] = [] if source is None else [
+			{'title': name if catdict is None else name + ' (categories)', 'value': name}
+			for name, catdict in source.colourings.items()]
+		row['cmap_kind'] = 'continuous' if layer.clim is not None else 'categorical' if layer.categorical else None
+		row['palette_items'] = self._palette_items(len(layer.kwargs['annotations'])) if layer.categorical else []
 		row['radius'] = layer.radius
 		if layer.radius is not None:
 			first = self._radius_ranges.setdefault(layer.name, layer.radius)
@@ -379,6 +401,33 @@ class Panel:
 	def set_radius(self, name, radius):
 		"""Set the radius of the tubes of a drill hole layer, like ``Viewer.set_layer(name, radius=...)``"""
 		self._try(name, lambda: {'radius': _number(radius)})
+
+	def _palette_items(self, n):
+		"""The palettes that have colours for ``n`` categories, in groups, each with a preview of its
+		colours as blocks. A palette that is the layer's own but not in a group is not listed"""
+		import matplotlib as mpl
+		from ..plotting.cmaps import cat_palettes
+		from ..plotting.utils import _get_cmap
+		items = []
+		for group, names in _PALETTE_GROUPS.items():
+			entries = []
+			for palette in names:
+				if palette in cat_palettes and len(cat_palettes[palette]) < n:
+					continue
+				key = (palette, n)
+				if key not in self._gradients:
+					colours = [mpl.colors.to_hex(c) for c in _get_cmap(palette, True, n).colors]
+					width = 100 / n
+					stops = ['{} {:.2f}% {:.2f}%'.format(c, i * width, (i + 1) * width) for i, c in enumerate(colours)]
+					self._gradients[key] = 'linear-gradient(to right, {})'.format(', '.join(stops))
+				entries.append({'title': palette, 'value': palette, 'gradient': self._gradients[key]})
+			if entries:
+				items += [{'type': 'subheader', 'title': group}] + entries
+		return items
+
+	def set_color_by(self, name, variable):
+		"""Colour a layer by another variable, like ``Viewer.set_layer(name, color_by=...)``"""
+		self._try(name, lambda: {'color_by': variable})
 
 	def set_cmap(self, name, cmap):
 		"""Set the colormap of a layer, like ``Viewer.set_layer(name, cmap=...)"""
