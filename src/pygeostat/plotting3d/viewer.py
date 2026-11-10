@@ -11,10 +11,18 @@ class _Source:
 	"""The whole mesh of a layer, with what is needed to cut a part of it, so the part shown can
 	change after the layer is drawn"""
 
-	def __init__(self, mesh, var, griddef):
+	def __init__(self, mesh, var, griddef, colourings=None, cmaps=None, titles=None):
 		self.mesh = mesh
 		self.var = var
 		self.griddef = griddef
+		# The variables the layer can be coloured by, each with the names of its categories
+		# (a dictionary, or True for codes without names) or None for a continuous variable
+		self.colourings = {} if colourings is None else colourings
+		# The colormap asked for with a continuous variable and with a categorical one, which are
+		# not the same kind of colormap. None is the default of gs.Parameters
+		self.cmaps = {'continuous': None, 'categorical': None} if cmaps is None else cmaps
+		# The title of the colour bar of each variable
+		self.titles = {} if titles is None else titles
 
 	def cut(self, threshold, section, plane=None):
 		"""The part of the mesh in the threshold (min, max of the variable) and in the slice
@@ -59,6 +67,9 @@ class _Layer:
 		self.crossing = None
 		self.crossing_actor = None
 		self.source = source
+		# The variable the layer is coloured by, which :meth:`Viewer.set_layer` can change. The
+		# threshold keeps using the variable the layer was made with
+		self.color_var = None if source is None else source.var
 		self.threshold = threshold
 		self.section = section
 		# The range of the variable over the whole layer, not only the part shown after a
@@ -80,11 +91,20 @@ class _Layer:
 		return float(self.source.mesh.field_data[RADIUS][0])
 
 	@property
+	def categorical(self):
+		"""Whether the layer is coloured by categories (bool)"""
+		return 'annotations' in self.kwargs
+
+	@property
 	def cmap(self):
-		"""The name of the colormap of a layer coloured by a continuous variable, else None"""
-		if self.clim is None:
+		"""The name of the colormap of a layer coloured by a continuous variable, or of the palette of
+		one coloured by categories (None for the default palette), else None"""
+		if self.clim is not None:
+			cmap = self.kwargs['cmap']
+		elif self.categorical and self.source is not None:
+			cmap = self.source.cmaps['categorical']
+		else:
 			return None
-		cmap = self.kwargs['cmap']
 		return getattr(cmap, 'name', cmap)
 
 	@property
@@ -186,7 +206,7 @@ class Viewer:
 
 	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
 				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None,
-				  cmap=None, edges=None, radius=None):
+				  cmap=None, edges=None, radius=None, color_by=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
 		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
@@ -209,11 +229,16 @@ class Viewer:
 			pointtol (float): distance each side for a layer not on a grid, which stays as it is
 				if None
 			cmap (str or mpl.colors.Colormap): colormap of a layer coloured by a continuous
-				variable, as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`. If None,
-				unchanged
+				variable, or palette of one coloured by categories, as in
+				:func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`. If None, unchanged
 			edges (bool): draw the edges of the cells of a block layer. If None, unchanged
 			radius (float): radius of the tubes of a drill hole layer, in the units of the
 				coordinates. If None, unchanged
+			color_by (str): colour the layer by another of its variables, one of
+				:attr:`color_options`. A variable with categories is coloured as in
+				:func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`; the colour limits of a
+				continuous one are its range. The threshold keeps using the variable the layer was
+				made with. If None, unchanged
 
 		The slice arguments work as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`.
 		Changing a slice that is already shown needs only the arguments that change. A layer
@@ -231,14 +256,21 @@ class Viewer:
 				raise ValueError("Layer '{}' is not coloured by a continuous variable".format(name))
 			if not clim[0] < clim[1]:
 				raise ValueError("`clim` must be (min, max) with min below max")
-		if cmap is not None:
-			import matplotlib as mpl
-			from ..plotting.utils import _get_cmap
-			if layer.clim is None:
-				raise ValueError("Layer '{}' is not coloured by a continuous variable".format(name))
-			cmap = _get_cmap(cmap, False, None)
-			if not isinstance(cmap, mpl.colors.Colormap):
-				raise ValueError("Unknown colormap '{}'".format(cmap))
+		recolour = None
+		if color_by is not None or cmap is not None:
+			if 'scalars' not in layer.kwargs:
+				raise ValueError("Layer '{}' is not coloured by a variable".format(name))
+			if layer.source is not None:
+				recolour = self._colours(layer, color_by, cmap)
+			else:
+				import matplotlib as mpl
+				from ..plotting.utils import _get_cmap
+				if color_by is not None or layer.categorical:
+					raise ValueError("Layer '{}' was added as a mesh, so it cannot change its colours "
+									 "by variable or palette".format(name))
+				cmap = _get_cmap(cmap, False, None)
+				if not isinstance(cmap, mpl.colors.Colormap):
+					raise ValueError("Unknown colormap '{}'".format(cmap))
 		if edges is not None and layer.kind != 'blocks':
 			raise ValueError("Layer '{}' is not a block layer, so it has no cell edges".format(name))
 		if radius is not None:
@@ -272,7 +304,9 @@ class Viewer:
 			from .meshes import _with_radius
 			layer.source.mesh = _with_radius(layer.source.mesh, radius)
 			self._place(layer)
-		if cmap is not None:
+		if recolour is not None:
+			self._recolour(layer, *recolour)
+		elif cmap is not None:
 			layer.kwargs['cmap'] = cmap
 			self._draw_again(layer)
 		if edges is not None:
@@ -291,6 +325,53 @@ class Viewer:
 			self._place_crossing(layer)
 		self._sync_scalar_bars()
 		self._refresh_panel()
+
+	def _colours(self, layer, name, cmap):
+		"""How ``layer`` is coloured by the variable ``name`` (if None, the one it has) with the colormap
+		``cmap`` (if None, the one it has for that kind of variable): the variable, the layer's
+		colormaps, the colour options of ``add_mesh``, the mesh with its category index and the
+		range of a continuous variable. Nothing is changed, so a refused call changes nothing"""
+		import matplotlib as mpl
+		from ..plotting.utils import _get_cmap
+		source = layer.source
+		name = layer.color_var if name is None else name
+		if name not in source.colourings:
+			raise ValueError("Layer '{}' can be coloured by {}, not '{}'".format(
+				layer.name, list(source.colourings), name))
+		catdict = source.colourings[name]
+		kind = 'continuous' if catdict is None else 'categorical'
+		cmaps = {**source.cmaps, kind: source.cmaps[kind] if cmap is None else cmap}
+		if catdict is None:
+			resolved = _get_cmap(cmaps[kind], False, None)
+			if not isinstance(resolved, mpl.colors.Colormap):
+				raise ValueError("Unknown colormap '{}'".format(cmaps[kind]))
+			data_range = source.mesh.get_data_range(name)
+			return name, cmaps, dict(scalars=name, cmap=resolved, clim=data_range), source.mesh, data_range
+		try:
+			mesh, resolved, annotations = _categories(source.mesh, name, cmaps[kind], catdict)
+		except (ValueError, AttributeError) as error:
+			raise ValueError("The palette '{}' cannot colour the categories of '{}': {}".format(
+				cmaps[kind], name, error)) from None
+		colours = dict(scalars=_CATEGORY, cmap=resolved, clim=(-0.5, len(annotations) - 0.5),
+					   n_colors=len(annotations), annotations=annotations)
+		return name, cmaps, colours, mesh, None
+
+	def _recolour(self, layer, name, cmaps, colours, mesh, data_range):
+		"""Draw a layer coloured as :meth:`_colours` worked out, with a colour bar for the variable and
+		without the one of the variable it had, if no other layer uses it"""
+		source = layer.source
+		old = layer.kwargs['scalar_bar_args']['title']
+		title = source.titles.get(name, name)
+		source.cmaps, source.mesh, layer.color_var = cmaps, mesh, name
+		if data_range is not None:
+			layer.data_range = data_range
+		kept = {key: value for key, value in layer.kwargs.items() if key not in (
+			'scalars', 'cmap', 'clim', 'annotations', 'n_colors', 'scalar_bar_args')}
+		layer.kwargs = {**kept, **colours, 'scalar_bar_args': self._placed_bar({'title': title})}
+		self._place(layer)
+		if old != title and not any(other.kwargs.get('scalar_bar_args', {}).get('title') == old
+									for other in self._layers):
+			self.plotter.remove_scalar_bar(old)
 
 	def _draw_again(self, layer):
 		"""Draw a layer again with the options it has now"""
@@ -782,7 +863,8 @@ class Viewer:
 		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
 		same layers: the camera, the vertical exaggeration, the background, the origin and ticks of
 		the ruler, what is drawn around the layers, the slicer and, for each layer, whether it is
-		shown, its opacity, colormap, cell edges, tube radius, colour limits, threshold and slice.
+		shown, its opacity, the variable it is coloured by and its colormap, cell edges, tube radius, colour limits,
+		threshold and slice.
 
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
@@ -797,7 +879,7 @@ class Viewer:
 				'name': layer.name, 'visible': layer.visible,
 				'opacity': float(layer.kwargs.get('opacity', 1.0)),
 				'clim': None if layer.clim is None else [float(v) for v in layer.clim],
-				'cmap': layer.cmap, 'radius': layer.radius,
+				'color_by': layer.color_var, 'cmap': layer.cmap, 'radius': layer.radius,
 				'edges': bool(layer.kwargs.get('show_edges', False)) if layer.kind == 'blocks' else None,
 				'threshold': None if layer.threshold is None else [float(v) for v in layer.threshold],
 				'slice': None if layer.section is None else {
@@ -849,11 +931,12 @@ class Viewer:
 				cut['slice_thickness'] = int(cut['slice_thickness'])
 			layer = self._layers[self.layers.index(saved['name'])]
 			# A colormap made by hand has a name that cannot be found again, so only a changed one is set
+			color_by = None if saved.get('color_by') == layer.color_var else saved.get('color_by')
 			cmap = saved.get('cmap')
 			self.set_layer(saved['name'], visible=saved['visible'], opacity=saved['opacity'],
-						   clim=saved['clim'], threshold=saved['threshold'] or False,
-						   cmap=None if cmap == layer.cmap else cmap, edges=saved.get('edges'),
-						   radius=saved.get('radius'), **cut)
+						   clim=saved['clim'], threshold=saved['threshold'] or False, color_by=color_by,
+						   cmap=None if color_by is None and cmap == layer.cmap else cmap,
+						   edges=saved.get('edges'), radius=saved.get('radius'), **cut)
 		self.set_axis_origin(view['axis_origin'], view['axes_from_zero'])
 		self.set_vertical_exaggeration(view['vertical_exaggeration'])
 		# Views saved before the background could be changed have none
@@ -1147,9 +1230,29 @@ def _apply_camera(plotter, camera):
 	plotter.camera.parallel_scale = camera['parallel_scale']
 
 
+def _other_vars(data, var, other_vars):
+	"""The variables a layer keeps besides ``var``, as a dictionary from the name to its ``catdict``
+	(``True`` for categories with no names) or None for a continuous variable"""
+	import pandas as pd
+	from ..data.data import DataFile
+	if other_vars is None:
+		if not isinstance(data, DataFile):
+			return {}
+		variables = [data.variables] if isinstance(data.variables, str) else list(data.variables or [])
+		found = {v: None for v in variables if pd.api.types.is_numeric_dtype(data.data[v])}
+		if data.cat is not None:
+			found[data.cat] = data.catdict if isinstance(data.catdict, dict) else True
+	elif isinstance(other_vars, dict):
+		found = dict(other_vars)
+	else:
+		found = {v: None for v in other_vars}
+	found.pop(var, None)
+	return found
+
+
 def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color=None, label=None,
 		   threshold=None, orient=None, slice_number=None, slice_coordinate=None,
-		   slice_thickness=None, pointtol=None, catdict=None, **kwargs):
+		   slice_thickness=None, pointtol=None, catdict=None, other_vars=None, **kwargs):
 	"""
 	Add drill holes, a block model or a mesh to a 3D scene. Calls share one scene through
 	``viewer``, the same way 2D plots share ``ax``.
@@ -1179,6 +1282,11 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			``var`` is coloured by category if this is passed, or if data is a DataFile and
 			``var`` is its ``cat`` column (then DataFile.catdict is used). Categories get the
 			same colours as in :func:`gs.location_plot() <pygeostat.plotting.location_plot.location_plot>`
+		other_vars (list or dict): other variables of ``data`` to keep on the layer, so that
+			``Viewer.set_layer(color_by=...)`` and the panel can colour it by them. A dictionary
+			gives the categorical ones their ``catdict`` (``True`` for codes with no names) and
+			``None`` for a continuous one. If None and data is a DataFile, its numeric variables
+			and its ``cat`` column (with DataFile.catdict)
 		threshold (tuple): (min, max) of ``var`` to show; blocks, intervals or points outside it,
 			or without a value, are hidden. Colours keep the full range of ``var`` unless ``clim``
 			is passed
@@ -1228,15 +1336,18 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		var = data.variables
 	griddef = None
 	kind = 'blocks'
+	others = {} if var is None or isinstance(data, pv.DataSet) else _other_vars(data, var, other_vars)
+	mesh_vars = [var] + list(others) if others else var
 	if isinstance(data, pv.DataSet):
 		mesh = data
 	elif 'griddef' in kwargs or 'size' in kwargs or getattr(data, 'griddef', None) is not None:
-		mesh = block_mesh(data, var=var, **kwargs)
+		mesh = block_mesh(data, var=mesh_vars, **kwargs)
 		if 'size' not in kwargs:
 			griddef = kwargs['griddef'] if 'griddef' in kwargs else data.griddef
 	else:
-		mesh = drillhole_mesh(data, var=var, **kwargs)
+		mesh = drillhole_mesh(data, var=mesh_vars, **kwargs)
 		kind = 'holes' if SEGMENT in mesh.cell_data else 'points'
+	given_cmap = cmap
 	categorical = var is not None and (catdict is not None or (
 		isinstance(data, DataFile) and var == data.cat))
 	if categorical:
@@ -1253,7 +1364,11 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			data_range = mesh.get_data_range(var)
 			if clim is None:
 				clim = data_range
-	source = _Source(mesh, var, griddef)
+	colourings = {} if var is None else {
+		var: (catdict if isinstance(catdict, dict) else True) if categorical else None, **others}
+	source = _Source(mesh, var, griddef, colourings, {
+		'continuous': None, 'categorical': None, ('categorical' if categorical else 'continuous'): given_cmap},
+		{var: label or var})
 	section = None if orient is None else dict(
 		orient=orient, slice_number=slice_number, slice_coordinate=slice_coordinate,
 		slice_thickness=slice_thickness, pointtol=pointtol)
