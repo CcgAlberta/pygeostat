@@ -13,6 +13,7 @@ HOLE = 'hole index'
 UPPER = 'segment upper end'
 LOWER = 'segment lower end'
 RADIUS = 'tube radius'
+SIDES = 'tube sides'
 
 
 def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None, dh=None,
@@ -119,12 +120,7 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 		keep = np.linalg.norm(upper - lower, axis=1) <= max_gap
 		rows, upper, lower = rows[keep], upper[keep], lower[keep]
 	n = len(rows)
-	points = np.empty((2 * n, 3))
-	points[0::2] = upper
-	points[1::2] = lower
-	lines = np.column_stack([np.full(n, 2), np.arange(0, 2 * n, 2),
-							 np.arange(1, 2 * n, 2)]).ravel()
-	mesh = pv.PolyData(points, lines=lines)
+	mesh = _segments(upper, lower)
 	for v in var:
 		mesh.cell_data[v] = data[v].to_numpy(dtype=float)[rows]
 	# What a plane through the holes needs to find the intervals it crosses: each cell's interval
@@ -134,12 +130,41 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 	mesh.field_data[UPPER] = upper
 	mesh.field_data[LOWER] = lower
 	mesh.field_data[RADIUS] = [radius]
+	mesh.field_data[SIDES] = [n_sides]
 	# The tube filter drops cylinders with no length, so they would vanish silently
 	nzero = int((np.linalg.norm(upper - lower, axis=1) == 0).sum())
 	if nzero:
 		printerr("{} interval(s) have the same start and end and are not drawn".format(nzero),
 				 errtype='warning')
 	return mesh.tube(radius=radius, n_sides=n_sides)
+
+
+def _segments(upper, lower):
+	"""A line from each row of ``upper`` to the same row of ``lower``, as one cell each"""
+	import numpy as np
+	import pyvista as pv
+	n = len(upper)
+	points = np.empty((2 * n, 3))
+	points[0::2] = upper
+	points[1::2] = lower
+	lines = np.column_stack([np.full(n, 2), np.arange(0, 2 * n, 2), np.arange(1, 2 * n, 2)]).ravel()
+	return pv.PolyData(points, lines=lines)
+
+
+def _with_radius(tubes, radius):
+	"""The tubes of :func:`drillhole_mesh` drawn again with another radius. The cells are the same
+	and in the same order, so every array of the mesh is carried across, including the ones added
+	to it since"""
+	new = _segments(tubes.field_data[UPPER], tubes.field_data[LOWER]).tube(
+		radius=radius, n_sides=int(tubes.field_data[SIDES][0]))
+	if new.n_cells != tubes.n_cells:
+		raise RuntimeError("The tubes of radius {:g} do not have the cells of the others".format(radius))
+	for name in tubes.cell_data.keys():
+		new.cell_data[name] = tubes.cell_data[name]
+	for name in tubes.field_data.keys():
+		new.field_data[name] = tubes.field_data[name]
+	new.field_data[RADIUS] = [radius]
+	return new
 
 
 def block_mesh(data, var=None, griddef=None, x=None, y=None, z=None, size=None):
