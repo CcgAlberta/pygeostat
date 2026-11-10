@@ -1672,3 +1672,75 @@ def test_view_brings_back_a_palette_cut_from_a_colormap(coloured_holes, two_hole
     assert fresh._layers[0].categorical
     assert [tuple(c) for c in fresh._layers[0].kwargs['cmap'].colors] == [
         tuple(c) for c in viewer._layers[0].kwargs['cmap'].colors]
+
+
+def codes_shown(layer):
+    """The codes of the intervals of a layer that are drawn."""
+    return sorted(set(layer.mesh.cell_data['code']))
+
+
+def test_set_layer_categories(coloured_holes):
+    """Only the chosen categories are drawn, with the colours they had; the filter goes with a new
+    threshold, slice or colormap, and ends when the layer is coloured by another variable."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', color_by='code')
+    colours = [tuple(c) for c in layer.kwargs['cmap'].colors]
+    viewer.set_layer('Au', categories=['b'])
+    assert codes_shown(layer) == [3.0] and layer.categories == ('b',)
+    assert layer.kwargs['clim'] == (-0.5, 1.5) and [tuple(c) for c in layer.kwargs['cmap'].colors] == colours
+    viewer.set_layer('Au', threshold=(0, 100))
+    assert codes_shown(layer) == [3.0]
+    viewer.set_layer('Au', cmap='cat_pastel')
+    assert codes_shown(layer) == [3.0]
+    viewer.set_layer('Au', categories=['a', 'b'])
+    assert codes_shown(layer) == [1.0, 3.0]
+    viewer.set_layer('Au', categories=['a'])
+    viewer.set_layer('Au', categories=[])
+    assert codes_shown(layer) == [1.0, 3.0] and layer.categories == ()
+    viewer.set_layer('Au', categories=['a'], visible=False)
+    viewer.set_layer('Au', color_by='Cu')
+    assert layer.categories == () and layer.mesh.n_cells == layer.source.mesh.n_cells and not layer.actor.visibility
+    viewer.set_layer('Au', color_by='code')
+    assert layer.categories == () and codes_shown(layer) == [1.0, 3.0]
+    viewer.set_layer('Au', color_by='code', categories=['b'])
+    assert codes_shown(layer) == [3.0]
+
+
+def test_set_layer_categories_are_refused(coloured_holes):
+    """Names that are not categories, a layer without categories and a filter that leaves nothing are
+    refused, and nothing changes."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    with pytest.raises(ValueError, match="is not coloured by categories"):
+        viewer.set_layer('Au', categories=['a'])
+    viewer.set_layer('Au', color_by='code', categories=['a'])
+    with pytest.raises(ValueError, match=r"no categories \['c'\]; they are \['a', 'b'\]"):
+        viewer.set_layer('Au', categories=['b', 'c'], opacity=0.5)
+    with pytest.raises(ValueError, match='Nothing is left'):
+        viewer.set_layer('Au', threshold=(7, 8), opacity=0.5)
+    assert layer.categories == ('a',) and layer.threshold is None and layer.kwargs['opacity'] == 1.0
+    assert codes_shown(layer) == [1.0]
+
+
+def test_set_layer_categories_follow_the_holes_on_the_slice(coloured_holes):
+    """The holes on the slice show the chosen categories only."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', color_by='code', categories=['b'])
+    viewer.set_slicer(enabled=True, origin=(0, 0, 0), normal=(1, 0, 0), tolerance=100, show_holes=True)
+    assert layer.crossing is not None and sorted(set(layer.crossing.cell_data['code'])) == [3.0]
+
+
+def test_view_saves_the_categories(coloured_holes, two_holes):
+    """A saved view brings back the categories shown."""
+    import json
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', categories=['b'])
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['layers'][0]['categories'] == ['b']
+    fresh = make_coloured_holes(two_holes.copy())
+    assert fresh.get_view()['layers'][0]['categories'] is None
+    fresh.set_view(view)
+    assert fresh._layers[0].categories == ('b',) and codes_shown(fresh._layers[0]) == [3.0]
+    assert fresh.get_view() == view
