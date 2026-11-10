@@ -7,6 +7,8 @@
 #-----------------------------------------------------------------------------
 from contextlib import contextmanager
 
+import matplotlib as mpl
+
 from .viewer import _corners, _MAX_LABELS
 
 
@@ -140,6 +142,20 @@ class Panel:
 						vuetify3.VCheckbox(v_if='layer.edges !== null', label='Show cell edges',
 										   model_value=('layer.edges',), density='compact', hide_details=True,
 										   update_modelValue=(self.set_edges, '[layer.name, $event]'))
+						# A button for each category in its colour: filled when shown, outlined when hidden
+						with html.Div(v_if='layer.category_names.length', classes='mt-2'):
+							html.Div('Isolate {{ layer.color_by }} (click to toggle)', classes='text-caption mb-1')
+							with html.Div(classes='d-flex flex-wrap ga-1'):
+								vuetify3.VBtn(
+									'{{ category }}', v_for='(category, i) in layer.category_names', key='category',
+									size='small', click=(self.toggle_category, '[layer.name, category]'),
+									color=('layer.category_colours[i]',),
+									variant=("layer.categories.length === 0 || layer.categories.includes(category)"
+											 " ? 'flat' : 'outlined'",),
+									prepend_icon=("layer.categories.includes(category) ? 'mdi-check' : undefined",))
+							vuetify3.VBtn('Show all', size='small', variant='text', prepend_icon='mdi-eye',
+										  classes='mt-1', disabled=('layer.categories.length === 0',),
+										  click=(self.show_all_categories, '[layer.name]'))
 						# The tubes are drawn again when the slider is let go, not at every step of its move
 						vuetify3.VSlider(v_if='layer.radius !== null', label='Tube radius', v_model=('radius_ui[layer.name]',),
 										 min=('layer.radius_range[0]',), max=('layer.radius_range[1]',),
@@ -391,6 +407,10 @@ class Panel:
 			{'title': name if catdict is None else name + ' (categories)', 'value': name}
 			for name, catdict in source.colourings.items()]
 		row['cmap_kind'] = 'continuous' if layer.clim is not None else 'categorical' if layer.categorical else None
+		names = list(layer.kwargs['annotations'].values()) if layer.categorical else []
+		row['category_names'] = names
+		row['category_colours'] = [mpl.colors.to_hex(c) for c in layer.kwargs['cmap'].colors] if names else []
+		row['categories'] = list(layer.categories)
 		row['palette_items'] = self._palette_items(len(layer.kwargs['annotations'])) if layer.categorical else []
 		row['radius'] = layer.radius
 		if layer.radius is not None:
@@ -405,7 +425,6 @@ class Panel:
 	def _palette_items(self, n):
 		"""The palettes that have colours for ``n`` categories, in groups, each with a preview of its
 		colours as blocks. A palette that is the layer's own but not in a group is not listed"""
-		import matplotlib as mpl
 		from ..plotting.cmaps import cat_palettes
 		from ..plotting.utils import _get_cmap
 		items = []
@@ -424,6 +443,17 @@ class Panel:
 			if entries:
 				items += [{'type': 'subheader', 'title': group}] + entries
 		return items
+
+	def toggle_category(self, name, category):
+		"""Isolate buttons: the first click shows only that category, the next ones add or remove
+		others. Every category shown is the same as none chosen, which shows all"""
+		names = list(self._layer(name).kwargs['annotations'].values())
+		chosen = set(self._layer(name).categories) ^ {category}
+		self._try(name, lambda: {'categories': [] if len(chosen) == len(names) else [n for n in names if n in chosen]})
+
+	def show_all_categories(self, name):
+		"""Show every category of a layer again"""
+		self._try(name, lambda: {'categories': []})
 
 	def set_color_by(self, name, variable):
 		"""Colour a layer by another variable, like ``Viewer.set_layer(name, color_by=...)``"""
