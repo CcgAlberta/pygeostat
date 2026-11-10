@@ -24,10 +24,12 @@ class _Source:
 		# The title of the colour bar of each variable
 		self.titles = {} if titles is None else titles
 
-	def cut(self, threshold, section, plane=None):
+	def cut(self, threshold, section, plane=None, categories=None):
 		"""The part of the mesh in the threshold (min, max of the variable) and in the slice
-		(a dictionary of the slice arguments of view3d), whole if either is None. With a plane
-		(a dictionary with its ``origin`` and ``normal``), only the cut through that plane"""
+		(a dictionary of the slice arguments of view3d), whole if either is None. With
+		``categories`` (category indexes), only the cells of those categories. With a plane (a
+		dictionary with its ``origin`` and ``normal``), only the cut through that plane"""
+		import numpy as np
 		mesh = self.mesh
 		if threshold is not None:
 			if self.var is None:
@@ -35,6 +37,8 @@ class _Source:
 			mesh = mesh.threshold(threshold, scalars=self.var)
 		if section is not None:
 			mesh = _slice(mesh, self.griddef, **section)
+		if categories is not None:
+			mesh = mesh.extract_cells(np.flatnonzero(np.isin(mesh.cell_data[_CATEGORY], categories)))
 		if plane is not None:
 			mesh = mesh.slice(normal=plane['normal'], origin=plane['origin'])
 		return mesh
@@ -70,6 +74,8 @@ class _Layer:
 		# The variable the layer is coloured by, which :meth:`Viewer.set_layer` can change. The
 		# threshold keeps using the variable the layer was made with
 		self.color_var = None if source is None else source.var
+		# The names of the categories shown when the layer is coloured by categories, none for all
+		self.categories = ()
 		self.threshold = threshold
 		self.section = section
 		# The range of the variable over the whole layer, not only the part shown after a
@@ -89,6 +95,13 @@ class _Layer:
 		if self.kind != 'holes' or self.source is None:
 			return None
 		return float(self.source.mesh.field_data[RADIUS][0])
+
+	@property
+	def shown_categories(self):
+		"""The indexes of the categories shown, or None for all of them (list)"""
+		if not (self.categorical and self.categories):
+			return None
+		return [i for i, name in self.kwargs['annotations'].items() if name in self.categories]
 
 	@property
 	def categorical(self):
@@ -206,7 +219,7 @@ class Viewer:
 
 	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
 				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None,
-				  cmap=None, edges=None, radius=None, color_by=None):
+				  cmap=None, edges=None, radius=None, color_by=None, categories=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
 		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
@@ -234,6 +247,10 @@ class Viewer:
 			edges (bool): draw the edges of the cells of a block layer. If None, unchanged
 			radius (float): radius of the tubes of a drill hole layer, in the units of the
 				coordinates. If None, unchanged
+			categories (list): show only the categories with these names (those in the colour bar)
+				of a layer coloured by categories, and hide the rest; the colours stay as they
+				are. ``[]`` or ``False`` shows all again. Changing the variable the layer is
+				coloured by shows all. If None, unchanged
 			color_by (str): colour the layer by another of its variables, one of
 				:attr:`color_options`. A variable with categories is coloured as in
 				:func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`; the colour limits of a
@@ -279,11 +296,26 @@ class Viewer:
 								 "change".format(name))
 			if not radius > 0:
 				raise ValueError("`radius` must be above 0")
+		new_categories = () if recolour is not None and recolour[0] != layer.color_var else layer.categories
+		if categories is not None:
+			annotations = layer.kwargs.get('annotations') if recolour is None else recolour[2].get('annotations')
+			if annotations is None:
+				raise ValueError("Layer '{}' is not coloured by categories".format(name))
+			new_categories = () if categories is False else tuple(categories)
+			unknown = [c for c in new_categories if c not in annotations.values()]
+			if unknown:
+				raise ValueError("Layer '{}' has no categories {}; they are {}".format(
+					name, unknown, list(annotations.values())))
+		shown = None
+		if new_categories:
+			annotations = layer.kwargs.get('annotations') if recolour is None else recolour[2].get('annotations')
+			shown = [i for i, category in annotations.items() if category in new_categories]
 		slice_args = (orient, slice_number, slice_coordinate, slice_thickness, pointtol)
-		cut = threshold is not None or any(v is not None for v in slice_args)
+		cut = threshold is not None or any(v is not None for v in slice_args) or categories is not None
 		if cut:
 			if layer.source is None:
-				raise ValueError("Layer '{}' was added as a mesh, so it cannot be thresholded or sliced".format(name))
+				raise ValueError("Layer '{}' was added as a mesh, so it cannot be thresholded, sliced or "
+								 "filtered by category".format(name))
 			new_threshold = layer.threshold if threshold is None else None if threshold is False else tuple(threshold)
 			if new_threshold is not None and not new_threshold[0] <= new_threshold[1]:
 				raise ValueError("`threshold` must be (min, max) with min not above max")
@@ -292,9 +324,15 @@ class Viewer:
 				new_section = _new_section(layer.section, *slice_args)
 			# The slicer's plane may leave nothing of a layer, which is not an error, but a
 			# threshold or slice that leaves nothing is
-			if layer.source.cut(new_threshold, new_section).n_cells == 0:
-				raise ValueError("Nothing is left of layer '{}' with this threshold and slice".format(name))
-			layer.threshold, layer.section = new_threshold, new_section
+			checked = _Source(layer.source.mesh if recolour is None else recolour[3], layer.source.var,
+							  layer.source.griddef)
+			if checked.cut(new_threshold, new_section, None, shown).n_cells == 0:
+				raise ValueError("Nothing is left of layer '{}' with this threshold, slice and "
+								 "categories".format(name))
+		if recolour is not None:
+			self._recolour(layer, *recolour)
+		if cut:
+			layer.threshold, layer.section, layer.categories = new_threshold, new_section, new_categories
 			self._place(layer)
 		if opacity is not None:
 			layer.kwargs['opacity'] = opacity
@@ -304,9 +342,7 @@ class Viewer:
 			from .meshes import _with_radius
 			layer.source.mesh = _with_radius(layer.source.mesh, radius)
 			self._place(layer)
-		if recolour is not None:
-			self._recolour(layer, *recolour)
-		elif cmap is not None:
+		if recolour is None and cmap is not None:
 			layer.kwargs['cmap'] = cmap
 			self._draw_again(layer)
 		if edges is not None:
@@ -362,6 +398,8 @@ class Viewer:
 		source = layer.source
 		old = layer.kwargs['scalar_bar_args']['title']
 		title = source.titles.get(name, name)
+		if name != layer.color_var:
+			layer.categories = ()
 		source.cmaps, source.mesh, layer.color_var = cmaps, mesh, name
 		if data_range is not None:
 			layer.data_range = data_range
@@ -386,7 +424,7 @@ class Viewer:
 		"""Draw a layer again from its source, with its threshold, slice and, for blocks, the
 		slicer's plane. A plane that misses the layer leaves nothing to draw."""
 		plane = self._plane() if layer.kind == 'blocks' else None
-		layer.mesh = layer.source.cut(layer.threshold, layer.section, plane)
+		layer.mesh = layer.source.cut(layer.threshold, layer.section, plane, layer.shown_categories)
 		if not layer.mesh.n_cells:
 			if layer.actor is not None:
 				self.plotter.remove_actor(layer.actor)
@@ -522,7 +560,8 @@ class Viewer:
 					& np.isin(hole_of_segment, hole_of_segment[touching]))
 		tubes = mesh.extract_cells(np.flatnonzero(np.isin(segment, np.flatnonzero(crossing))))
 		if tubes.n_cells:
-			tubes = _Source(tubes, layer.source.var, layer.source.griddef).cut(layer.threshold, layer.section)
+			tubes = _Source(tubes, layer.source.var, layer.source.griddef).cut(
+				layer.threshold, layer.section, None, layer.shown_categories)
 		if tubes.n_cells:
 			half = slicer['tolerance'] / 2
 			tubes = tubes.clip(normal=normal, origin=origin + half * normal, invert=True)
@@ -880,6 +919,7 @@ class Viewer:
 				'opacity': float(layer.kwargs.get('opacity', 1.0)),
 				'clim': None if layer.clim is None else [float(v) for v in layer.clim],
 				'color_by': layer.color_var, 'cmap': layer.cmap, 'radius': layer.radius,
+				'categories': list(layer.categories) if layer.categorical else None,
 				'edges': bool(layer.kwargs.get('show_edges', False)) if layer.kind == 'blocks' else None,
 				'threshold': None if layer.threshold is None else [float(v) for v in layer.threshold],
 				'slice': None if layer.section is None else {
@@ -936,7 +976,7 @@ class Viewer:
 			self.set_layer(saved['name'], visible=saved['visible'], opacity=saved['opacity'],
 						   clim=saved['clim'], threshold=saved['threshold'] or False, color_by=color_by,
 						   cmap=None if color_by is None and cmap == layer.cmap else cmap,
-						   edges=saved.get('edges'), radius=saved.get('radius'), **cut)
+						   edges=saved.get('edges'), radius=saved.get('radius'), categories=saved.get('categories'), **cut)
 		self.set_axis_origin(view['axis_origin'], view['axes_from_zero'])
 		self.set_vertical_exaggeration(view['vertical_exaggeration'])
 		# Views saved before the background could be changed have none
