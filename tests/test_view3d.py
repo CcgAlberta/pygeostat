@@ -1497,3 +1497,75 @@ def test_set_layer_colormap_on_a_ready_mesh():
     layer = viewer._layers[0]
     np.testing.assert_allclose(lookup_start(layer.actor.mapper.lookup_table), mpl.colormaps['plasma'](0)[:3], atol=0.01)
     assert layer.cmap == 'plasma' and layer.clim == (-0.5, 0.5)
+
+
+def test_set_layer_radius(two_holes):
+    """The tubes get the new radius with the same cells and arrays; the threshold and the colours stay,
+    and a hole that the slicer's plane only reaches with the wider tube now crosses it."""
+    viewer = hole_viewer(two_holes)
+    layer = viewer._layers[0]
+    cells, values = layer.mesh.n_cells, layer.mesh.cell_data['Au'].copy()
+    assert layer.radius == 3.0 and layer.mesh.bounds[:2] == pytest.approx((-3.0, 53.0), abs=0.2)
+    viewer.set_layer('Au', threshold=(2, 8), visible=False)
+    viewer.set_layer('Au', radius=6)
+    assert layer.radius == 6.0 and layer.mesh.bounds[:2] == pytest.approx((-6.0, 56.0), abs=0.2)
+    assert layer.source.mesh.n_cells == cells
+    np.testing.assert_array_equal(layer.source.mesh.cell_data['Au'], values)
+    np.testing.assert_array_equal(layer.mesh.cell_data['Au'], values[values >= 2])
+    assert layer.threshold == (2, 8) and not layer.actor.visibility
+    viewer.set_layer('Au', radius=3, threshold=False, visible=True)
+    viewer.set_slicer(enabled=True, origin=(4, 0, 15), normal=(1, 0, 0), tolerance=100, show_holes=True)
+    assert layer.crossing is None
+    viewer.set_layer('Au', radius=6)
+    assert layer.crossing is not None and layer.crossing.n_cells > 0
+
+
+def test_set_layer_radius_keeps_categories(two_holes):
+    """The category colours of a drill hole layer are the same after the tubes change."""
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    viewer = gs.view3d(two_holes, 'code', x='x', y='y', z='z', dh='hole', trace=True, radius=3,
+                       catdict={1: 'a', 3: 'b'}, viewer=gs.Viewer(off_screen=True))
+    layer = viewer._layers[0]
+    before = layer.mesh.cell_data['category index'].copy()
+    viewer.set_layer('code', radius=5)
+    np.testing.assert_array_equal(layer.mesh.cell_data['category index'], before)
+    assert layer.kwargs['annotations'] == {0: 'a', 1: 'b'}
+
+
+def test_set_layer_radius_is_refused_for_other_layers(grid3d, two_holes):
+    """Only a drill hole layer has tubes, a radius is above 0, and a refused change changes nothing."""
+    viewer = hole_viewer(two_holes)
+    gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=viewer)
+    with pytest.raises(ValueError, match="'value' is not a drill hole layer"):
+        viewer.set_layer('value', radius=2)
+    for radius in (0, -1):
+        with pytest.raises(ValueError, match='above 0'):
+            viewer.set_layer('Au', radius=radius, opacity=0.5)
+    assert viewer._layers[0].radius == 3.0 and viewer._layers[0].kwargs['opacity'] == 1.0
+    mesh = pv.Cylinder()
+    viewer.add(mesh, name='ready', kind='holes')
+    with pytest.raises(ValueError, match="'ready' is not a drill hole layer"):
+        viewer.set_layer('ready', radius=2)
+    assert viewer.get_view()['layers'][-1]['radius'] is None
+
+
+def test_view_saves_the_tube_radius(two_holes):
+    """A saved view brings back the tube radius."""
+    import json
+    viewer = hole_viewer(two_holes)
+    viewer.set_layer('Au', radius=5)
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['layers'][0]['radius'] == 5.0
+    fresh = hole_viewer(two_holes)
+    fresh.set_view(view)
+    assert fresh._layers[0].radius == 5.0 and fresh.get_view() == view
+
+
+def test_set_layer_radius_keeps_the_number_of_sides(two_holes):
+    """Tubes made with 8 sides still have 8 after the radius changes."""
+    viewer = gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3, n_sides=8,
+                       viewer=gs.Viewer(off_screen=True))
+    layer = viewer._layers[0]
+    cells = layer.mesh.n_cells
+    viewer.set_layer('Au', radius=4)
+    assert layer.mesh.n_cells == cells
