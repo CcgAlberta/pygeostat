@@ -541,3 +541,41 @@ def test_panel_with_a_palette_made_in_view3d():
     panel = viewer.panel()
     assert panel.state.layers[0]['cmap'] == 'cat_pastel'
     assert 'In the scene' not in [i['title'] for i in panel.state.cmap_items if i.get('type') == 'subheader']
+
+
+def test_panel_isolates_categories():
+    """The buttons of the categories show one, add others and show all again, with a colour each; the
+    page follows a script, and a layer without categories has no buttons."""
+    import asyncio
+    import pandas as pd
+    points = pd.DataFrame({'x': np.arange(3.0), 'y': 0.0, 'z': 0.0, 'code': [1, 2, 3], 'Au': [1.0, 2.0, 3.0]})
+    viewer = gs.view3d(points, 'code', x='x', y='y', z='z', catdict={1: 'a', 2: 'b', 3: 'c'},
+                       other_vars=['Au'], viewer=gs.Viewer(off_screen=True))
+    panel = viewer.panel()
+    state = panel.state
+    row = state.layers[0]
+    assert row['category_names'] == ['a', 'b', 'c'] and len(row['category_colours']) == 3
+    assert row['category_colours'][0].startswith('#') and row['categories'] == []
+
+    async def scenario():
+        await panel.layout.ready
+        shown = lambda: sorted(set(viewer._layers[0].mesh.cell_data['code']))
+        triggered(panel, panel.toggle_category)('code', 'b')
+        assert shown() == [2.0] and state.layers[0]['categories'] == ['b']
+        triggered(panel, panel.toggle_category)('code', 'c')
+        assert shown() == [2.0, 3.0] and state.layers[0]['categories'] == ['b', 'c']
+        triggered(panel, panel.toggle_category)('code', 'b')
+        assert shown() == [3.0]
+        triggered(panel, panel.toggle_category)('code', 'a')
+        triggered(panel, panel.toggle_category)('code', 'b')
+        assert shown() == [1.0, 2.0, 3.0] and state.layers[0]['categories'] == []
+        triggered(panel, panel.toggle_category)('code', 'a')
+        triggered(panel, panel.show_all_categories)('code')
+        assert shown() == [1.0, 2.0, 3.0] and state.layers[0]['categories'] == []
+        viewer.set_layer('code', categories=['c'])
+        assert state.layers[0]['categories'] == ['c']
+        viewer.set_layer('code', color_by='Au')
+        row = state.layers[0]
+        assert row['category_names'] == [] and row['categories'] == [] and row['category_colours'] == []
+        await panel.server.stop()
+    asyncio.run(scenario())
