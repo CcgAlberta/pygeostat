@@ -482,3 +482,62 @@ def test_panel_tube_radius(viewer):
         assert state.layers[2]['radius_range'] == [2.0, 100.0, 2.0] and state.radius_ui == {'Bitumen': 100.0}
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def test_panel_colour_by_and_palette():
+    """A layer with other variables has a Colour by list; a layer coloured by categories has a palette
+    list with only the palettes that have enough colours; both call the viewer."""
+    import asyncio
+    import pandas as pd
+    two_holes = pd.DataFrame({'x': [0.0] * 4 + [50.0] * 4, 'y': 0.0, 'z': [30.0, 20.0, 10.0, 0.0] * 2,
+                              'hole': ['a'] * 4 + ['b'] * 4, 'Au': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]})
+    two_holes['Cu'] = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    viewer = gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3,
+                       other_vars={'Cu': None, 'code': {1: 'a', 3: 'b'}}, viewer=gs.Viewer(off_screen=True))
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, label='alone', other_vars=[], viewer=viewer)
+    panel = viewer.panel()
+    state = panel.state
+    first, alone = state.layers
+    assert first['color_by'] == 'Au' and first['cmap_kind'] == 'continuous' and first['palette_items'] == []
+    assert [o['title'] for o in first['color_options']] == ['Au', 'Cu', 'code (categories)']
+    assert len(alone['color_options']) == 1
+
+    async def scenario():
+        await panel.layout.ready
+        triggered(panel, panel.set_color_by)('Au', 'code')
+        row = state.layers[0]
+        assert row['color_by'] == 'code' and row['cmap_kind'] == 'categorical' and row['cmap'] is None
+        palettes = [i['value'] for i in row['palette_items'] if 'value' in i]
+        assert 'cat_vibrant' in palettes and 'tab10' in palettes and 'turbo' in palettes
+        triggered(panel, panel.set_cmap)('Au', 'cat_pastel')
+        assert state.layers[0]['cmap'] == 'cat_pastel' and viewer._layers[0].cmap == 'cat_pastel'
+        triggered(panel, panel.set_color_by)('Au', 'Zn')
+        assert "can be coloured by ['Au', 'Cu', 'code']" in state.message and state.layers[0]['color_by'] == 'code'
+        viewer.set_layer('Au', color_by='Cu')
+        assert state.layers[0]['color_by'] == 'Cu' and state.layers[0]['cmap_kind'] == 'continuous'
+        await panel.server.stop()
+    asyncio.run(scenario())
+
+
+def test_panel_palettes_leave_out_short_ones():
+    """With 13 categories, the pygeostat palettes (12, 12 and 6 colours) are not offered."""
+    codes = list(range(1, 14))
+    import pandas as pd
+    points = pd.DataFrame({'x': np.arange(13.0), 'y': 0.0, 'z': 0.0, 'code': codes})
+    viewer = gs.view3d(points, 'code', x='x', y='y', z='z', catdict={c: str(c) for c in codes},
+                       viewer=gs.Viewer(off_screen=True))
+    panel = viewer.panel()
+    palettes = [i['value'] for i in panel.state.layers[0]['palette_items'] if 'value' in i]
+    assert not {'cat_vibrant', 'cat_pastel', 'cat_dark'} & set(palettes) and 'tab20' in palettes
+
+
+def test_panel_with_a_palette_made_in_view3d():
+    """A layer made with a palette of categories does not put it in the list of colormaps."""
+    import pandas as pd
+    points = pd.DataFrame({'x': [0.0, 1.0], 'y': 0.0, 'z': 0.0, 'code': [1, 3]})
+    viewer = gs.view3d(points, 'code', x='x', y='y', z='z', catdict={1: 'a', 3: 'b'}, cmap='cat_pastel',
+                       viewer=gs.Viewer(off_screen=True))
+    panel = viewer.panel()
+    assert panel.state.layers[0]['cmap'] == 'cat_pastel'
+    assert 'In the scene' not in [i['title'] for i in panel.state.cmap_items if i.get('type') == 'subheader']
