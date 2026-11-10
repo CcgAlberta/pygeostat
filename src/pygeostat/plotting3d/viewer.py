@@ -72,6 +72,14 @@ class _Layer:
 		return _actor_name(self.name)
 
 	@property
+	def radius(self):
+		"""The radius of the tubes of a drill hole layer, else None"""
+		from .meshes import RADIUS
+		if self.kind != 'holes' or self.source is None:
+			return None
+		return float(self.source.mesh.field_data[RADIUS][0])
+
+	@property
 	def cmap(self):
 		"""The name of the colormap of a layer coloured by a continuous variable, else None"""
 		if self.clim is None:
@@ -178,7 +186,7 @@ class Viewer:
 
 	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
 				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None,
-				  cmap=None, edges=None):
+				  cmap=None, edges=None, radius=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
 		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
@@ -204,6 +212,8 @@ class Viewer:
 				variable, as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`. If None,
 				unchanged
 			edges (bool): draw the edges of the cells of a block layer. If None, unchanged
+			radius (float): radius of the tubes of a drill hole layer, in the units of the
+				coordinates. If None, unchanged
 
 		The slice arguments work as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`.
 		Changing a slice that is already shown needs only the arguments that change. A layer
@@ -231,6 +241,12 @@ class Viewer:
 				raise ValueError("Unknown colormap '{}'".format(cmap))
 		if edges is not None and layer.kind != 'blocks':
 			raise ValueError("Layer '{}' is not a block layer, so it has no cell edges".format(name))
+		if radius is not None:
+			if layer.radius is None:
+				raise ValueError("Layer '{}' is not a drill hole layer made from data, so it has no tubes to "
+								 "change".format(name))
+			if not radius > 0:
+				raise ValueError("`radius` must be above 0")
 		slice_args = (orient, slice_number, slice_coordinate, slice_thickness, pointtol)
 		cut = threshold is not None or any(v is not None for v in slice_args)
 		if cut:
@@ -252,6 +268,10 @@ class Viewer:
 			layer.kwargs['opacity'] = opacity
 			if layer.actor is not None:
 				layer.actor.prop.opacity = opacity
+		if radius is not None:
+			from .meshes import _with_radius
+			layer.source.mesh = _with_radius(layer.source.mesh, radius)
+			self._place(layer)
 		if cmap is not None:
 			layer.kwargs['cmap'] = cmap
 			self._draw_again(layer)
@@ -762,7 +782,7 @@ class Viewer:
 		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
 		same layers: the camera, the vertical exaggeration, the background, the origin and ticks of
 		the ruler, what is drawn around the layers, the slicer and, for each layer, whether it is
-		shown, its opacity, colormap, cell edges, colour limits, threshold and slice.
+		shown, its opacity, colormap, cell edges, tube radius, colour limits, threshold and slice.
 
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
@@ -777,7 +797,7 @@ class Viewer:
 				'name': layer.name, 'visible': layer.visible,
 				'opacity': float(layer.kwargs.get('opacity', 1.0)),
 				'clim': None if layer.clim is None else [float(v) for v in layer.clim],
-				'cmap': layer.cmap,
+				'cmap': layer.cmap, 'radius': layer.radius,
 				'edges': bool(layer.kwargs.get('show_edges', False)) if layer.kind == 'blocks' else None,
 				'threshold': None if layer.threshold is None else [float(v) for v in layer.threshold],
 				'slice': None if layer.section is None else {
@@ -832,7 +852,8 @@ class Viewer:
 			cmap = saved.get('cmap')
 			self.set_layer(saved['name'], visible=saved['visible'], opacity=saved['opacity'],
 						   clim=saved['clim'], threshold=saved['threshold'] or False,
-						   cmap=None if cmap == layer.cmap else cmap, edges=saved.get('edges'), **cut)
+						   cmap=None if cmap == layer.cmap else cmap, edges=saved.get('edges'),
+						   radius=saved.get('radius'), **cut)
 		self.set_axis_origin(view['axis_origin'], view['axes_from_zero'])
 		self.set_vertical_exaggeration(view['vertical_exaggeration'])
 		# Views saved before the background could be changed have none
