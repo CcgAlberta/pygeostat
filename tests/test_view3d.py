@@ -1418,8 +1418,8 @@ def lookup_start(table):
 
 def test_set_layer_colormap(grid3d):
     """A new colormap colours the layer and its colour bar, keeping the layer's threshold, slice and
-    hiding; it is refused for a layer with no continuous variable, or for a name that is not a
-    colormap, and then nothing changes."""
+    hiding; it is refused for a layer with no variable, or for a name that is not a colormap, and
+    then nothing changes."""
     import matplotlib as mpl
     viewer = two_layer_viewer(grid3d)
     blocks, holes = viewer._layers
@@ -1435,8 +1435,9 @@ def test_set_layer_colormap(grid3d):
         viewer.set_layer('Bitumen', cmap='nonsense')
     points = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 1.0], 'z': [0.0, 1.0], 'code': [1, 3]})
     gs.view3d(points, 'code', x='x', y='y', z='z', catdict={1: 'a', 3: 'b'}, label='cat', viewer=viewer)
-    with pytest.raises(ValueError, match="'cat' is not coloured by a continuous variable"):
-        viewer.set_layer('cat', cmap='viridis')
+    gs.view3d(points, x='x', y='y', z='z', color='red', label='plain', viewer=viewer)
+    with pytest.raises(ValueError, match="'plain' is not coloured by a variable"):
+        viewer.set_layer('plain', cmap='viridis')
     assert blocks.cmap == 'topo1'
 
 
@@ -1569,3 +1570,105 @@ def test_set_layer_radius_keeps_the_number_of_sides(two_holes):
     cells = layer.mesh.n_cells
     viewer.set_layer('Au', radius=4)
     assert layer.mesh.n_cells == cells
+
+
+def make_coloured_holes(two_holes):
+    """Two drill holes coloured by Au, with Cu and a code to colour by instead."""
+    two_holes['Cu'] = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    return gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3,
+                     other_vars={'Cu': None, 'code': {1: 'a', 3: 'b'}}, viewer=gs.Viewer(off_screen=True))
+
+
+@pytest.fixture
+def coloured_holes(two_holes):
+    return make_coloured_holes(two_holes)
+
+
+def test_set_layer_color_by(coloured_holes):
+    """The layer is coloured by the other variable, with its own colour limits, colour bar and
+    categories, and goes back to its first one; the threshold keeps using the first variable."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    assert layer.color_var == 'Au' and list(layer.source.colourings) == ['Au', 'Cu', 'code']
+    viewer.set_layer('Au', threshold=(2, 8), visible=False)
+    viewer.set_layer('Au', color_by='Cu')
+    assert layer.color_var == 'Cu' and layer.kwargs['scalars'] == 'Cu' and layer.clim == (10.0, 70.0)
+    assert layer.data_range == (10.0, 70.0) and 'Cu' in viewer.plotter.scalar_bars.keys()
+    assert 'Au' not in viewer.plotter.scalar_bars.keys()
+    assert layer.threshold == (2, 8) and not layer.actor.visibility
+    assert layer.mesh.n_cells == layer.source.cut((2, 8), None).n_cells
+    viewer.set_layer('Au', color_by='code', threshold=False)
+    assert layer.kwargs['scalars'] == 'category index' and layer.kwargs['annotations'] == {0: 'a', 1: 'b'}
+    assert layer.clim is None and layer.categorical and 'code' in viewer.plotter.scalar_bars.keys()
+    np.testing.assert_array_equal(layer.mesh.cell_data['category index'], (layer.mesh.cell_data['code'] == 3) * 1.0)
+    viewer.set_layer('Au', color_by='Au')
+    assert layer.kwargs['scalars'] == 'Au' and layer.clim == (1.0, 7.0) and 'Au' in viewer.plotter.scalar_bars.keys()
+    assert 'code' not in viewer.plotter.scalar_bars.keys()
+
+
+def test_set_layer_color_by_refuses_other_names(coloured_holes):
+    """A name the layer cannot be coloured by is refused with the names it can, and changes nothing."""
+    viewer = coloured_holes
+    with pytest.raises(ValueError, match=r"\['Au', 'Cu', 'code'\], not 'Zn'"):
+        viewer.set_layer('Au', color_by='Zn', opacity=0.5)
+    layer = viewer._layers[0]
+    assert layer.color_var == 'Au' and layer.kwargs['opacity'] == 1.0
+
+
+def test_set_layer_palette_of_categories(coloured_holes):
+    """A layer coloured by categories takes another palette, which it keeps while coloured by
+    something else, and a palette too short for its categories is refused."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', color_by='code')
+    first = [tuple(c) for c in layer.kwargs['cmap'].colors]
+    viewer.set_layer('Au', cmap='cat_pastel')
+    assert layer.cmap == 'cat_pastel' and [tuple(c) for c in layer.kwargs['cmap'].colors] != first
+    viewer.set_layer('Au', color_by='Cu', cmap='plasma')
+    assert layer.cmap == 'plasma'
+    viewer.set_layer('Au', color_by='code')
+    assert layer.cmap == 'cat_pastel'
+    viewer.set_layer('Au', color_by='Au')
+    assert layer.cmap == 'plasma'
+
+
+def test_view3d_keeps_the_variables_of_a_datafile(two_holes):
+    """A DataFile layer keeps its numeric variables and its category column to colour by."""
+    two_holes['Cu'] = 1.0
+    two_holes['name'] = 'x'
+    two_holes['code'] = [1, 3] * 4
+    data = gs.DataFile(data=two_holes, x='x', y='y', z='z', dh='hole', variables=['Au', 'Cu', 'name'], cat='code',
+                       catdict={1: 'a', 3: 'b'})
+    viewer = gs.view3d(data, 'Au', trace=True, viewer=gs.Viewer(off_screen=True))
+    assert viewer._layers[0].source.colourings == {'Au': None, 'Cu': None, 'code': {1: 'a', 3: 'b'}}
+    viewer = gs.view3d(data, 'Au', trace=True, other_vars=[], viewer=gs.Viewer(off_screen=True))
+    assert list(viewer._layers[0].source.colourings) == ['Au']
+
+
+def test_view_saves_the_colouring(coloured_holes, two_holes):
+    """A saved view brings back the variable a layer is coloured by and its palette."""
+    import json
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', cmap='cat_pastel')
+    two_holes = two_holes.copy()
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['layers'][0]['color_by'] == 'code' and view['layers'][0]['cmap'] == 'cat_pastel'
+    fresh = make_coloured_holes(two_holes)
+    fresh.set_view(view)
+    assert fresh._layers[0].color_var == 'code' and fresh._layers[0].cmap == 'cat_pastel'
+    assert fresh.get_view() == view
+
+
+def test_view_brings_back_a_palette_cut_from_a_colormap(coloured_holes, two_holes):
+    """A view saved with categories coloured by a continuous colormap's name brings that palette
+    back on a layer whose colormap has the same name but is for another kind of variable."""
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', cmap='viridis')
+    view = viewer.get_view()
+    fresh = make_coloured_holes(two_holes.copy())
+    assert fresh._layers[0].cmap == viewer._layers[0].cmap == 'viridis'
+    fresh.set_view(view)
+    assert fresh._layers[0].categorical
+    assert [tuple(c) for c in fresh._layers[0].kwargs['cmap'].colors] == [
+        tuple(c) for c in viewer._layers[0].kwargs['cmap'].colors]
