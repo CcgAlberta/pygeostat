@@ -53,6 +53,8 @@ class Panel:
 			raise ImportError('The layer panel requires trame: pip install "pygeostat[view3d-panel]"') from None
 		self.viewer = viewer
 		self.views_folder = views_folder
+		# The range of the tube radius slider of each drill hole layer, from the radius it first had
+		self._radius_ranges = {}
 		# The preview bar of each colormap offered, made once
 		self._gradients = {}
 		# Set while a button changes the scene in several steps, so the page is sent only the result
@@ -123,6 +125,13 @@ class Panel:
 						vuetify3.VCheckbox(v_if='layer.edges !== null', label='Show cell edges',
 										   model_value=('layer.edges',), density='compact', hide_details=True,
 										   update_modelValue=(self.set_edges, '[layer.name, $event]'))
+						# The tubes are drawn again when the slider is let go, not at every step of its move
+						vuetify3.VSlider(v_if='layer.radius !== null', label='Tube radius', v_model=('radius_ui[layer.name]',),
+										 min=('layer.radius_range[0]',), max=('layer.radius_range[1]',),
+										 step=('layer.radius_range[2]',), density='compact', hide_details=True,
+										 thumb_label=True, classes='mt-2',
+										 end=(self.set_radius, '[layer.name, $event]'),
+										 keyup=(self.set_radius, '[layer.name, radius_ui[layer.name]]'))
 						with html.Div(v_if='layer.clim', classes='mt-2'):
 							html.Div('Colour limits', classes='text-caption')
 							with html.Div(classes='d-flex ga-2'):
@@ -250,7 +259,8 @@ class Panel:
 	def refresh(self):
 		"""Show the viewer's layers as they are now. The viewer calls this when a layer is added or
 		changed, so the page follows a script."""
-		self.state.layers = [_row(layer) for layer in self.viewer._layers]
+		self.state.layers = [self._row(layer) for layer in self.viewer._layers]
+		self.state.radius_ui = {layer.name: layer.radius for layer in self.viewer._layers if layer.radius is not None}
 		slicer = self.viewer._slicer
 		lower, upper = _corners(self.viewer._extents) if self.viewer._extents else ([0.0] * 3, [1.0] * 3)
 		self.state.slicer = {
@@ -355,6 +365,20 @@ class Panel:
 		for group, names in groups.items():
 			items += [{'type': 'subheader', 'title': group}] + [entry(name) for name in names]
 		return items
+
+	def _row(self, layer):
+		"""What the page shows of a layer: :func:`_row` and the range of its tube radius slider, from a
+		quarter to four times the radius the layer first had"""
+		row = _row(layer)
+		row['radius'] = layer.radius
+		if layer.radius is not None:
+			first = self._radius_ranges.setdefault(layer.name, layer.radius)
+			row['radius_range'] = [first / 4, max(4 * first, layer.radius), first / 4]
+		return row
+
+	def set_radius(self, name, radius):
+		"""Set the radius of the tubes of a drill hole layer, like ``Viewer.set_layer(name, radius=...)``"""
+		self._try(name, lambda: {'radius': _number(radius)})
 
 	def set_cmap(self, name, cmap):
 		"""Set the colormap of a layer, like ``Viewer.set_layer(name, cmap=...)"""
