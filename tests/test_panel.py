@@ -456,3 +456,29 @@ def test_panel_colormap_and_cell_edges(viewer):
         assert (state.layers[0]['cmap'], state.layers[0]['edges']) == ('magma', False)
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def test_panel_tube_radius(viewer):
+    """The radius slider of a drill hole layer draws the tubes again when it is let go, from a quarter
+    to four times the radius the layer had; the page follows a script, even past that range."""
+    import asyncio
+    viewer.set_layer('Estimate', visible=False)
+    gs.view3d(gs.ExampleData('oilsands'), 'Bitumen', trace=True, radius=8, viewer=viewer)
+    panel = viewer.panel()
+    state = panel.state
+    rows = {row['name']: row for row in state.layers}
+    assert rows['value']['radius'] is None and rows['Bitumen']['radius'] == 8.0
+    assert rows['Bitumen']['radius_range'] == [2.0, 32.0, 2.0] and state.radius_ui == {'Bitumen': 8.0}
+    slider = re.search(r'<VSlider[^>]*Tube radius[^>]*>', panel.layout.html).group(0)
+    assert 'v-model="radius_ui[layer.name]"' in slider and '@end=' in slider and '@keyup=' in slider
+
+    async def scenario():
+        await panel.layout.ready
+        triggered(panel, panel.set_radius)('Bitumen', 12)
+        assert viewer._layers[2].radius == 12.0 and state.radius_ui == {'Bitumen': 12.0}
+        triggered(panel, panel.set_radius)('Bitumen', 'wide')
+        assert "'wide' is not a number" in state.message and viewer._layers[2].radius == 12.0
+        viewer.set_layer('Bitumen', radius=100)
+        assert state.layers[2]['radius_range'] == [2.0, 100.0, 2.0] and state.radius_ui == {'Bitumen': 100.0}
+        await panel.server.stop()
+    asyncio.run(scenario())
