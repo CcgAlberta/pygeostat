@@ -29,6 +29,13 @@ Learn the basic PyGeoStat workflow with a simple, end-to-end example.
 Visual showcase of all PyGeoStat plotting functions with examples.
 :::
 
+:::{grid-item-card} 🧊 3D Viewer
+:link: view3d
+:link-type: ref
+
+View drill holes, block models and sub-blocks in 3D, and draw them next to 2D plots.
+:::
+
 ::::
 
 ---
@@ -51,4 +58,5 @@ Once you're comfortable with the basics, explore:
 installation
 getting_started
 plotting_gallery
+view3d
 ```

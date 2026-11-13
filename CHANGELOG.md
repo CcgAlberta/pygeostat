@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- 3D viewer (optional, `pip install pygeostat[view3d]`): `gs.view3d()`, `gs.Viewer`, `gs.drillhole_mesh()`
+  and `gs.block_mesh()` for drill holes, block models and sub-blocks, with a user guide page (#147)
+- Interactive layer panel for the 3D viewer (optional, `pip install "pygeostat[view3d-panel]"`):
+  `Viewer.panel()`, with a slicer (a plane through the scene), and `Viewer.set_layer()`, `set_slicer()`,
+  `set_axis_origin()`, `get_view()` and `set_view()` to do the same from a script (#149)
+
 ## [1.2.0] - 2025-06-25
 
 ### Major Updates

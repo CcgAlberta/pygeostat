@@ -1,0 +1,322 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""Tests for the interactive layer panel of the 3D viewer (needs PyVista and trame)"""
+
+import re
+import numpy as np
+import pytest
+import pygeostat as gs
+
+pv = pytest.importorskip('pyvista')
+pytest.importorskip('trame_pyvista')
+
+
+@pytest.fixture(autouse=True)
+def close_scenes():
+    """Close the PyVista plotters each test leaves open."""
+    yield
+    pv.close_all()
+
+
+@pytest.fixture
+def viewer():
+    """Two layers: a block model and a set of points."""
+    data = gs.ExampleData('3d_grid')
+    viewer = gs.view3d(data, 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]),
+                       viewer=gs.Viewer(off_screen=True))
+    return gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=viewer)
+
+
+def rows(panel):
+    """(name, visible, opacity) of each layer in the page."""
+    return [(l['name'], l['visible'], l['opacity']) for l in panel.state.layers]
+
+
+def triggered(panel, handler):
+    """The function the page calls for `handler`, found from the page's own HTML."""
+    controller = panel.server.controller
+    names = re.findall(r"trigger\('(trigger__\d+)', \[[^\]]*\]\)", panel.layout.html)
+    return next(controller.trigger_fn(n) for n in names if controller.trigger_fn(n) == handler)
+
+
+def test_panel_lists_the_layers(viewer):
+    """The page starts with one entry per layer, with its visibility and opacity."""
+    viewer.set_layer('Estimate', opacity=0.5)
+    panel = viewer.panel()
+    assert rows(panel) == [('value', True, 1.0), ('Estimate', True, 0.5)]
+
+
+def test_panel_controls_change_the_viewer(viewer):
+    """The checkbox and slider of the page call the handlers, which change the layer in the
+    viewer and the page."""
+    panel = viewer.panel()
+    triggered(panel, panel.set_visible)('Estimate', False)
+    triggered(panel, panel.set_opacity)('value', 0.25)
+    blocks, points = [layer.actor for layer in viewer._layers]
+    assert not points.visibility and blocks.prop.opacity == 0.25
+    assert rows(panel) == [('value', True, 0.25), ('Estimate', False, 1.0)]
+
+
+def test_panel_without_trame_says_what_to_install(viewer, monkeypatch):
+    """A missing trame gives the install message, not a bare ImportError."""
+    import sys
+    monkeypatch.setitem(sys.modules, 'trame_pyvista.ui', None)
+    with pytest.raises(ImportError, match=r'pygeostat\[view3d-panel\]'):
+        viewer.panel()
+
+
+def test_panel_follows_the_script(viewer):
+    """Layers added or changed in a script after panel() show in the page."""
+    panel = viewer.panel()
+    gs.view3d(gs.ExampleData('oilsands'), 'Bitumen', viewer=viewer)
+    viewer.set_layer('value', visible=False)
+    assert [(l['name'], l['visible']) for l in panel.state.layers] == [
+        ('value', False), ('Estimate', True), ('Bitumen', True)]
+
+
+def test_panel_colour_limits(viewer):
+    """The typed boxes set one end of the limits; the page shows the data range beside each, and a
+    value that does not work leaves the limits and says why."""
+    panel = viewer.panel()
+    low, high = viewer._layers[0].mesh.get_data_range('value')
+    assert panel.state.layers[0]['data_range'] == [low, high]
+    set_clim = triggered(panel, panel.set_clim)
+    set_clim('value', 1, '1.5')
+    set_clim('value', 0, '0.5')
+    assert viewer._layers[0].clim == (0.5, 1.5)
+    assert panel.state.layers[0]['clim'] == [0.5, 1.5] and panel.state.message == ''
+    set_clim('value', 0, '2')
+    assert viewer._layers[0].clim == (0.5, 1.5)
+    assert 'min below max' in panel.state.message and panel.state.layers[0]['clim'] == [0.5, 1.5]
+    set_clim('value', 1, 'abc')
+    assert viewer._layers[0].clim == (0.5, 1.5) and panel.state.message
+
+
+def test_panel_no_colour_limits_for_categories():
+    """A layer coloured by category, or not by a variable, has no limits boxes."""
+    viewer = gs.view3d(gs.ExampleData('point3d_ind_mv'), 'Lithofacies', catdict={1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e'},
+                       viewer=gs.Viewer(off_screen=True))
+    viewer.add(pv.Sphere(), color='red')
+    assert [l['clim'] for l in viewer.panel().state.layers] == [None, None]
+
+
+def test_panel_data_range_is_the_whole_layer():
+    """After a threshold or slice the label still shows the range of the whole variable, which
+    the colours keep."""
+    data = gs.ExampleData('3d_grid')
+    viewer = gs.view3d(data, 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]),
+                       threshold=(0.5, 1.0), viewer=gs.Viewer(off_screen=True))
+    row = viewer.panel().state.layers[0]
+    assert row['data_range'] == [data.data['value'].min(), data.data['value'].max()]
+    assert row['clim'] == row['data_range']
+
+
+def test_panel_threshold(viewer):
+    """A checkbox and a typed minimum. On shows the values from the minimum
+    up, which starts at the lowest of the data; off shows everything. The minimum typed while it
+    is off is kept, and one that does not work is explained."""
+    panel = viewer.panel()
+    layer = viewer._layers[0]
+    low, high = layer.mesh.get_data_range('value')
+    row = panel.state.layers[0]
+    assert row['threshold_range'] == [low, high] and row['threshold_on'] is False and row['variable'] == 'value'
+    triggered(panel, panel.set_threshold_min)('value', '0.5')
+    assert layer.threshold is None and layer.mesh.n_cells == 40 ** 3
+    triggered(panel, panel.set_threshold_on)('value', True)
+    assert layer.threshold == (0.5, high)
+    values = layer.mesh.cell_data['value']
+    assert 0 < len(values) < 40 ** 3 and values.min() >= 0.5
+    assert panel.state.layers[0]['threshold_on'] and panel.state.layers[0]['threshold_min'] == 0.5
+    triggered(panel, panel.set_threshold_min)('value', '1')
+    assert layer.threshold == (1.0, high) and layer.mesh.cell_data['value'].min() >= 1
+    triggered(panel, panel.set_threshold_min)('value', 'abc')
+    assert "'abc' is not a number" in panel.state.message and layer.threshold == (1.0, high)
+    triggered(panel, panel.set_threshold_min)('value', str(high + 1))
+    assert 'min not above max' in panel.state.message and layer.threshold == (1.0, high)
+    triggered(panel, panel.set_threshold_on)('value', False)
+    assert layer.threshold is None and layer.mesh.n_cells == 40 ** 3
+    triggered(panel, panel.set_threshold_on)('value', True)
+    assert layer.threshold == (1.0, high)
+
+
+def test_panel_threshold_starts_at_the_lowest_value(viewer):
+    """With nothing typed, switching the threshold on keeps every value (the minimum is the lowest)."""
+    panel = viewer.panel()
+    triggered(panel, panel.set_threshold_on)('value', True)
+    assert viewer._layers[0].threshold == tuple(viewer._layers[0].mesh.get_data_range('value'))
+    assert viewer._layers[0].mesh.n_cells == 40 ** 3
+
+
+def test_panel_axis_origin():
+    """The boxes set where the ruler counts from, one axis at a time; All axes from 0 uses the
+    lowest edge of the scene; the card is only there when the viewer has a ruler."""
+    viewer = gs.Viewer(off_screen=True)
+    viewer.add(pv.Box(bounds=(1000, 1100, 5000, 5100, 300, 340)), color='red')
+    panel = viewer.panel()
+    assert panel.state.axes['has_ruler'] is False
+    viewer.add_ruler()
+    assert panel.state.axes == {'has_ruler': True, 'origin': [0.0, 0.0, 0.0], 'from_zero': False}
+
+    def handler(function):
+        controller = panel.server.controller
+        names = re.findall(r"trigger\('(trigger__\d+)', \[[^\]]*\]\)", panel.layout.html)
+        return next(controller.trigger_fn(n) for n in names if controller.trigger_fn(n) == function)
+
+    handler(panel.set_origin)(0, '1000')
+    handler(panel.set_origin)(2, '300')
+    assert viewer._axis_origin == (1000.0, 0.0, 300.0)
+    assert panel.state.axes['origin'] == [1000.0, 0.0, 300.0]
+    handler(panel.set_origin)(1, 'abc')
+    assert "'abc' is not a number" in panel.state.message and viewer._axis_origin == (1000.0, 0.0, 300.0)
+    handler(panel.set_from_zero)(True)
+    assert panel.state.axes == {'has_ruler': True, 'origin': [1000.0, 5000.0, 300.0], 'from_zero': True}
+    handler(panel.set_from_zero)(False)
+    assert panel.state.axes['origin'] == [1000.0, 0.0, 300.0]
+
+
+def test_panel_saves_and_loads_a_view(viewer, tmp_path):
+    """Save writes the view to a json file in the folder and lists it; Load gives it back, also on
+    a fresh viewer; a name with a path in it, a missing file and a file that is not a view are
+    explained and change nothing."""
+    import json
+    folder = str(tmp_path / 'views')
+    panel = viewer.panel(views_folder=folder)
+    assert panel.state.view_files == []
+    viewer.set_layer('value', opacity=0.3, threshold=(0, 1))
+    panel.save_view('first look')
+    assert panel.state.view_files == ['first look'] and panel.state.view_file == 'first look'
+    with open(folder + '/first look.json') as f:
+        assert json.load(f) == viewer.get_view()
+    viewer.set_layer('value', opacity=1, threshold=False)
+    panel.load_view('first look')
+    assert viewer._layers[0].kwargs['opacity'] == 0.3 and viewer._layers[0].threshold == (0.0, 1.0)
+    assert panel.state.note == 'Loaded {}/first look.json'.format(folder)
+    for bad in ('../escape', 'a/b'):
+        panel.save_view(bad)
+        assert 'letters, digits' in panel.state.message
+    assert sorted(p.name for p in tmp_path.iterdir()) == ['views']
+    panel.load_view('../views/first look')
+    assert 'letters, digits' in panel.state.message
+    panel.load_view('nothing')
+    assert 'Could not load' in panel.state.message
+    (tmp_path / 'views' / 'broken.json').write_text('{"layers": 3}')
+    panel.load_view('broken')
+    assert 'Could not load' in panel.state.message
+    fresh = gs.view3d(gs.ExampleData('3d_grid'), 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]),
+                      viewer=gs.Viewer(off_screen=True))
+    gs.view3d(gs.ExampleData('3d_estimate'), 'Estimate', viewer=fresh)
+    other = fresh.panel(views_folder=folder)
+    assert other.state.view_files == ['broken', 'first look']
+    other.load_view('first look')
+    assert fresh._layers[0].kwargs['opacity'] == 0.3
+
+
+def test_panel_shows_itself_in_a_notebook_without_await(viewer, monkeypatch):
+    """Displaying the panel gives a placeholder, which becomes the page (an iframe) once the server
+    is up, so the user needs no `await layout.ready`."""
+    import asyncio
+    import IPython.display
+    shown = []
+    monkeypatch.setattr(IPython.display, 'display', lambda widget, *a, **k: shown.append(widget))
+    panel = viewer.panel()
+
+    async def cell():
+        panel._ipython_display_()
+        assert 'Starting' in shown[0].value
+        await panel._starting
+        assert '<iframe' in shown[0].value and 'not running' not in shown[0].value
+        await panel.server.stop()
+    asyncio.run(cell())
+
+
+def test_panel_view_uses_the_panels_server(viewer):
+    """The 3D view is drawn through the panel's own server (on another one the area stays empty),
+    also for a second panel of the same viewer."""
+    first = viewer.panel()
+    second = viewer.panel()
+    assert first._view.server is first.server
+    assert second._view.server is second.server
+    assert first.server is not second.server
+
+
+def drag(panel, **values):
+    """Move sliders of the page, as the mouse does: the page sets its values, and the server hears it."""
+    import asyncio
+    for key, value in values.items():
+        panel.state[key] = value
+    panel.state.flush()
+    return asyncio.sleep(0.02)
+
+
+def test_panel_slicer(viewer):
+    """The slicer card of the page drives Viewer.set_slicer: it starts at the centre of the scene
+    facing up, and each control changes the plane, the cut layers and the drill holes."""
+    import asyncio
+    import pandas as pd
+    two_holes = pd.DataFrame({'x': [0.0] * 4 + [50.0] * 4, 'y': 0.0, 'z': [30.0, 20.0, 10.0, 0.0] * 2,
+                              'hole': ['a'] * 4 + ['b'] * 4, 'Au': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]})
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3, viewer=viewer)
+    panel = viewer.panel()
+    state = panel.state.slicer
+    assert state['enabled'] is False and state['normal'] == [0.0, 0.0, 1.0] and state['tolerance'] == 10.0
+    assert len(state['bounds']) == 6 and len(state['origin']) == 3
+    blocks, holes = viewer._layers[0], viewer._layers[2]
+
+    async def scenario():
+        await panel.layout.ready
+        triggered(panel, panel.set_slicer_enabled)(True)
+        assert panel.state.slicer['enabled'] and not holes.visible
+        assert [row['visible'] for row in panel.state.layers] == [True, True, False]
+        await drag(panel, slicer_origin_2=10.25)
+        np.testing.assert_allclose(blocks.mesh.points[:, 2], 10.25)
+        assert panel.state.slicer['origin'][2] == 10.25
+        triggered(panel, panel.snap_slicer)('xz')
+        await asyncio.sleep(0.02)
+        assert panel.state.slicer['normal'] == [0.0, 1.0, 0.0] and panel.state.slicer_normal_1 == 1.0
+        await drag(panel, slicer_normal_0=1.0)
+        assert viewer._slicer['normal'] == (1.0, 1.0, 0.0)
+        await drag(panel, slicer_origin_0=0.0, slicer_origin_1=0.0, slicer_tolerance=6.0)
+        triggered(panel, panel.set_show_holes)(True)
+        assert panel.state.slicer['tolerance'] == 6.0 and panel.state.slicer['show_holes']
+        assert holes.crossing is not None
+        await drag(panel, slicer_tolerance=-5.0)
+        assert '0 or more' in panel.state.message and viewer._slicer['tolerance'] == 6.0
+        assert panel.state.slicer_tolerance == 6.0
+        triggered(panel, panel.set_slicer_enabled)(False)
+        assert holes.visible and blocks.mesh.n_cells == 40 ** 3 and holes.crossing is None
+        await panel.server.stop()
+    asyncio.run(scenario())
+
+
+def test_panel_slicer_follows_the_slider_while_it_moves(viewer, monkeypatch):
+    """As the slider moves up and down, the cut moves with every step, not only when it stops; and
+    while the slicer is off, moving it draws nothing again. The sliders are plain values of the
+    page (v-model on their own key)."""
+    import asyncio
+    panel = viewer.panel()
+    html = panel.layout.html
+    for key in ['slicer_origin_{}'.format(i) for i in range(3)] + ['slicer_normal_{}'.format(i) for i in range(3)] \
+            + ['slicer_tolerance']:
+        slider = re.search(r'<VSlider v-model="{}"[^>]*>'.format(key), html).group(0)
+        assert '@' not in slider
+    blocks = viewer._layers[0]
+    placed = []
+    place = viewer._place
+    monkeypatch.setattr(viewer, '_place', lambda layer: (placed.append(layer.name), place(layer)))
+
+    async def scenario():
+        await panel.layout.ready
+        await drag(panel, slicer_origin_2=7.25)
+        assert placed == [] and blocks.mesh.n_cells == 40 ** 3       # slicer off: nothing is redrawn
+        triggered(panel, panel.set_slicer_enabled)(True)
+        for z in (2.25, 3.25, 4.25, 5.25, 4.25, 3.25, 9.25):          # up, up, up, then down, down
+            await drag(panel, slicer_origin_2=z)
+            np.testing.assert_allclose(blocks.mesh.points[:, 2], z)
+            assert blocks.mesh.n_cells == 40 * 40
+        # The keys follow the viewer when a script moves the plane
+        viewer.set_slicer(origin=(1, 2, 3), normal=(0, 1, 0), tolerance=7)
+        assert (panel.state.slicer_origin_0, panel.state.slicer_origin_1, panel.state.slicer_origin_2) == (1, 2, 3)
+        assert panel.state.slicer_normal_1 == 1.0 and panel.state.slicer_tolerance == 7.0
+        await panel.server.stop()
+    asyncio.run(scenario())
