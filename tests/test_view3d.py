@@ -1806,3 +1806,103 @@ def test_only_drill_holes_are_pickable(grid3d, two_holes):
     assert holes.actor.pickable and not blocks.actor.pickable and not points.actor.pickable and pickable.actor.pickable
     viewer.set_layer('value', threshold=(0, 1))
     assert not blocks.actor.pickable
+
+
+def png_size(path):
+    """The width and height written in a PNG file."""
+    import struct
+    with open(path, 'rb') as f:
+        header = f.read(24)
+    assert header[:8] == b'\x89PNG\r\n\x1a\n'
+    return struct.unpack('>II', header[16:24])
+
+
+def test_save_screenshot(grid3d, tmp_path):
+    """The picture is the size of the plotter's window and has the scene's background."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_background('black')
+    viewer.save_screenshot(str(tmp_path / 'scene.png'))
+    assert png_size(tmp_path / 'scene.png') == tuple(viewer.plotter.window_size)
+    import matplotlib.image as mpimg
+    np.testing.assert_allclose(mpimg.imread(tmp_path / 'scene.png')[0, 0, :3], 0x3a / 255, atol=0.01)
+
+
+def overlay_of(page):
+    """The HTML that the exported page adds on top of the scene (the colour bars and the note)."""
+    import json
+    start = page.index('const html=') + len('const html=')
+    return json.loads(page[start:page.index(';function add', start)].replace('<\\/', '</'))
+
+
+def test_export_html(grid3d, two_holes, tmp_path):
+    """The page has the ruler fixed for the exaggeration and the origin, a colour bar of each
+    visible variable drawn as HTML (a range, or the names of the categories), and a note of the
+    exaggeration; the scene's own colour bars are back afterwards."""
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    gs.view3d(two_holes, 'code', x='x', y='y', z='z', dh='hole', trace=True, catdict={1: 'Sand', 3: 'Shale'},
+              viewer=viewer)
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, label='hidden', viewer=viewer)
+    viewer.set_layer('hidden', visible=False)
+    viewer.add_ruler()
+    viewer.set_vertical_exaggeration(3)
+    viewer.set_axis_origin((100, -5, 2))
+    visible = {title: bar.GetVisibility() for title, bar in viewer.plotter.scalar_bars.items()}
+    assert sorted(visible.values()) == [0, 1, 1]
+    viewer.export_html(str(tmp_path / 'scene.html'))
+    page = (tmp_path / 'scene.html').read_text(encoding='utf-8')
+    assert 'generateTicks:(b)=>{const t=Zl([b[0]-(100.0),b[1]-(100.0),b[2]-(-5.0),b[3]-(-5.0),b[4]/(3.0)-(2.0)' in page
+    overlay = overlay_of(page)
+    assert 'Sand' in overlay and 'Shale' in overlay and '<b>value</b>' in overlay and '<b>hidden</b>' not in overlay
+    assert 'Vertical exaggeration 3x (elevation labels show true values minus 2)' in overlay
+    assert page.count('</body>') == 1
+    assert {title: bar.GetVisibility() for title, bar in viewer.plotter.scalar_bars.items()} == visible
+
+
+def test_export_html_without_an_exaggeration_has_no_note(grid3d, tmp_path):
+    """No note when the scene is not stretched, and one that says the labels count from the lowest edge."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    assert 'Vertical exaggeration' not in overlay_of(viewer._export_page().decode())
+    viewer.set_vertical_exaggeration(2)
+    viewer.set_axis_origin(from_zero=True)
+    assert 'true values counted from the lowest edge' in overlay_of(viewer._export_page().decode())
+    viewer.set_axis_origin()
+    assert '(elevation labels show true values)' in overlay_of(viewer._export_page().decode())
+    viewer.set_axis_origin((0, 0, -4))
+    assert 'true values plus 4' in overlay_of(viewer._export_page().decode())
+
+
+def test_export_html_is_refused_for_an_exporter_it_does_not_know(grid3d, tmp_path, monkeypatch):
+    """When the name of the tick function is not found in the page, nothing is written, so a page
+    with wrong elevations is never made; the scene's colour bars are back."""
+    from pygeostat.plotting3d import viewer as viewer_module
+    scene = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    monkeypatch.setattr(viewer_module, '_TICKS_JS', 'generateTicks:NotThere')
+    path = tmp_path / 'scene.html'
+    with pytest.raises(RuntimeError, match='cannot fix the ruler'):
+        scene.export_html(str(path))
+    assert not path.exists() and all(bar.GetVisibility() for bar in scene.plotter.scalar_bars.values())
+
+
+def test_export_html_leaves_the_scenes_colour_bars_out(grid3d, monkeypatch):
+    """The colour bars are hidden while the page is made, as vtk.js would draw all of them in one place."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    component = type(viewer.plotter.trame)
+    export = component.export_html
+    seen = []
+
+    def watching(self, filename):
+        seen.append([bar.GetVisibility() for bar in viewer.plotter.scalar_bars.values()])
+        return export(self, filename)
+    monkeypatch.setattr(component, 'export_html', watching)
+    viewer._export_page()
+    assert seen == [[0]]
+    assert [bar.GetVisibility() for bar in viewer.plotter.scalar_bars.values()] == [1]
+
+
+def test_export_html_has_one_colour_bar_for_layers_that_share_a_title(two_holes):
+    """Two layers coloured by the same variable have one bar in the page."""
+    viewer = hole_viewer(two_holes)
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=1, viewer=viewer)
+    assert viewer.layers == ['Au', 'Au (2)']
+    assert overlay_of(viewer._export_page().decode()).count('<b>Au</b>') == 1
