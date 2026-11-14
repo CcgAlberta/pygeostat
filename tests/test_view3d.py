@@ -1939,3 +1939,19 @@ def test_view_saved_by_the_panel_before_these_controls_still_loads(coloured_hole
     layer = viewer._layers[0]
     assert layer.kwargs['opacity'] == 0.5 and layer.color_var == 'code' and layer.categories == ('b',)
     assert layer.radius == 5.0 and viewer._background == 'white'
+
+
+def test_camera_carries_the_shift_of_the_window(grid3d):
+    """The shift that fit_view makes is in get_camera, so show_static frames the scene as the panel
+    does; a camera saved without it has no shift."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    camera = viewer.get_camera()
+    assert camera['window_center'] == [0.06, 0.0]
+    static = pv.Plotter(off_screen=True)
+    from pygeostat.plotting3d.viewer import _apply_camera
+    _apply_camera(static, camera)
+    assert static.camera.GetWindowCenter() == (0.06, 0.0)
+    del camera['window_center']
+    viewer.set_camera(camera)
+    assert viewer.plotter.camera.GetWindowCenter() == (0.0, 0.0)
