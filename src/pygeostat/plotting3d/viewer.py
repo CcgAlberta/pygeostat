@@ -173,6 +173,9 @@ class Viewer:
 		self._tick_note = ''
 		# The axis ('x', 'y' or 'z') a flat view looks along, which the ruler leaves out
 		self._hidden_axis = None
+		# The observers of the mouse that the panel adds to pick drill holes, to remove them when
+		# another panel is made
+		self._pick_observers = []
 		# The panel made by panel(), which shows the layers
 		self._panel = None
 
@@ -202,6 +205,9 @@ class Viewer:
 				leaves a ``'points'`` layer as it is
 		"""
 		name = name or 'Layer {}'.format(len(self._layers) + 1)
+		# Only drill holes are picked in the panel, so a click reaches a hole inside or behind a block
+		if kind != 'holes':
+			kwargs.setdefault('pickable', False)
 		if 'scalars' in kwargs:
 			kwargs['scalar_bar_args'] = self._placed_bar(kwargs['scalar_bar_args'])
 		first, number = name, 1
@@ -410,6 +416,44 @@ class Viewer:
 		if old != title and not any(other.kwargs.get('scalar_bar_args', {}).get('title') == old
 									for other in self._layers):
 			self.plotter.remove_scalar_bar(old)
+
+	def interval_info(self, name, cell, on_slice=False):
+		"""
+		What is known of the drill hole interval at a cell of a drill hole layer, e.g. one that was
+		clicked in the panel.
+
+		Parameters:
+			name (str): name of the layer, one of :attr:`layers`
+			cell (int): the cell, as numbered in the mesh that is drawn (``layer.mesh``)
+			on_slice (bool): the cell is in the holes on the slicer's plane, not in the layer
+
+		Returns:
+			info (dict): ``hole`` (its name, or None if the data had no drill hole column), ``upper``
+			and ``lower`` (the x, y, z of the ends of the interval) and ``values`` (the value of each
+			variable the layer can be coloured by, the name of the category for a variable with
+			categories, and None if there is no value)
+		"""
+		import numpy as np
+		from .meshes import SEGMENT, HOLE, UPPER, LOWER, HOLE_NAMES
+		layer = self._layers[self.layers.index(name)]
+		mesh = layer.crossing if on_slice else layer.mesh
+		if layer.kind != 'holes' or layer.source is None or mesh is None:
+			raise ValueError("Layer '{}' has no drill hole intervals{}".format(name, ' on the slice' if on_slice else ''))
+		source = layer.source.mesh
+		segment = int(mesh.cell_data[SEGMENT][cell])
+		hole = int(mesh.cell_data[HOLE][cell])
+		values = {}
+		for variable, catdict in layer.source.colourings.items():
+			value = float(mesh.cell_data[variable][cell])
+			if np.isnan(value):
+				values[variable] = None
+			elif catdict is None:
+				values[variable] = value
+			else:
+				values[variable] = catdict.get(int(value), str(int(value))) if isinstance(catdict, dict) else str(int(value))
+		return {'hole': str(source.field_data[HOLE_NAMES][hole]) if HOLE_NAMES in source.field_data else None,
+				'upper': [float(v) for v in source.field_data[UPPER][segment]],
+				'lower': [float(v) for v in source.field_data[LOWER][segment]], 'values': values}
 
 	def _draw_again(self, layer):
 		"""Draw a layer again with the options it has now"""
