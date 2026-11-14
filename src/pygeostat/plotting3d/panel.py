@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 import matplotlib as mpl
 
-from .viewer import _corners, _MAX_LABELS
+from .viewer import _corners, _gradient, _MAX_LABELS
 
 
 # The colormaps offered for a layer coloured by a continuous variable: pygeostat's own two (its
@@ -246,6 +246,16 @@ class Panel:
 									  click=(self.fit_view, '[]'))
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
+						html.Div('Export', classes='text-caption')
+						with html.Div(classes='d-flex flex-wrap ga-1'):
+							for label, icon, handler, filename, mime in (
+									('Screenshot (PNG)', 'mdi-file-png-box', self.attach_screenshot, 'scene.png', 'image/png'),
+									('Interactive HTML', 'mdi-download', self.attach_export, 'scene.html', 'text/html')):
+								vuetify3.VBtn(label, size='small', variant='tonal', prepend_icon=icon,
+											  click=("utils.download('{}', trigger('{}'), '{}')".format(
+												  filename, self.server.trigger_name(handler), mime)))
+				with vuetify3.VCard(variant='outlined', classes='ma-2'):
+					with vuetify3.VCardText():
 						html.Div('Saved views', classes='text-caption')
 						with html.Div(classes='d-flex align-center ga-1'):
 							vuetify3.VTextField(v_model=('view_name',), label='Name (optional)', density='compact',
@@ -473,15 +483,12 @@ class Panel:
 		"""The list of colormaps in the page: groups under their names, each colormap with a preview
 		bar drawn from the colours pyvista gives it. A colormap in the scene that is not in a group
 		is added, so that it can be shown as the chosen one"""
-		import pyvista as pv
 		from ..plotting.utils import _get_cmap
 
 		def entry(name):
 			if name not in self._gradients:
 				cmap = scene_cmaps.get(name) or _get_cmap(name, False, None)
-				colours = ['#{:02x}{:02x}{:02x}'.format(*rgba[:3])
-						   for rgba in pv.LookupTable(cmap=cmap, n_values=32).values]
-				self._gradients[name] = 'linear-gradient(to right, {})'.format(', '.join(colours))
+				self._gradients[name] = _gradient(cmap)
 			return {'title': name, 'value': name, 'gradient': self._gradients[name]}
 		groups = dict(_CMAP_GROUPS)
 		known = {name for names in groups.values() for name in names}
@@ -655,6 +662,18 @@ class Panel:
 		"""Frame the whole scene, like ``Viewer.fit_view``"""
 		with self._one_frame():
 			self.viewer.fit_view()
+
+	def attach_screenshot(self):
+		"""The scene as the page shows it, as a picture, for the browser to download"""
+		return self.server.protocol.addAttachment(self._view.screenshot())
+
+	def attach_export(self):
+		"""The scene as a web page, like ``Viewer.export_html``, for the browser to download"""
+		try:
+			page = self.viewer._export_page()
+		finally:
+			self._view.update()
+		return self.server.protocol.addAttachment(page)
 
 	def _on_parallel_projection(self, parallel_projection, **changed):
 		"""The box was ticked: like ``Viewer.set_parallel_projection``"""
