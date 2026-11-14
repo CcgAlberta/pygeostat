@@ -1744,3 +1744,65 @@ def test_view_saves_the_categories(coloured_holes, two_holes):
     fresh.set_view(view)
     assert fresh._layers[0].categories == ('b',) and codes_shown(fresh._layers[0]) == [3.0]
     assert fresh.get_view() == view
+
+
+def test_drillhole_mesh_keeps_the_hole_names():
+    """The names of the drill holes are kept by index, with a whole number written without .0."""
+    from pygeostat.plotting3d.meshes import HOLE_NAMES
+    data = pd.DataFrame({'x': [0.0] * 3 + [5.0] * 3, 'y': 0.0, 'z': [3.0, 2.0, 1.0] * 2,
+                         'id': [9.0] * 3 + [10.5] * 3, 'Au': np.arange(6.0)})
+    mesh = gs.drillhole_mesh(data, var='Au', x='x', y='y', z='z', dh='id', trace=True)
+    assert list(mesh.field_data[HOLE_NAMES]) == ['9', '10.5']
+    mesh = gs.drillhole_mesh(data, var='Au', x='x', y='y', z='z', dh='id', trace=True, radius=2)
+    assert list(mesh.field_data[HOLE_NAMES]) == ['9', '10.5']
+    intervals = pd.DataFrame({'sx': [0.0], 'sy': 0.0, 'sz': 5.0, 'ex': 0.0, 'ey': 0.0, 'ez': 1.0, 'Au': [1.0]})
+    mesh = gs.drillhole_mesh(intervals, var='Au', start=('sx', 'sy', 'sz'), end=('ex', 'ey', 'ez'))
+    assert HOLE_NAMES not in mesh.field_data
+
+
+def test_interval_info(coloured_holes):
+    """The hole, the ends of the interval and the value of each variable, with the name of a
+    category, for a cell of the layer and for a cell of the holes on the slice."""
+    from pygeostat.plotting3d.meshes import SEGMENT
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    cell = int(np.flatnonzero(layer.mesh.cell_data[SEGMENT] == 3)[0])      # the first interval of hole b
+    info = viewer.interval_info('Au', cell)
+    assert info == {'hole': 'b', 'upper': [50.0, 0.0, 30.0], 'lower': [50.0, 0.0, 20.0],
+                    'values': {'Au': 5.0, 'Cu': 50.0, 'code': 'a'}}
+    viewer.set_slicer(enabled=True, origin=(50, 0, 0), normal=(1, 0, 0), tolerance=4, show_holes=True)
+    slice_cell = int(np.flatnonzero(layer.crossing.cell_data[SEGMENT] == 5)[0])
+    assert viewer.interval_info('Au', slice_cell, on_slice=True)['values'] == {'Au': 7.0, 'Cu': 70.0, 'code': 'b'}
+    with pytest.raises(ValueError, match="no drill hole intervals on the slice"):
+        viewer.set_slicer(show_holes=False)
+        viewer.interval_info('Au', 0, on_slice=True)
+
+
+def test_interval_info_without_values_or_names(two_holes):
+    """A missing value is None, a variable with categories but no names gives its code, and holes
+    without a name column give no name."""
+    two_holes.loc[0, 'Au'] = np.nan
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    viewer = gs.view3d(two_holes, 'Au', x='x', y='y', z='z', trace=True, dh='hole', other_vars={'code': True},
+                       viewer=gs.Viewer(off_screen=True))
+    assert viewer.interval_info('Au', 0)['values'] == {'Au': None, 'code': '1'}
+    intervals = pd.DataFrame({'sx': [0.0], 'sy': 0.0, 'sz': 5.0, 'ex': 0.0, 'ey': 0.0, 'ez': 1.0, 'Au': [1.0]})
+    viewer = gs.view3d(intervals, 'Au', start=('sx', 'sy', 'sz'), end=('ex', 'ey', 'ez'),
+                       viewer=gs.Viewer(off_screen=True))
+    assert viewer.interval_info('Au', 0)['hole'] is None
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', label='points', viewer=viewer)
+    with pytest.raises(ValueError, match="'points' has no drill hole intervals"):
+        viewer.interval_info('points', 0)
+
+
+def test_only_drill_holes_are_pickable(grid3d, two_holes):
+    """Blocks and points are not pickable by default, so a click reaches a hole behind them; a mesh
+    added with ``pickable=True`` is."""
+    viewer = hole_viewer(two_holes)
+    gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=viewer)
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', label='points', viewer=viewer)
+    viewer.add(pv.Sphere(), name='pickable', pickable=True)
+    holes, blocks, points, pickable = viewer._layers
+    assert holes.actor.pickable and not blocks.actor.pickable and not points.actor.pickable and pickable.actor.pickable
+    viewer.set_layer('value', threshold=(0, 1))
+    assert not blocks.actor.pickable
