@@ -1906,3 +1906,36 @@ def test_export_html_has_one_colour_bar_for_layers_that_share_a_title(two_holes)
     gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=1, viewer=viewer)
     assert viewer.layers == ['Au', 'Au (2)']
     assert overlay_of(viewer._export_page().decode()).count('<b>Au</b>') == 1
+
+
+def test_set_layer_colormap_keeps_the_colour_limits(coloured_holes):
+    """Changing only the colormap leaves the colour limits as they were; colouring by another variable
+    and back gives the limits of the variable."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', clim=(2, 4))
+    viewer.set_layer('Au', cmap='plasma')
+    assert layer.clim == (2, 4) and layer.cmap == 'plasma'
+    viewer.set_layer('Au', color_by='Cu')
+    assert layer.clim == (10.0, 70.0)
+    viewer.set_layer('Au', color_by='Au')
+    assert layer.clim == (1.0, 7.0)
+
+
+def test_view_saved_by_the_panel_before_these_controls_still_loads(coloured_holes):
+    """A view with only what the panel saved before (camera, exaggeration, ruler origin, slicer and the
+    layers' visibility, opacity, colour limits, threshold and slice) shows, and changes nothing else."""
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', categories=['b'], radius=5)
+    viewer.set_background('black')
+    old = viewer.get_view()
+    for key in ('background', 'axis_ticks', 'scene'):
+        del old[key]
+    for layer in old['layers']:
+        for key in ('color_by', 'cmap', 'edges', 'radius', 'categories'):
+            del layer[key]
+    old['layers'][0]['opacity'] = 0.5
+    viewer.set_view(old)
+    layer = viewer._layers[0]
+    assert layer.kwargs['opacity'] == 0.5 and layer.color_var == 'code' and layer.categories == ('b',)
+    assert layer.radius == 5.0 and viewer._background == 'white'
