@@ -579,3 +579,141 @@ def test_panel_isolates_categories():
         assert row['category_names'] == [] and row['categories'] == [] and row['category_colours'] == []
         await panel.server.stop()
     asyncio.run(scenario())
+
+
+def hole_scene():
+    """Two vertical holes inside a block model that stands in front of them, with a panel."""
+    import pandas as pd
+    holes = pd.DataFrame({'x': [10.0] * 4 + [30.0] * 4, 'y': 10.0, 'z': [30.0, 20.0, 10.0, 0.0] * 2,
+                          'hole': ['a'] * 4 + ['b'] * 4, 'Au': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]})
+    viewer = gs.view3d(gs.ExampleData('3d_grid'), 'value', griddef=gs.GridDef([40, 1, 2, 40, 1, 2, 40, 0.5, 1]),
+                       opacity=0.2, viewer=gs.Viewer(off_screen=True))
+    gs.view3d(holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3, viewer=viewer)
+    viewer.set_camera_view('y')
+    return viewer, viewer.panel()
+
+
+def click(viewer, point):
+    """What a click on a world point picks, from pyvista's own picker."""
+    import vtk
+    viewer.plotter.render()
+    renderer = viewer.plotter.renderer
+    renderer.SetWorldPoint(*point, 1.0)
+    renderer.WorldToDisplay()
+    x, y = renderer.GetDisplayPoint()[:2]
+    picker = vtk.vtkCellPicker()
+    picker.SetTolerance(0.05)
+    picker.Pick(x, y, 0, renderer)
+    return picker
+
+
+def test_panel_picks_a_drill_hole_through_a_block():
+    """A click on a drill hole says which interval it is and marks it, though a block model is in
+    front of it; a click beside it, or on a hidden layer, says nothing was picked; anything drawn
+    again takes the text and the mark away."""
+    viewer, panel = hole_scene()
+    state = panel.state
+    assert state.pick_info == 'Click a drill hole to see its values (drag to rotate).'
+    panel._on_pick(None, click(viewer, (10.0, 10.0, 25.0)))
+    assert state.pick_info == 'Au: hole a, elevation 30.0 to 20.0, Au = 1.00'
+    mark = viewer.plotter.renderer.actors['pick highlight']
+    assert mark.prop.color == (1.0, 0.0, 1.0) and mark.prop.opacity == 0.6 and not mark.pickable
+    assert mark.mapper.dataset.bounds[0] == pytest.approx(10 - 5, abs=0.3)
+    panel._on_pick(None, click(viewer, (30.0, 10.0, 5.0)))
+    assert state.pick_info == 'Au: hole b, elevation 10.0 to 0.0, Au = 7.00'
+    panel._on_pick(None, click(viewer, (20.0, 10.0, 25.0)))
+    assert 'Nothing picked there' in state.pick_info and 'pick highlight' not in viewer.plotter.renderer.actors
+    panel._on_pick(None, click(viewer, (10.0, 10.0, 25.0)))
+    viewer.set_layer('Au', opacity=0.5)
+    assert state.pick_info.startswith('Click a drill hole') and 'pick highlight' not in viewer.plotter.renderer.actors
+    viewer.set_layer('Au', visible=False)
+    panel._on_pick(None, click(viewer, (10.0, 10.0, 25.0)))
+    assert 'Nothing picked there' in state.pick_info
+
+
+def test_panel_picks_the_holes_on_the_slice():
+    """A hole on the slicer's plane is picked with the note that it is on the slice."""
+    viewer, panel = hole_scene()
+    viewer.set_slicer(enabled=True, origin=(10, 10, 0), normal=(0, 1, 0), tolerance=20, show_holes=True)
+    panel._on_pick(None, click(viewer, (10.0, 10.0, 25.0)))
+    assert panel.state.pick_info == 'Au (on the slice): hole a, elevation 30.0 to 20.0, Au = 1.00'
+
+
+def test_panel_pick_needs_the_click_to_be_on_the_hole():
+    """A click that the picker snaps to a hole 60 pixels away picks nothing."""
+    viewer, panel = hole_scene()
+    picker = click(viewer, (10.0, 10.0, 25.0))
+    renderer = viewer.plotter.renderer
+    renderer.SetWorldPoint(10.0, 10.0, 25.0, 1.0)
+    renderer.WorldToDisplay()
+    x, y = renderer.GetDisplayPoint()[:2]
+    assert panel._click_distance(picker) == 0.0
+    import vtk
+    far = vtk.vtkCellPicker()
+    far.SetTolerance(0.05)
+    far.Pick(x + 60, y, 0, renderer)
+    # The picker's own tolerance reaches a hole 60 pixels from the click, as it did in the notebook
+    assert far.GetActor() is not None and far.GetCellId() >= 0
+    assert panel._click_distance(far) > 50
+    panel._on_pick(None, far)
+    assert 'Nothing picked there' in panel.state.pick_info
+
+
+def test_panel_a_click_picks_and_a_drag_does_not():
+    """The mouse button released within 4 pixels of where it was pressed picks, a longer move is a
+    rotation and does not; a second panel of the viewer replaces the first one's picking."""
+    viewer, panel = hole_scene()
+    picks = []
+
+    class Interactor:
+        def __init__(self):
+            self.position = (0, 0)
+
+        def GetEventPosition(self):
+            return self.position
+
+        def GetPicker(self):
+            return type('Picker', (), {'Pick': lambda self, x, y, z, renderer: picks.append((x, y))})()
+
+    iren, observers = Interactor(), {}
+    real = viewer.plotter.iren
+
+    class Recorder:
+        def add_observer(self, event, call):
+            observers[event] = call
+            return len(observers)
+
+        def remove_observer(self, tag):
+            pass
+
+        def reset_picker(self):
+            pass
+
+        def __getattr__(self, name):
+            return getattr(real, name)
+    viewer.plotter.iren = Recorder()
+    panel._enable_picking()
+    viewer.plotter.iren = real
+    press, release = observers['LeftButtonPressEvent'], observers['EndInteractionEvent']
+    iren.position = (100, 100)
+    press(iren, None)
+    iren.position = (103, 102)
+    release(iren, None)
+    assert picks == [(103, 102)]
+    iren.position = (100, 100)
+    press(iren, None)
+    iren.position = (120, 100)
+    release(iren, None)
+    release(iren, None)             # a release with no press before it
+    assert picks == [(103, 102)]
+    second = viewer.panel()
+    assert second is not panel and len(viewer._pick_observers) == 2
+
+
+def test_panel_picks_with_a_vertical_exaggeration():
+    """With the scene stretched, a click on a drill hole still picks it (the distance on the screen
+    is measured on the stretched tube)."""
+    viewer, panel = hole_scene()
+    viewer.set_vertical_exaggeration(3)
+    panel._on_pick(None, click(viewer, (10.0, 10.0, 25.0 * 3)))
+    assert panel.state.pick_info == 'Au: hole a, elevation 30.0 to 20.0, Au = 1.00'
