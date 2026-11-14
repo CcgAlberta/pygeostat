@@ -32,6 +32,13 @@ _PALETTE_GROUPS = {
 				   'Pastel1'],
 	'From a continuous map': ['turbo', 'viridis', 'Spectral', 'rainbow'],
 }
+# How far (screen pixels) from a drill hole a click may land and still pick it, and how far the
+# mouse may move between pressing and releasing the button for it to be a click and not a drag
+_PICK_SLACK = 8
+_CLICK_SLOP = 4
+_PICK_DEFAULT = 'Click a drill hole to see its values (drag to rotate).'
+_PICK_MISSED = ('Nothing picked there: click right on a drill hole. Zooming in or a bigger tube '
+				'radius makes them easier to hit.')
 # How a colormap's preview bar looks beside its name in the list and beside the chosen one
 _PREVIEW_STYLE = ("{ background: item.raw.gradient, width: '64px', height: '10px', "
 				  "borderRadius: '2px', flexShrink: 0 }",)
@@ -77,6 +84,7 @@ class Panel:
 		self.state = self.server.state
 		self.state.message = ''
 		self.state.note = ''
+		self.state.pick_info = _PICK_DEFAULT
 		self.state.view_name = ''
 		self.state.view_file = None
 		self._list_views()
@@ -86,6 +94,7 @@ class Panel:
 		trame_pyvista.ui._VIEWERS.pop(viewer.plotter._id_name, None)
 		self._view = get_viewer(viewer.plotter, server=self.server)
 		self.refresh()
+		self._enable_picking()
 		self.state.change(*['slicer_origin_{}'.format(i) for i in range(3)],
 						  *['slicer_normal_{}'.format(i) for i in range(3)], 'slicer_tolerance')(
 			self._on_slicer_sliders)
@@ -216,6 +225,10 @@ class Panel:
 						html.Div('{{ tick_note }}', v_if='tick_note', classes='text-caption text-warning')
 				with vuetify3.VCard(variant='outlined', classes='ma-2'):
 					with vuetify3.VCardText():
+						html.Div('Picking', classes='text-caption')
+						html.Div('{{ pick_info }}', classes='text-body-2')
+				with vuetify3.VCard(variant='outlined', classes='ma-2'):
+					with vuetify3.VCardText():
 						html.Div('Camera', classes='text-caption')
 						html.Div('2D views (flat, no perspective)', classes='text-caption')
 						with html.Div(classes='d-flex flex-wrap ga-1 mb-2'):
@@ -290,6 +303,7 @@ class Panel:
 	def refresh(self):
 		"""Show the viewer's layers as they are now. The viewer calls this when a layer is added or
 		changed, so the page follows a script."""
+		self._clear_pick()
 		self.state.layers = [self._row(layer) for layer in self.viewer._layers]
 		self.state.radius_ui = {layer.name: layer.radius for layer in self.viewer._layers if layer.radius is not None}
 		slicer = self.viewer._slicer
@@ -338,6 +352,89 @@ class Panel:
 			plotter._on_render_callbacks = callbacks
 			self._paused = False
 		self.refresh()
+
+	def _enable_picking(self):
+		"""Let a click on a drill hole show its values. The picker is pyvista's, which calls
+		``_on_pick`` with what was hit. A left click picks too, and a drag does not: a left press
+		also starts a rotation, so the pick is made on release, if the mouse hardly moved. The
+		release is caught as the end of an interaction, because trame's mouse handler sends no
+		button release event"""
+		plotter = self.viewer.plotter
+		# A panel made before this one on the same viewer picks no more
+		plotter.disable_picking()
+		for tag in self.viewer._pick_observers:
+			plotter.iren.remove_observer(tag)
+		# The picker's own tolerance would snap a click that misses to a hole 40 to 80 pixels
+		# away, so ``_on_pick`` measures the distance on the screen itself
+		plotter.enable_point_picking(callback=self._on_pick, picker='cell', use_picker=True, show_message=False,
+									 show_point=False, tolerance=0.05, pickable_window=True)
+		pressed = {}
+
+		def on_press(iren, event):
+			pressed['at'] = iren.GetEventPosition()
+
+		def on_release(iren, event):
+			start = pressed.pop('at', None)
+			x, y = iren.GetEventPosition()
+			if start and max(abs(x - start[0]), abs(y - start[1])) <= _CLICK_SLOP:
+				iren.GetPicker().Pick(x, y, 0, plotter.renderer)
+		self.viewer._pick_observers = [plotter.iren.add_observer('LeftButtonPressEvent', on_press),
+									   plotter.iren.add_observer('EndInteractionEvent', on_release)]
+
+	def _click_distance(self, picker):
+		"""The distance on the screen from the click to the picked cell (0 on the cell). It is measured
+		to the corners of the cell: the position the picker reports is on the click's own line of
+		sight, which made every distance 0"""
+		import numpy as np
+		renderer = self.viewer.plotter.renderer
+		actor = picker.GetActor()
+		corners = actor.mapper.dataset.get_cell(picker.GetCellId()).points * np.array(actor.GetScale())
+		screen = []
+		for corner in corners:
+			renderer.SetWorldPoint(*corner, 1.0)
+			renderer.WorldToDisplay()
+			screen.append(renderer.GetDisplayPoint()[:2])
+		screen = np.array(screen)
+		click = np.array(picker.GetSelectionPoint()[:2])
+		outside = np.maximum(screen.min(axis=0) - click, 0) + np.maximum(click - screen.max(axis=0), 0)
+		return float(np.hypot(*outside))
+
+	def _on_pick(self, point, picker):
+		"""Something was clicked: if it is a drill hole, say what it is and mark it, else say nothing
+		was picked. pyvista calls this for a click that hits nothing too, so that this can say so"""
+		actor, cell = picker.GetActor(), picker.GetCellId()
+		found = None
+		if actor is not None and cell >= 0 and self._click_distance(picker) <= _PICK_SLACK:
+			for layer in self.viewer._layers:
+				if layer.kind == 'holes' and actor in (layer.actor, layer.crossing_actor):
+					found = (layer, actor is layer.crossing_actor)
+		self._clear_pick()
+		if found is None:
+			self.state.pick_info = _PICK_MISSED
+		else:
+			layer, on_slice = found
+			self._show_pick(layer, self.viewer.interval_info(layer.name, cell, on_slice), on_slice)
+		self.state.flush()
+		self._view.update()
+
+	def _show_pick(self, layer, info, on_slice):
+		"""Write what is known of the interval in the page, and mark it with a wider tube. The mark is
+		not pickable, or the next click on or near the hole would hit it"""
+		import pyvista as pv
+		values = ', '.join('{} = {}'.format(name, 'no value' if value is None else
+											 '{:.2f}'.format(value) if isinstance(value, float) else value)
+						   for name, value in info['values'].items())
+		where = '' if info['hole'] is None else 'hole {}, '.format(info['hole'])
+		self.state.pick_info = '{}{}: {}elevation {:.1f} to {:.1f}, {}'.format(
+			layer.name, ' (on the slice)' if on_slice else '', where, info['upper'][2], info['lower'][2], values)
+		mark = pv.Line(info['upper'], info['lower']).tube(radius=layer.radius * 5 / 3, n_sides=20)
+		self.viewer.plotter.add_mesh(mark, name='pick highlight', color='magenta', opacity=0.6, pickable=False)
+
+	def _clear_pick(self):
+		"""Take the mark and the text of a picked interval away. They are of what was drawn when it was
+		picked, so they go when anything is drawn again"""
+		self.viewer.plotter.remove_actor('pick highlight', render=False)
+		self.state.pick_info = _PICK_DEFAULT
 
 	def _layer(self, name):
 		return self.viewer._layers[self.viewer.layers.index(name)]
