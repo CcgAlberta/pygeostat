@@ -891,6 +891,114 @@ class Viewer:
 		"""Which tick spacing of :meth:`set_axis_ticks` was replaced and why, or an empty string (str)"""
 		return self._tick_note
 
+	def save_screenshot(self, filename):
+		"""
+		Save the scene as a picture, at the size of the plotter's window.
+
+		Parameters:
+			filename (str): file to write, e.g. ``'scene.png'``
+		"""
+		self.plotter.screenshot(filename)
+
+	def export_html(self, filename):
+		"""
+		Save the scene as one web page that opens in any browser and can be turned and zoomed, with
+		its colour bars and, if the scene is stretched, a note of the exaggeration. The slicer, the
+		panel and picking are not in it. Requires ``pip install pygeostat[view3d-panel]``.
+
+		The ruler's numbers are the real coordinates, counted from the origin of
+		:meth:`set_axis_origin`, as in the scene. The page picks the spacing of its ticks itself,
+		not as :meth:`set_axis_ticks`. It is made by patching the exporter of ``trame_vtk``, and a
+		version of it that this does not know is refused (``RuntimeError``) rather than write a page
+		with wrong elevations.
+
+		Parameters:
+			filename (str): file to write, e.g. ``'scene.html'``
+		"""
+		page = self._export_page()
+		with open(filename, 'wb') as f:
+			f.write(page)
+
+	def _export_page(self):
+		"""The page of :meth:`export_html`, as bytes"""
+		import json
+		# vtk.js puts every colour bar in the same place, on top of each other, so the bars are left
+		# out of the page and drawn as HTML
+		bars = [bar for bar in self.plotter.scalar_bars.values() if bar.GetVisibility()]
+		legends = self._legend_html()
+		for bar in bars:
+			bar.SetVisibility(False)
+		try:
+			html = self.plotter.trame.export_html(None).getvalue()
+		except ImportError:
+			raise ImportError("The HTML export requires trame: pip install \"pygeostat[view3d-panel]\"") from None
+		finally:
+			for bar in bars:
+				bar.SetVisibility(True)
+		if html.count(_TICKS_JS) != 1 or html.count('</body>') != 1:
+			raise RuntimeError("This version of trame_vtk makes a page that this cannot fix the ruler of, "
+							   "so the export was stopped")
+		stretch = float(self._vertical_exaggeration)
+		ox, oy, oz = self._origin_values()
+		# The ticks are chosen on the real range (the drawn one, less the origin, and the height
+		# divided by the exaggeration) and put back where they are drawn. Each number is in
+		# brackets, as a negative one would make "--5.0", which is a syntax error in JavaScript
+		html = html.replace(_TICKS_JS, (
+			'generateTicks:(b)=>{const t=Zl([b[0]-(%r),b[1]-(%r),b[2]-(%r),b[3]-(%r),b[4]/(%r)-(%r),'
+			'b[5]/(%r)-(%r)]);t.ticks[0]=t.ticks[0].map(x=>x+(%r));t.ticks[1]=t.ticks[1].map(y=>y+(%r));'
+			't.ticks[2]=t.ticks[2].map(z=>(z+(%r))*(%r));return t}') %
+			(ox, ox, oy, oy, stretch, oz, stretch, oz, ox, oy, oz, stretch))
+		text = _BACKGROUNDS[self._background][1]
+		note = ''
+		if stretch != 1:
+			shown = ('true values counted from the lowest edge' if self._axes_from_zero else
+					 'true values {} {:g}'.format('minus' if oz > 0 else 'plus', abs(oz)) if oz else 'true values')
+			note = '<div id="viewer-note">Vertical exaggeration {:g}x (elevation labels show {})</div>'.format(stretch, shown)
+		overlay = (
+			'<style>#viewer-legends{{position:fixed;top:12px;right:12px;color:{0};font:13px sans-serif;'
+			'z-index:10;pointer-events:none}}#viewer-legends .legend{{margin-bottom:14px}}'
+			'#viewer-legends b{{display:block;margin-bottom:2px}}'
+			'#viewer-legends .bar{{display:inline-block;width:18px;height:160px;margin:4px 6px 0 0;'
+			'vertical-align:top}}#viewer-legends .ends{{display:inline-flex;flex-direction:column;'
+			'justify-content:space-between;height:164px;vertical-align:top}}'
+			'#viewer-legends .sw{{display:inline-block;width:12px;height:12px;margin-right:6px}}'
+			'#viewer-note{{position:fixed;bottom:8px;right:12px;color:{0};font:12px sans-serif;'
+			'z-index:10;pointer-events:none}}</style>'
+			'<div id="viewer-legends">{1}</div>{2}').format(text, legends, note)
+		# Added by a script, as the page's viewer empties the body when it loads, which takes away
+		# a plain overlay; this puts it back whenever it is missing
+		script = ('<script>(function(){const html=%s;function add(){'
+				  'if(document.getElementById("viewer-legends"))return;'
+				  'const box=document.createElement("div");box.innerHTML=html;'
+				  'document.body.append(...box.childNodes);}'
+				  'new MutationObserver(add).observe(document.body,{childList:true});add();})();'
+				  '</script>') % json.dumps(overlay).replace('</', '<\\/')
+		return html.replace('</body>', script + '</body>').encode('utf-8')
+
+	def _legend_html(self):
+		"""The colour bars of the layers that are shown, as HTML: the colours of each and the range of
+		a continuous variable, or the names of the categories"""
+		from html import escape
+		import matplotlib as mpl
+		blocks, done = [], set()
+		for layer in self._layers:
+			if 'scalars' not in layer.kwargs or not (layer.actor is not None and layer.visible or layer.crossing):
+				continue
+			title = layer.kwargs['scalar_bar_args']['title']
+			if title in done:
+				continue
+			done.add(title)
+			if layer.categorical:
+				colours = [mpl.colors.to_hex(c) for c in layer.kwargs['cmap'].colors]
+				body = ''.join('<div><span class="sw" style="background:{}"></span>{}</div>'.format(colour, escape(name))
+							   for colour, name in zip(colours, layer.kwargs['annotations'].values()))
+			else:
+				low, high = layer.clim
+				body = ('<div class="bar" style="background:{}"></div><div class="ends"><span>{:.3g}</span>'
+						'<span>{:.3g}</span></div>').format(_gradient(layer.kwargs['cmap'], 'to top'), high, low)
+			blocks.append('<div class="legend"><b>{}</b>{}</div>'.format(escape(title), body))
+		return ''.join(blocks)
+
 	def panel(self, views_folder='views'):
 		"""
 		The scene with a panel of controls beside it: switch layers on and off, change their
@@ -1132,6 +1240,20 @@ _WINDOW_CENTER = (0.06, 0.0)
 _FILL = 0.72
 # How far a parallel camera sits from the scene, in half diagonals of the scene
 _FAR_CAMERA = 50
+
+# The name of the function in the exported page that chooses the ticks of the ruler. The page is
+# made by vtk.js, which gets the numbers of the ruler wrong for a stretched scene or a ruler that
+# counts from another origin, so the function is wrapped. The name is minified, found in the
+# exporter of trame_vtk, and may change with it (see Viewer.export_html)
+_TICKS_JS = 'generateTicks:Zl'
+
+def _gradient(cmap, direction='to right'):
+	"""The CSS background of a colormap's bar: a gradient between 32 of the colours pyvista draws it
+	with, so the bar is what the 3D view shows"""
+	import pyvista as pv
+	colours = ['#{:02x}{:02x}{:02x}'.format(*rgba[:3]) for rgba in pv.LookupTable(cmap=cmap, n_values=32).values]
+	return 'linear-gradient({}, {})'.format(direction, ', '.join(colours))
+
 
 # The directions of the axis arrows in the usual red, green and blue
 _ARROW_COLOURS = ('#d62728', '#2ca02c', '#1f77b4')
