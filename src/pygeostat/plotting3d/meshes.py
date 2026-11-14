@@ -14,6 +14,7 @@ UPPER = 'segment upper end'
 LOWER = 'segment lower end'
 RADIUS = 'tube radius'
 SIDES = 'tube sides'
+HOLE_NAMES = 'hole names'
 
 
 def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None, dh=None,
@@ -127,6 +128,11 @@ def drillhole_mesh(data, var=None, x=None, y=None, z=None, start=None, end=None,
 	# and drill hole, and the intervals' ends and the radius
 	mesh.cell_data[SEGMENT] = np.arange(n)
 	mesh.cell_data[HOLE] = pd.factorize(data[dh])[0][rows] if dh is not None else np.arange(n)
+	if dh is not None:
+		# The name of each drill hole, by its index, for telling which hole an interval is of
+		mesh.field_data[HOLE_NAMES] = np.array([
+			'{:.0f}'.format(h) if isinstance(h, (float, np.floating)) and float(h).is_integer() else str(h)
+			for h in pd.factorize(data[dh])[1]])
 	mesh.field_data[UPPER] = upper
 	mesh.field_data[LOWER] = lower
 	mesh.field_data[RADIUS] = [radius]
