@@ -1031,8 +1031,9 @@ class Viewer:
 
 		Returns:
 			camera (dict): ``position``, ``focal_point`` and ``view_up`` (x, y, z lists),
-			``parallel_projection`` (bool), and the zoom: ``view_angle`` (degrees, used by a
-			perspective view) and ``parallel_scale`` (used by a parallel view)
+			``parallel_projection`` (bool), the zoom: ``view_angle`` (degrees, used by a
+			perspective view) and ``parallel_scale`` (used by a parallel view), and the
+			``window_center`` that :meth:`fit_view` moves to leave room for the colour bars
 		"""
 		camera = self.plotter.camera
 		return {'position': [float(v) for v in camera.position],
@@ -1040,7 +1041,8 @@ class Viewer:
 				'view_up': [float(v) for v in camera.up],
 				'parallel_projection': bool(camera.parallel_projection),
 				'view_angle': float(camera.view_angle),
-				'parallel_scale': float(camera.parallel_scale)}
+				'parallel_scale': float(camera.parallel_scale),
+				'window_center': [float(v) for v in camera.GetWindowCenter()]}
 
 	def set_camera(self, camera):
 		"""
@@ -1437,6 +1439,8 @@ def _apply_camera(plotter, camera):
 	plotter.camera_position = (camera['position'], camera['focal_point'], camera['view_up'])
 	plotter.camera.view_angle = camera['view_angle']
 	plotter.camera.parallel_scale = camera['parallel_scale']
+	# Views saved before the camera could be fitted have no shift of the window
+	plotter.camera.SetWindowCenter(*camera.get('window_center', (0.0, 0.0)))
 
 
 def _other_vars(data, var, other_vars):
