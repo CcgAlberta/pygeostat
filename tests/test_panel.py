@@ -717,3 +717,27 @@ def test_panel_picks_with_a_vertical_exaggeration():
     viewer.set_vertical_exaggeration(3)
     panel._on_pick(None, click(viewer, (10.0, 10.0, 25.0 * 3)))
     assert panel.state.pick_info == 'Au: hole a, elevation 30.0 to 20.0, Au = 1.00'
+
+
+def test_panel_export_buttons(viewer):
+    """The Screenshot and HTML buttons download what the handlers attach: a PNG of the view, and the
+    page of Viewer.export_html, after which the page is drawn again."""
+    import asyncio
+    panel = viewer.panel()
+    html = panel.layout.html
+    assert re.search(r"utils\.download\('scene\.png', trigger\('trigger__\d+'\), 'image/png'\)", html)
+    assert re.search(r"utils\.download\('scene\.html', trigger\('trigger__\d+'\), 'text/html'\)", html)
+    attached = []
+    updates = []
+    update = panel._view.update
+    panel._view.update = lambda *args, **kwargs: (updates.append(1), update(*args, **kwargs))
+
+    async def scenario():
+        await panel.layout.ready
+        panel.server.protocol.addAttachment = lambda data: attached.append(bytes(data)) or 'key'
+        assert panel.attach_screenshot() == 'key' and attached[0][:8] == b'\x89PNG\r\n\x1a\n'
+        before = len(updates)
+        assert panel.attach_export() == 'key' and b'</html>' in attached[1] and b'viewer-legends' in attached[1]
+        assert len(updates) == before + 1
+        await panel.server.stop()
+    asyncio.run(scenario())
