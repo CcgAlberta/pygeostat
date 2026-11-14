@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive layer panel for the 3D viewer (optional, `pip install "pygeostat[view3d-panel]"`):
   `Viewer.panel()`, with a slicer (a plane through the scene), and `Viewer.set_layer()`, `set_slicer()`,
   `set_axis_origin()`, `get_view()` and `set_view()` to do the same from a script (#149)
+- Display options and picking for the 3D layer panel: colormap, colour by another variable, show only some
+  categories, cell edges, tube radius, vertical exaggeration, background, scene boxes and ruler ticks, camera
+  views and fit view, picking a drill hole, and screenshot and HTML export; from a script with
+  `Viewer.set_background()`, `set_scene()`, `set_axis_ticks()`, `fit_view()`, `set_parallel_projection()`,
+  `set_camera_view()`, `interval_info()`, `save_screenshot()` and `export_html()`, new arguments of
+  `Viewer.set_layer()` and the `other_vars` argument of `gs.view3d()` (#151)
 
 ## [1.2.0] - 2025-06-25
 
