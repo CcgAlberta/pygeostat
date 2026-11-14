@@ -387,6 +387,9 @@ class Viewer:
 			resolved = _get_cmap(cmaps[kind], False, None)
 			if not isinstance(resolved, mpl.colors.Colormap):
 				raise ValueError("Unknown colormap '{}'".format(cmaps[kind]))
+			if name == layer.color_var and layer.clim is not None:
+				# Only the colormap changes, so the colour limits stay as they are
+				return name, cmaps, dict(scalars=name, cmap=resolved, clim=layer.clim), source.mesh, None
 			data_range = source.mesh.get_data_range(name)
 			return name, cmaps, dict(scalars=name, cmap=resolved, clim=data_range), source.mesh, data_range
 		try:
