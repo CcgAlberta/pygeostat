@@ -151,6 +151,16 @@ For each layer the panel has:
   each box label;
 - a **Threshold** checkbox and a typed minimum: with the box ticked, only the values from the minimum
   up are shown. The box starts at the lowest value of the data.
+- a **Colormap** list with a small preview of each colormap (for a layer coloured by categories, a
+  **Palette** list of the palettes that have enough colours);
+- **Colour by**, when the layer has other variables: it is coloured by the one you choose, with its own
+  colour bar. The threshold keeps using the variable the layer was made with. By default a layer made
+  from a `DataFile` keeps its numeric variables and its category column; use
+  `gs.view3d(..., other_vars=[...])` to choose them;
+- for a layer coloured by categories, a button for each category in its colour: click one to show only
+  that category, click more to add them, and **Show all** shows every category again;
+- **Show cell edges**, for a block layer;
+- a **Tube radius** slider, for a layer of drill holes. The tubes are drawn again when you let go.
 
 Values that depend on the data are typed, and applied on Enter or when you leave the box. A value that
 does not work, such as a minimum above the maximum or a threshold that leaves nothing, is explained in
@@ -170,6 +180,27 @@ compare two models whose coordinates are far apart. The axis titles say where th
 The name of a layer is its `label` (or its variable), so the panel shows the names of your own data,
 for example `gs.view3d(blocks, 'value', griddef=griddef, label='Block model value')`.
 
+**Scene.** The **Vertical exaggeration** slider stretches the scene, and **Background** is white or
+black (the text of the ruler and the colour bars follows). **Outline** draws a box around the scene,
+**Axis** the ruler, **X/Y/Z arrows in the scene** large arrows at the lowest corner and **Coordinate
+legend (corner)** the small marker that shows the directions. **Axis ticks** sets the spacing of the
+ruler's ticks along East/North and along Elevation: the same spacing in two pictures gives grid lines the
+same distance apart. A spacing that does not fit is replaced by a multiple of it, and the panel says so.
+
+**Camera.** **Top 2D**, **East-Elev 2D** and **North-Elev 2D** are flat views (a parallel projection)
+that leave out the axis they look along. **Iso 3D**, **X 3D**, **Y 3D** and **Z 3D** are perspective
+views. **Parallel projection** switches the projection of the current view, and **Fit view** frames
+the whole scene again.
+
+**Picking.** Click a drill hole (a click, not a drag) to see its values under **Picking**: the hole, the
+elevation of the interval, the value of each variable and the name of its category. The interval is
+marked with a wider tube. Blocks cannot be picked, so a click reaches a hole inside or behind a block
+model.
+
+**Export.** **Screenshot (PNG)** downloads the picture, and **Interactive HTML** downloads one web page
+that opens in any browser and can be turned and zoomed. The page has the colour bars and the ruler with
+the real coordinates, but not the slicer, the panel or picking.
+
 **Saved views.** **Save** writes the whole view (the camera, the layers' settings and the ruler) to a
 json file in the folder `views/`, or in `viewer.panel(views_folder='...')`, and **Load** shows a saved
 view again. Without a name, a name is made from the time.
@@ -186,6 +217,22 @@ viewer.set_slicer(enabled=True, origin=(40, 40, 10), normal=(1, 0, 1))   # the p
 viewer.set_slicer(tolerance=20, show_holes=True)
 viewer.set_slicer(enabled=False)
 viewer.set_axis_origin((0, 0, 0), from_zero=True)
+viewer.set_axis_ticks(xy=20, z=5)                                 # no arguments: round spacings that suit the scene
+viewer.set_vertical_exaggeration(3)
+viewer.set_background('black')
+viewer.set_scene(outline=True, axis_arrows=True, corner_axes=True, ruler=True)
+viewer.set_camera_view('top')                                     # 'iso', 'x', 'y', 'z', 'top', 'east' or 'north'
+viewer.set_parallel_projection(True)
+viewer.fit_view()
+
+viewer.set_layer('value', cmap='plasma', edges=True)              # colormap, cell edges of a block layer
+# for a layer of drill holes called 'holes', with the variables 'Cu' and 'Rock' (categories)
+viewer.set_layer('holes', radius=4, color_by='Cu')                # tube radius, another variable
+viewer.set_layer('holes', color_by='Rock', cmap='cat_pastel')     # a variable with categories and its palette
+viewer.set_layer('holes', categories=['Granite'])                 # show only these; [] shows all again
+
+viewer.save_screenshot('scene.png')
+viewer.export_html('scene.html')
 
 import json
 view = viewer.get_view()                  # plain numbers and strings, so json works

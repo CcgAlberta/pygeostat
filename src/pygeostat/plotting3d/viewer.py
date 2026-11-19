@@ -11,15 +11,25 @@ class _Source:
 	"""The whole mesh of a layer, with what is needed to cut a part of it, so the part shown can
 	change after the layer is drawn"""
 
-	def __init__(self, mesh, var, griddef):
+	def __init__(self, mesh, var, griddef, colourings=None, cmaps=None, titles=None):
 		self.mesh = mesh
 		self.var = var
 		self.griddef = griddef
+		# The variables the layer can be coloured by, each with the names of its categories
+		# (a dictionary, or True for codes without names) or None for a continuous variable
+		self.colourings = {} if colourings is None else colourings
+		# The colormap asked for with a continuous variable and with a categorical one, which are
+		# not the same kind of colormap. None is the default of gs.Parameters
+		self.cmaps = {'continuous': None, 'categorical': None} if cmaps is None else cmaps
+		# The title of the colour bar of each variable
+		self.titles = {} if titles is None else titles
 
-	def cut(self, threshold, section, plane=None):
+	def cut(self, threshold, section, plane=None, categories=None):
 		"""The part of the mesh in the threshold (min, max of the variable) and in the slice
-		(a dictionary of the slice arguments of view3d), whole if either is None. With a plane
-		(a dictionary with its ``origin`` and ``normal``), only the cut through that plane"""
+		(a dictionary of the slice arguments of view3d), whole if either is None. With
+		``categories`` (category indexes), only the cells of those categories. With a plane (a
+		dictionary with its ``origin`` and ``normal``), only the cut through that plane"""
+		import numpy as np
 		mesh = self.mesh
 		if threshold is not None:
 			if self.var is None:
@@ -27,9 +37,16 @@ class _Source:
 			mesh = mesh.threshold(threshold, scalars=self.var)
 		if section is not None:
 			mesh = _slice(mesh, self.griddef, **section)
+		if categories is not None:
+			mesh = mesh.extract_cells(np.flatnonzero(np.isin(mesh.cell_data[_CATEGORY], categories)))
 		if plane is not None:
 			mesh = mesh.slice(normal=plane['normal'], origin=plane['origin'])
 		return mesh
+
+
+# The scene's background and the colour of the text on it. 'black' is a dark grey: the low end of
+# plasma, viridis and turbo is near-black and would disappear against pure black
+_BACKGROUNDS = {'white': ('white', 'black'), 'black': ('#3a3a3a', 'white')}
 
 
 def _actor_name(layer_name):
@@ -54,6 +71,11 @@ class _Layer:
 		self.crossing = None
 		self.crossing_actor = None
 		self.source = source
+		# The variable the layer is coloured by, which :meth:`Viewer.set_layer` can change. The
+		# threshold keeps using the variable the layer was made with
+		self.color_var = None if source is None else source.var
+		# The names of the categories shown when the layer is coloured by categories, none for all
+		self.categories = ()
 		self.threshold = threshold
 		self.section = section
 		# The range of the variable over the whole layer, not only the part shown after a
@@ -65,6 +87,38 @@ class _Layer:
 	@property
 	def key(self):
 		return _actor_name(self.name)
+
+	@property
+	def radius(self):
+		"""The radius of the tubes of a drill hole layer, else None"""
+		from .meshes import RADIUS
+		if self.kind != 'holes' or self.source is None:
+			return None
+		return float(self.source.mesh.field_data[RADIUS][0])
+
+	@property
+	def shown_categories(self):
+		"""The indexes of the categories shown, or None for all of them (list)"""
+		if not (self.categorical and self.categories):
+			return None
+		return [i for i, name in self.kwargs['annotations'].items() if name in self.categories]
+
+	@property
+	def categorical(self):
+		"""Whether the layer is coloured by categories (bool)"""
+		return 'annotations' in self.kwargs
+
+	@property
+	def cmap(self):
+		"""The name of the colormap of a layer coloured by a continuous variable, or of the palette of
+		one coloured by categories (None for the default palette), else None"""
+		if self.clim is not None:
+			cmap = self.kwargs['cmap']
+		elif self.categorical and self.source is not None:
+			cmap = self.source.cmaps['categorical']
+		else:
+			return None
+		return getattr(cmap, 'name', cmap)
 
 	@property
 	def clim(self):
@@ -106,6 +160,22 @@ class Viewer:
 		# The place of the colour bar of each title, in the order they were first needed
 		self._bar_slots = {}
 		self._vertical_exaggeration = 1.0
+		self._background = 'white'
+		# What is drawn around the layers: the ruler (drawn once add_ruler has been called), the
+		# box of the scene, the x, y and z arrows and the orientation marker in the corner
+		self._ruler_visible = True
+		self._outline = False
+		self._axis_arrows = False
+		self._corner_axes = False
+		# The spacing of the ruler's ticks along east and north, and along elevation. None is a
+		# round spacing that suits the scene. A note says when a spacing could not be used
+		self._tick_spacing = (None, None)
+		self._tick_note = ''
+		# The axis ('x', 'y' or 'z') a flat view looks along, which the ruler leaves out
+		self._hidden_axis = None
+		# The observers of the mouse that the panel adds to pick drill holes, to remove them when
+		# another panel is made
+		self._pick_observers = []
 		# The panel made by panel(), which shows the layers
 		self._panel = None
 
@@ -135,6 +205,9 @@ class Viewer:
 				leaves a ``'points'`` layer as it is
 		"""
 		name = name or 'Layer {}'.format(len(self._layers) + 1)
+		# Only drill holes are picked in the panel, so a click reaches a hole inside or behind a block
+		if kind != 'holes':
+			kwargs.setdefault('pickable', False)
 		if 'scalars' in kwargs:
 			kwargs['scalar_bar_args'] = self._placed_bar(kwargs['scalar_bar_args'])
 		first, number = name, 1
@@ -146,12 +219,13 @@ class Viewer:
 		self._extents.append(mesh.bounds if extent is None else extent)
 		if self._vertical_exaggeration != 1:
 			self.set_vertical_exaggeration(self._vertical_exaggeration)
-		elif self._ruler is not None:
-			self._draw_ruler(self.plotter)
+		else:
+			self._draw_extras(self.plotter)
 		self._refresh_panel()
 
 	def set_layer(self, name, visible=None, opacity=None, clim=None, threshold=None, orient=None,
-				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None):
+				  slice_number=None, slice_coordinate=None, slice_thickness=None, pointtol=None,
+				  cmap=None, edges=None, radius=None, color_by=None, categories=None):
 		"""
 		Change a layer that is already in the scene. The change shows in :meth:`show` and in
 		:meth:`show_static`. The ruler keeps wrapping a hidden layer, so hiding one does not move
@@ -173,6 +247,21 @@ class Viewer:
 			slice_thickness (int): extra grid slices each side, which stays as it is if None
 			pointtol (float): distance each side for a layer not on a grid, which stays as it is
 				if None
+			cmap (str or mpl.colors.Colormap): colormap of a layer coloured by a continuous
+				variable, or palette of one coloured by categories, as in
+				:func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`. If None, unchanged
+			edges (bool): draw the edges of the cells of a block layer. If None, unchanged
+			radius (float): radius of the tubes of a drill hole layer, in the units of the
+				coordinates. If None, unchanged
+			categories (list): show only the categories with these names (those in the colour bar)
+				of a layer coloured by categories, and hide the rest; the colours stay as they
+				are. ``[]`` or ``False`` shows all again. Changing the variable the layer is
+				coloured by shows all. If None, unchanged
+			color_by (str): colour the layer by another of its variables, one of
+				:attr:`color_options`. A variable with categories is coloured as in
+				:func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`; the colour limits of a
+				continuous one are its range. The threshold keeps using the variable the layer was
+				made with. If None, unchanged
 
 		The slice arguments work as in :func:`gs.view3d() <pygeostat.plotting3d.viewer.view3d>`.
 		Changing a slice that is already shown needs only the arguments that change. A layer
@@ -190,11 +279,49 @@ class Viewer:
 				raise ValueError("Layer '{}' is not coloured by a continuous variable".format(name))
 			if not clim[0] < clim[1]:
 				raise ValueError("`clim` must be (min, max) with min below max")
+		recolour = None
+		if color_by is not None or cmap is not None:
+			if 'scalars' not in layer.kwargs:
+				raise ValueError("Layer '{}' is not coloured by a variable".format(name))
+			if layer.source is not None:
+				recolour = self._colours(layer, color_by, cmap)
+			else:
+				import matplotlib as mpl
+				from ..plotting.utils import _get_cmap
+				if color_by is not None or layer.categorical:
+					raise ValueError("Layer '{}' was added as a mesh, so it cannot change its colours "
+									 "by variable or palette".format(name))
+				cmap = _get_cmap(cmap, False, None)
+				if not isinstance(cmap, mpl.colors.Colormap):
+					raise ValueError("Unknown colormap '{}'".format(cmap))
+		if edges is not None and layer.kind != 'blocks':
+			raise ValueError("Layer '{}' is not a block layer, so it has no cell edges".format(name))
+		if radius is not None:
+			if layer.radius is None:
+				raise ValueError("Layer '{}' is not a drill hole layer made from data, so it has no tubes to "
+								 "change".format(name))
+			if not radius > 0:
+				raise ValueError("`radius` must be above 0")
+		new_categories = () if recolour is not None and recolour[0] != layer.color_var else layer.categories
+		if categories is not None:
+			annotations = layer.kwargs.get('annotations') if recolour is None else recolour[2].get('annotations')
+			if annotations is None:
+				raise ValueError("Layer '{}' is not coloured by categories".format(name))
+			new_categories = () if categories is False else tuple(categories)
+			unknown = [c for c in new_categories if c not in annotations.values()]
+			if unknown:
+				raise ValueError("Layer '{}' has no categories {}; they are {}".format(
+					name, unknown, list(annotations.values())))
+		shown = None
+		if new_categories:
+			annotations = layer.kwargs.get('annotations') if recolour is None else recolour[2].get('annotations')
+			shown = [i for i, category in annotations.items() if category in new_categories]
 		slice_args = (orient, slice_number, slice_coordinate, slice_thickness, pointtol)
-		cut = threshold is not None or any(v is not None for v in slice_args)
+		cut = threshold is not None or any(v is not None for v in slice_args) or categories is not None
 		if cut:
 			if layer.source is None:
-				raise ValueError("Layer '{}' was added as a mesh, so it cannot be thresholded or sliced".format(name))
+				raise ValueError("Layer '{}' was added as a mesh, so it cannot be thresholded, sliced or "
+								 "filtered by category".format(name))
 			new_threshold = layer.threshold if threshold is None else None if threshold is False else tuple(threshold)
 			if new_threshold is not None and not new_threshold[0] <= new_threshold[1]:
 				raise ValueError("`threshold` must be (min, max) with min not above max")
@@ -203,14 +330,31 @@ class Viewer:
 				new_section = _new_section(layer.section, *slice_args)
 			# The slicer's plane may leave nothing of a layer, which is not an error, but a
 			# threshold or slice that leaves nothing is
-			if layer.source.cut(new_threshold, new_section).n_cells == 0:
-				raise ValueError("Nothing is left of layer '{}' with this threshold and slice".format(name))
-			layer.threshold, layer.section = new_threshold, new_section
+			checked = _Source(layer.source.mesh if recolour is None else recolour[3], layer.source.var,
+							  layer.source.griddef)
+			if checked.cut(new_threshold, new_section, None, shown).n_cells == 0:
+				raise ValueError("Nothing is left of layer '{}' with this threshold, slice and "
+								 "categories".format(name))
+		if recolour is not None:
+			self._recolour(layer, *recolour)
+		if cut:
+			layer.threshold, layer.section, layer.categories = new_threshold, new_section, new_categories
 			self._place(layer)
 		if opacity is not None:
 			layer.kwargs['opacity'] = opacity
 			if layer.actor is not None:
 				layer.actor.prop.opacity = opacity
+		if radius is not None:
+			from .meshes import _with_radius
+			layer.source.mesh = _with_radius(layer.source.mesh, radius)
+			self._place(layer)
+		if recolour is None and cmap is not None:
+			layer.kwargs['cmap'] = cmap
+			self._draw_again(layer)
+		if edges is not None:
+			layer.kwargs['show_edges'] = bool(edges)
+			if layer.actor is not None:
+				layer.actor.prop.show_edges = bool(edges)
 		if clim is not None:
 			layer.kwargs['clim'] = tuple(clim)
 			if layer.actor is not None:
@@ -224,11 +368,110 @@ class Viewer:
 		self._sync_scalar_bars()
 		self._refresh_panel()
 
+	def _colours(self, layer, name, cmap):
+		"""How ``layer`` is coloured by the variable ``name`` (if None, the one it has) with the colormap
+		``cmap`` (if None, the one it has for that kind of variable): the variable, the layer's
+		colormaps, the colour options of ``add_mesh``, the mesh with its category index and the
+		range of a continuous variable. Nothing is changed, so a refused call changes nothing"""
+		import matplotlib as mpl
+		from ..plotting.utils import _get_cmap
+		source = layer.source
+		name = layer.color_var if name is None else name
+		if name not in source.colourings:
+			raise ValueError("Layer '{}' can be coloured by {}, not '{}'".format(
+				layer.name, list(source.colourings), name))
+		catdict = source.colourings[name]
+		kind = 'continuous' if catdict is None else 'categorical'
+		cmaps = {**source.cmaps, kind: source.cmaps[kind] if cmap is None else cmap}
+		if catdict is None:
+			resolved = _get_cmap(cmaps[kind], False, None)
+			if not isinstance(resolved, mpl.colors.Colormap):
+				raise ValueError("Unknown colormap '{}'".format(cmaps[kind]))
+			if name == layer.color_var and layer.clim is not None:
+				# Only the colormap changes, so the colour limits stay as they are
+				return name, cmaps, dict(scalars=name, cmap=resolved, clim=layer.clim), source.mesh, None
+			data_range = source.mesh.get_data_range(name)
+			return name, cmaps, dict(scalars=name, cmap=resolved, clim=data_range), source.mesh, data_range
+		try:
+			mesh, resolved, annotations = _categories(source.mesh, name, cmaps[kind], catdict)
+		except (ValueError, AttributeError) as error:
+			raise ValueError("The palette '{}' cannot colour the categories of '{}': {}".format(
+				cmaps[kind], name, error)) from None
+		colours = dict(scalars=_CATEGORY, cmap=resolved, clim=(-0.5, len(annotations) - 0.5),
+					   n_colors=len(annotations), annotations=annotations)
+		return name, cmaps, colours, mesh, None
+
+	def _recolour(self, layer, name, cmaps, colours, mesh, data_range):
+		"""Draw a layer coloured as :meth:`_colours` worked out, with a colour bar for the variable and
+		without the one of the variable it had, if no other layer uses it"""
+		source = layer.source
+		old = layer.kwargs['scalar_bar_args']['title']
+		title = source.titles.get(name, name)
+		if name != layer.color_var:
+			layer.categories = ()
+		source.cmaps, source.mesh, layer.color_var = cmaps, mesh, name
+		if data_range is not None:
+			layer.data_range = data_range
+		kept = {key: value for key, value in layer.kwargs.items() if key not in (
+			'scalars', 'cmap', 'clim', 'annotations', 'n_colors', 'scalar_bar_args')}
+		layer.kwargs = {**kept, **colours, 'scalar_bar_args': self._placed_bar({'title': title})}
+		self._place(layer)
+		if old != title and not any(other.kwargs.get('scalar_bar_args', {}).get('title') == old
+									for other in self._layers):
+			self.plotter.remove_scalar_bar(old)
+
+	def interval_info(self, name, cell, on_slice=False):
+		"""
+		What is known of the drill hole interval at a cell of a drill hole layer, e.g. one that was
+		clicked in the panel.
+
+		Parameters:
+			name (str): name of the layer, one of :attr:`layers`
+			cell (int): the cell, as numbered in the mesh that is drawn (``layer.mesh``)
+			on_slice (bool): the cell is in the holes on the slicer's plane, not in the layer
+
+		Returns:
+			info (dict): ``hole`` (its name, or None if the data had no drill hole column), ``upper``
+			and ``lower`` (the x, y, z of the ends of the interval) and ``values`` (the value of each
+			variable the layer can be coloured by, the name of the category for a variable with
+			categories, and None if there is no value)
+		"""
+		import numpy as np
+		from .meshes import SEGMENT, HOLE, UPPER, LOWER, HOLE_NAMES
+		layer = self._layers[self.layers.index(name)]
+		mesh = layer.crossing if on_slice else layer.mesh
+		if layer.kind != 'holes' or layer.source is None or mesh is None:
+			raise ValueError("Layer '{}' has no drill hole intervals{}".format(name, ' on the slice' if on_slice else ''))
+		source = layer.source.mesh
+		segment = int(mesh.cell_data[SEGMENT][cell])
+		hole = int(mesh.cell_data[HOLE][cell])
+		values = {}
+		for variable, catdict in layer.source.colourings.items():
+			value = float(mesh.cell_data[variable][cell])
+			if np.isnan(value):
+				values[variable] = None
+			elif catdict is None:
+				values[variable] = value
+			else:
+				values[variable] = catdict.get(int(value), str(int(value))) if isinstance(catdict, dict) else str(int(value))
+		return {'hole': str(source.field_data[HOLE_NAMES][hole]) if HOLE_NAMES in source.field_data else None,
+				'upper': [float(v) for v in source.field_data[UPPER][segment]],
+				'lower': [float(v) for v in source.field_data[LOWER][segment]], 'values': values}
+
+	def _draw_again(self, layer):
+		"""Draw a layer again with the options it has now"""
+		if layer.source is not None:
+			self._place(layer)
+			return
+		layer.actor = self.plotter.add_mesh(layer.mesh, name=layer.key, **layer.kwargs)
+		layer.actor.visibility = layer.visible
+		self._keep_clim(layer)
+
 	def _place(self, layer):
 		"""Draw a layer again from its source, with its threshold, slice and, for blocks, the
 		slicer's plane. A plane that misses the layer leaves nothing to draw."""
 		plane = self._plane() if layer.kind == 'blocks' else None
-		layer.mesh = layer.source.cut(layer.threshold, layer.section, plane)
+		layer.mesh = layer.source.cut(layer.threshold, layer.section, plane, layer.shown_categories)
 		if not layer.mesh.n_cells:
 			if layer.actor is not None:
 				self.plotter.remove_actor(layer.actor)
@@ -253,8 +496,8 @@ class Viewer:
 		if slot >= MAX_N_COLOR_BARS:
 			raise RuntimeError("There is room for {} colour bars, name fewer variables or labels".format(
 				MAX_N_COLOR_BARS))
-		return {**bar_args, 'vertical': True, 'width': theme.width, 'height': theme.height,
-				'position_x': theme.position_x - slot * (theme.width + 0.2 * theme.width),
+		return {'color': _BACKGROUNDS[self._background][1], **bar_args, 'vertical': True,
+				'width': theme.width, 'height': theme.height, 'position_x': theme.position_x - slot * (theme.width + 0.2 * theme.width),
 				'position_y': theme.position_y}
 
 	def _keep_clim(self, layer):
@@ -279,6 +522,7 @@ class Viewer:
 		self._ruler = {'xtitle': Parameters['plotting.xname'] + unit,
 					   'ytitle': Parameters['plotting.yname'] + unit,
 					   'ztitle': Parameters['plotting.zname'] + unit}
+		self._ruler_visible = True
 		self._draw_ruler(self.plotter)
 		self._refresh_panel()
 
@@ -363,7 +607,8 @@ class Viewer:
 					& np.isin(hole_of_segment, hole_of_segment[touching]))
 		tubes = mesh.extract_cells(np.flatnonzero(np.isin(segment, np.flatnonzero(crossing))))
 		if tubes.n_cells:
-			tubes = _Source(tubes, layer.source.var, layer.source.griddef).cut(layer.threshold, layer.section)
+			tubes = _Source(tubes, layer.source.var, layer.source.griddef).cut(
+				layer.threshold, layer.section, None, layer.shown_categories)
 		if tubes.n_cells:
 			half = slicer['tolerance'] / 2
 			tubes = tubes.clip(normal=normal, origin=origin + half * normal, invert=True)
@@ -415,8 +660,7 @@ class Viewer:
 			raise ValueError("`origin` must be (easting, northing, elevation)")
 		self._axis_origin = None if origin is None else tuple(float(v) for v in origin)
 		self._axes_from_zero = bool(from_zero)
-		if self._ruler is not None:
-			self._draw_ruler(self.plotter)
+		self._draw_ruler(self.plotter)
 		self._refresh_panel()
 
 	def _origin_values(self):
@@ -427,7 +671,48 @@ class Viewer:
 		return self._axis_origin or (0.0, 0.0, 0.0)
 
 	def _draw_ruler(self, plotter):
-		_draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration, self._origin_values())
+		"""Draw the ruler, if there is one and it is not switched off"""
+		if self._ruler is None or not self._ruler_visible:
+			return
+		self._tick_note = _draw_ruler(plotter, self._extents, self._ruler, self._vertical_exaggeration,
+									  self._origin_values(), _BACKGROUNDS[self._background][1],
+									  self._tick_spacing, self._hidden_axis)
+
+	def _draw_extras(self, plotter):
+		"""Draw everything around the layers again: the ruler, the box and the arrows. They are
+		drawn from the extent of the layers, so this is called when that or the scene's scale,
+		background or ruler changes"""
+		import numpy as np
+		import pyvista as pv
+		self._draw_ruler(plotter)
+		plotter.remove_actor('outline')
+		plotter.remove_actor('axis arrows')
+		plotter.remove_actor('axis arrow labels')
+		if not self._extents:
+			return
+		text = _BACKGROUNDS[self._background][1]
+		lower, upper = _corners(self._extents)
+		if self._outline:
+			plotter.add_mesh(pv.Box(bounds=np.stack([lower, upper], axis=1).ravel()).outline(), color=text,
+							 name='outline', pickable=False)
+		if self._axis_arrows:
+			# Drawn in the stretched scene, each a quarter of its longest side, so that the three
+			# are as long as each other on the screen. A new actor takes the scene's vertical
+			# scale, which would stretch the z arrow, so the scale of the arrows is put back to 1
+			stretch = np.array([1.0, 1.0, self._vertical_exaggeration])
+			start, longest = lower * stretch, 0.25 * ((upper - lower) * stretch).max()
+			arrows = pv.PolyData()
+			for axis, colour in enumerate(_ARROW_COLOURS):
+				arrow = pv.Arrow(start=start, direction=np.eye(3)[axis], scale=longest, shaft_radius=0.02,
+								 tip_radius=0.06, tip_length=0.15)
+				arrow.cell_data['colour'] = np.tile(pv.Color(colour).int_rgb, (arrow.n_cells, 1))
+				arrows += arrow
+			plotter.add_mesh(arrows, scalars='colour', rgb=True, name='axis arrows', pickable=False)
+			plotter.renderer.actors['axis arrows'].SetScale(1.0, 1.0, 1.0)
+			plotter.add_point_labels(start + np.eye(3) * longest * 1.08, list(_ARROW_LABELS),
+									 name='axis arrow labels', shape=None, show_points=False,
+									 always_visible=True, font_size=14, bold=True, text_color=text,
+									 pickable=False)
 
 	def _refresh_panel(self):
 		if self._panel is not None:
@@ -444,15 +729,285 @@ class Viewer:
 		self._vertical_exaggeration = factor
 		self.plotter.set_scale(zscale=factor)
 		# set_scale also stretches the ruler, so it is drawn again
-		if self._ruler is not None:
-			self._draw_ruler(self.plotter)
+		self._draw_extras(self.plotter)
+		self._refresh_panel()
+
+	def set_background(self, background):
+		"""
+		Change the colour of the scene's background. The ruler and the colour bars change their
+		text colour to stay readable.
+
+		Parameters:
+			background (str): ``'white'`` or ``'black'`` (a dark grey)
+		"""
+		import pyvista as pv
+		key = str(background).lower()
+		if key not in _BACKGROUNDS:
+			raise ValueError("`background` must be one of {}".format(list(_BACKGROUNDS)))
+		self._background = key
+		fill, text = _BACKGROUNDS[key]
+		self.plotter.set_background(fill)
+		rgb = pv.Color(text).float_rgb
+		# A colour bar that exists keeps the colour it was made with, so it is set on the bar
+		for bar in self.plotter.scalar_bars.values():
+			for properties in (bar.GetTitleTextProperty(), bar.GetLabelTextProperty(),
+							   bar.GetAnnotationTextProperty()):
+				properties.SetColor(rgb)
+		self._draw_extras(self.plotter)
+		self._refresh_panel()
+
+	def fit_view(self):
+		"""
+		Frame the whole scene, with the viewing direction as it is. With a ruler, its box is
+		framed, which reaches out to the next round tick.
+		"""
+		import numpy as np
+		if not self._extents:
+			return
+		if self._ruler is not None and self._ruler_visible:
+			bounds = _ruler_layout(self._extents, self._vertical_exaggeration, self._origin_values(),
+								   self._tick_spacing)[0]
+		else:
+			lower, upper = _corners(self._extents)
+			bounds = np.stack([lower, upper], axis=1).ravel()
+			bounds[4:] *= self._vertical_exaggeration
+		camera = self.plotter.camera
+		camera.SetWindowCenter(*_WINDOW_CENTER)
+		# Fitting the box's outline on the screen, which fitting a sphere around it did not do for
+		# a tall scene: it ran off the top and the bottom of the view
+		self.plotter.renderer.ResetCameraScreenSpace(*bounds, _FILL)
+		if camera.parallel_projection:
+			self._move_camera_far()
+		self.plotter.renderer.ResetCameraClippingRange()
+
+	def _move_camera_far(self):
+		"""Move a parallel camera far from the scene, keeping the picture. VTK sizes the ruler's labels
+		from their distance to the camera and the view angle even when the projection is parallel,
+		where neither changes the picture, so with the camera close the labels came out too big or
+		too small. Far away every label is about as far as the others, and the view angle matched
+		to the parallel scale gives them the size they have in perspective."""
+		import numpy as np
+		camera = self.plotter.camera
+		lower, upper = _corners(self._extents)
+		size = np.linalg.norm((upper - lower) * [1, 1, self._vertical_exaggeration])
+		distance = _FAR_CAMERA * size / 2
+		camera.position = tuple(np.array(camera.focal_point) - np.array(camera.direction) * distance)
+		camera.view_angle = 2 * np.degrees(np.arctan(camera.parallel_scale / distance))
+
+	def set_parallel_projection(self, parallel):
+		"""
+		Switch between a parallel projection (the scene does not shrink with distance, as in a
+		plan or a section) and a perspective one. The scene keeps its size on the screen.
+
+		Parameters:
+			parallel (bool): ``True`` for a parallel projection
+		"""
+		import numpy as np
+		camera = self.plotter.camera
+		if camera.parallel_projection == bool(parallel):
+			return
+		if parallel:
+			self.plotter.enable_parallel_projection()
+			self._move_camera_far()
+		else:
+			half_height = camera.parallel_scale
+			camera.disable_parallel_projection()
+			camera.view_angle = 30.0
+			# Where a view of 30 degrees shows the height the parallel view showed
+			camera.position = tuple(np.array(camera.focal_point) - np.array(camera.direction)
+									* half_height / np.tan(np.radians(15.0)))
+		self.plotter.renderer.ResetCameraClippingRange()
+		self._refresh_panel()
+
+	def set_camera_view(self, view):
+		"""
+		Look at the scene from a direction, fitted to the window. ``'top'``, ``'east'`` and
+		``'north'`` are flat views (a parallel projection) of a plan and the two sections, and leave
+		out the axis they look along from the ruler. ``'x'``, ``'y'`` and ``'z'`` look along an axis
+		in perspective, with the whole ruler, and ``'iso'`` looks from a corner.
+
+		Parameters:
+			view (str): ``'iso'``, ``'x'``, ``'y'``, ``'z'``, ``'top'``, ``'east'`` or ``'north'``
+		"""
+		if view not in _VIEWS:
+			raise ValueError("`view` must be one of {}".format(list(_VIEWS)))
+		position, parallel, self._hidden_axis = _VIEWS[view]
+		self.set_parallel_projection(parallel)
+		self.plotter.camera_position = position
+		self._draw_ruler(self.plotter)
+		self.fit_view()
+		self._refresh_panel()
+
+	def set_scene(self, outline=None, ruler=None, axis_arrows=None, corner_axes=None):
+		"""
+		Show or hide what is drawn around the layers. If None, a setting stays as it is.
+
+		Parameters:
+			outline (bool): a box around the scene. At first off
+			ruler (bool): the ruler of :meth:`add_ruler`. ``True`` adds it if there is none
+			axis_arrows (bool): large x, y and z arrows at the lowest corner of the scene. At
+				first off
+			corner_axes (bool): the small marker in the corner that shows the directions of the
+				axes. At first off
+		"""
+		if outline is not None:
+			self._outline = bool(outline)
+		if axis_arrows is not None:
+			self._axis_arrows = bool(axis_arrows)
+		if ruler is not None:
+			self._ruler_visible = bool(ruler)
+			if ruler and self._ruler is None:
+				self.add_ruler()
+			elif not ruler:
+				self.plotter.remove_bounds_axes()
+				self._tick_note = ''
+		if corner_axes is not None:
+			self._corner_axes = bool(corner_axes)
+			if corner_axes:
+				self.plotter.show_axes()
+			else:
+				self.plotter.hide_axes()
+		self._draw_extras(self.plotter)
+		self._refresh_panel()
+
+	def set_axis_ticks(self, xy=None, z=None):
+		"""
+		Choose the spacing of the ruler's ticks, so that two pictures with the same spacing have
+		grid lines the same distance apart. The ruler is widened to a whole number of spacings,
+		and a spacing that gives more labels than the ruler can show is replaced by the smallest round
+		multiple of it that works. :attr:`tick_note` says so.
+
+		Parameters:
+			xy (float): spacing along east and north, in the units of the coordinates. If None, a
+				round spacing that suits the scene
+			z (float): spacing along elevation. If None, a round spacing that suits the scene
+		"""
+		for spacing in (xy, z):
+			if spacing is not None and not spacing > 0:
+				raise ValueError("A tick spacing must be above 0")
+		self._tick_spacing = (xy, z)
+		self._draw_ruler(self.plotter)
+		self._refresh_panel()
+
+	@property
+	def tick_note(self):
+		"""Which tick spacing of :meth:`set_axis_ticks` was replaced and why, or an empty string (str)"""
+		return self._tick_note
+
+	def save_screenshot(self, filename):
+		"""
+		Save the scene as a picture, at the size of the plotter's window.
+
+		Parameters:
+			filename (str): file to write, e.g. ``'scene.png'``
+		"""
+		self.plotter.screenshot(filename)
+
+	def export_html(self, filename):
+		"""
+		Save the scene as one web page that opens in any browser and can be turned and zoomed, with
+		its colour bars and, if the scene is stretched, a note of the exaggeration. The slicer, the
+		panel and picking are not in it. Requires ``pip install pygeostat[view3d-panel]``.
+
+		The ruler's numbers are the real coordinates, counted from the origin of
+		:meth:`set_axis_origin`, as in the scene. The page picks the spacing of its ticks itself,
+		not as :meth:`set_axis_ticks`. It is made by patching the exporter of ``trame_vtk``, and a
+		version of it that this does not know is refused (``RuntimeError``) rather than write a page
+		with wrong elevations.
+
+		Parameters:
+			filename (str): file to write, e.g. ``'scene.html'``
+		"""
+		page = self._export_page()
+		with open(filename, 'wb') as f:
+			f.write(page)
+
+	def _export_page(self):
+		"""The page of :meth:`export_html`, as bytes"""
+		import json
+		# vtk.js puts every colour bar in the same place, on top of each other, so the bars are left
+		# out of the page and drawn as HTML
+		bars = [bar for bar in self.plotter.scalar_bars.values() if bar.GetVisibility()]
+		legends = self._legend_html()
+		for bar in bars:
+			bar.SetVisibility(False)
+		try:
+			html = self.plotter.trame.export_html(None).getvalue()
+		except ImportError:
+			raise ImportError("The HTML export requires trame: pip install \"pygeostat[view3d-panel]\"") from None
+		finally:
+			for bar in bars:
+				bar.SetVisibility(True)
+		if html.count(_TICKS_JS) != 1 or html.count('</body>') != 1:
+			raise RuntimeError("This version of trame_vtk makes a page that this cannot fix the ruler of, "
+							   "so the export was stopped")
+		stretch = float(self._vertical_exaggeration)
+		ox, oy, oz = self._origin_values()
+		# The ticks are chosen on the real range (the drawn one, less the origin, and the height
+		# divided by the exaggeration) and put back where they are drawn. Each number is in
+		# brackets, as a negative one would make "--5.0", which is a syntax error in JavaScript
+		html = html.replace(_TICKS_JS, (
+			'generateTicks:(b)=>{const t=Zl([b[0]-(%r),b[1]-(%r),b[2]-(%r),b[3]-(%r),b[4]/(%r)-(%r),'
+			'b[5]/(%r)-(%r)]);t.ticks[0]=t.ticks[0].map(x=>x+(%r));t.ticks[1]=t.ticks[1].map(y=>y+(%r));'
+			't.ticks[2]=t.ticks[2].map(z=>(z+(%r))*(%r));return t}') %
+			(ox, ox, oy, oy, stretch, oz, stretch, oz, ox, oy, oz, stretch))
+		text = _BACKGROUNDS[self._background][1]
+		note = ''
+		if stretch != 1:
+			shown = ('true values counted from the lowest edge' if self._axes_from_zero else
+					 'true values {} {:g}'.format('minus' if oz > 0 else 'plus', abs(oz)) if oz else 'true values')
+			note = '<div id="viewer-note">Vertical exaggeration {:g}x (elevation labels show {})</div>'.format(stretch, shown)
+		overlay = (
+			'<style>#viewer-legends{{position:fixed;top:12px;right:12px;color:{0};font:13px sans-serif;'
+			'z-index:10;pointer-events:none}}#viewer-legends .legend{{margin-bottom:14px}}'
+			'#viewer-legends b{{display:block;margin-bottom:2px}}'
+			'#viewer-legends .bar{{display:inline-block;width:18px;height:160px;margin:4px 6px 0 0;'
+			'vertical-align:top}}#viewer-legends .ends{{display:inline-flex;flex-direction:column;'
+			'justify-content:space-between;height:164px;vertical-align:top}}'
+			'#viewer-legends .sw{{display:inline-block;width:12px;height:12px;margin-right:6px}}'
+			'#viewer-note{{position:fixed;bottom:8px;right:12px;color:{0};font:12px sans-serif;'
+			'z-index:10;pointer-events:none}}</style>'
+			'<div id="viewer-legends">{1}</div>{2}').format(text, legends, note)
+		# Added by a script, as the page's viewer empties the body when it loads, which takes away
+		# a plain overlay; this puts it back whenever it is missing
+		script = ('<script>(function(){const html=%s;function add(){'
+				  'if(document.getElementById("viewer-legends"))return;'
+				  'const box=document.createElement("div");box.innerHTML=html;'
+				  'document.body.append(...box.childNodes);}'
+				  'new MutationObserver(add).observe(document.body,{childList:true});add();})();'
+				  '</script>') % json.dumps(overlay).replace('</', '<\\/')
+		return html.replace('</body>', script + '</body>').encode('utf-8')
+
+	def _legend_html(self):
+		"""The colour bars of the layers that are shown, as HTML: the colours of each and the range of
+		a continuous variable, or the names of the categories"""
+		from html import escape
+		import matplotlib as mpl
+		blocks, done = [], set()
+		for layer in self._layers:
+			if 'scalars' not in layer.kwargs or not (layer.actor is not None and layer.visible or layer.crossing):
+				continue
+			title = layer.kwargs['scalar_bar_args']['title']
+			if title in done:
+				continue
+			done.add(title)
+			if layer.categorical:
+				colours = [mpl.colors.to_hex(c) for c in layer.kwargs['cmap'].colors]
+				body = ''.join('<div><span class="sw" style="background:{}"></span>{}</div>'.format(colour, escape(name))
+							   for colour, name in zip(colours, layer.kwargs['annotations'].values()))
+			else:
+				low, high = layer.clim
+				body = ('<div class="bar" style="background:{}"></div><div class="ends"><span>{:.3g}</span>'
+						'<span>{:.3g}</span></div>').format(_gradient(layer.kwargs['cmap'], 'to top'), high, low)
+			blocks.append('<div class="legend"><b>{}</b>{}</div>'.format(escape(title), body))
+		return ''.join(blocks)
 
 	def panel(self, views_folder='views'):
 		"""
 		The scene with a panel of controls beside it: switch layers on and off, change their
-		opacity, colour limits, threshold and slice, move the origin of the ruler, and save the
-		view or load a saved one. Requires ``pip install pygeostat[view3d-panel]``. In a notebook,
-		make the result the last line of a cell to show it.
+		opacity, colour limits, threshold and slice, stretch the scene vertically, move the origin of
+		the ruler, and save the view or load a saved one. Requires
+		``pip install pygeostat[view3d-panel]``. In a notebook, make the result the last line of a cell to show it.
 
 		Parameters:
 			views_folder (str): folder for the saved views, one json file each (see
@@ -476,8 +1031,9 @@ class Viewer:
 
 		Returns:
 			camera (dict): ``position``, ``focal_point`` and ``view_up`` (x, y, z lists),
-			``parallel_projection`` (bool), and the zoom: ``view_angle`` (degrees, used by a
-			perspective view) and ``parallel_scale`` (used by a parallel view)
+			``parallel_projection`` (bool), the zoom: ``view_angle`` (degrees, used by a
+			perspective view) and ``parallel_scale`` (used by a parallel view), and the
+			``window_center`` that :meth:`fit_view` moves to leave room for the colour bars
 		"""
 		camera = self.plotter.camera
 		return {'position': [float(v) for v in camera.position],
@@ -485,7 +1041,8 @@ class Viewer:
 				'view_up': [float(v) for v in camera.up],
 				'parallel_projection': bool(camera.parallel_projection),
 				'view_angle': float(camera.view_angle),
-				'parallel_scale': float(camera.parallel_scale)}
+				'parallel_scale': float(camera.parallel_scale),
+				'window_center': [float(v) for v in camera.GetWindowCenter()]}
 
 	def set_camera(self, camera):
 		"""
@@ -500,12 +1057,15 @@ class Viewer:
 		"""
 		Everything about how the scene is shown, as a dictionary of plain numbers and strings that
 		can be saved (e.g. with ``json``) and given back to :meth:`set_view` on a scene with the
-		same layers: the camera, the vertical exaggeration, the origin of the ruler, the slicer and, for each
-		layer, whether it is shown, its opacity, colour limits, threshold and slice.
+		same layers: the camera, the vertical exaggeration, the background, the origin and ticks of
+		the ruler, what is drawn around the layers, the slicer and, for each layer, whether it is
+		shown, its opacity, the variable it is coloured by and its colormap, cell edges, tube radius, colour limits,
+		threshold and slice.
 
 		Returns:
 			view (dict): ``camera`` (see :meth:`get_camera`), ``vertical_exaggeration``,
-			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``slicer`` (``enabled``,
+			``axis_origin`` (list or None), ``axes_from_zero`` (bool), ``background``, ``axis_ticks`` (the two tick spacings), ``scene`` (``outline``, ``ruler``,
+			``axis_arrows``, ``corner_axes`` and the ``hidden_axis`` of a flat view), ``slicer`` (``enabled``,
 			``origin``, ``normal``, ``tolerance`` and ``show_holes``) and ``layers`` (a list with
 			one dictionary per layer, with its ``name``)
 		"""
@@ -515,6 +1075,9 @@ class Viewer:
 				'name': layer.name, 'visible': layer.visible,
 				'opacity': float(layer.kwargs.get('opacity', 1.0)),
 				'clim': None if layer.clim is None else [float(v) for v in layer.clim],
+				'color_by': layer.color_var, 'cmap': layer.cmap, 'radius': layer.radius,
+				'categories': list(layer.categories) if layer.categorical else None,
+				'edges': bool(layer.kwargs.get('show_edges', False)) if layer.kind == 'blocks' else None,
 				'threshold': None if layer.threshold is None else [float(v) for v in layer.threshold],
 				'slice': None if layer.section is None else {
 					k: None if v is None else v if k == 'orient' else float(v)
@@ -525,7 +1088,11 @@ class Viewer:
 		return {'camera': self.get_camera(), 'slicer': slicer,
 				'vertical_exaggeration': float(self._vertical_exaggeration),
 				'axis_origin': self._axis_origin and list(self._axis_origin),
-				'axes_from_zero': self._axes_from_zero, 'layers': layers}
+				'axes_from_zero': self._axes_from_zero, 'background': self._background,
+				'axis_ticks': list(self._tick_spacing),
+				'scene': {'outline': self._outline, 'ruler': self._ruler is not None and self._ruler_visible,
+						  'axis_arrows': self._axis_arrows,
+						  'corner_axes': self._corner_axes, 'hidden_axis': self._hidden_axis}, 'layers': layers}
 
 	def set_view(self, view):
 		"""
@@ -559,10 +1126,23 @@ class Viewer:
 				cut['slice_number'] = int(cut['slice_number'])
 			if cut.get('slice_thickness') is not None:
 				cut['slice_thickness'] = int(cut['slice_thickness'])
+			layer = self._layers[self.layers.index(saved['name'])]
+			# A colormap made by hand has a name that cannot be found again, so only a changed one is set
+			color_by = None if saved.get('color_by') == layer.color_var else saved.get('color_by')
+			cmap = saved.get('cmap')
 			self.set_layer(saved['name'], visible=saved['visible'], opacity=saved['opacity'],
-						   clim=saved['clim'], threshold=saved['threshold'] or False, **cut)
+						   clim=saved['clim'], threshold=saved['threshold'] or False, color_by=color_by,
+						   cmap=None if color_by is None and cmap == layer.cmap else cmap,
+						   edges=saved.get('edges'), radius=saved.get('radius'), categories=saved.get('categories'), **cut)
 		self.set_axis_origin(view['axis_origin'], view['axes_from_zero'])
 		self.set_vertical_exaggeration(view['vertical_exaggeration'])
+		# Views saved before the background could be changed have none
+		self.set_background(view.get('background', 'white'))
+		self.set_axis_ticks(*view.get('axis_ticks', (None, None)))
+		scene = dict(view.get('scene', {'outline': False, 'ruler': True, 'axis_arrows': False,
+										'corner_axes': False}))
+		self._hidden_axis = scene.pop('hidden_axis', None)
+		self.set_scene(**scene)
 		self.set_camera(view['camera'])
 
 	def show_static(self, figsize=None, dpi=None, title=None, cbar=True, ax=None):
@@ -619,9 +1199,11 @@ class Viewer:
 		for layer in self._layers:
 			if layer.crossing is not None:
 				static.add_mesh(layer.crossing, show_scalar_bar=False, nan_color='lightgray', **layer.kwargs)
+		static.set_background(_BACKGROUNDS[self._background][0])
 		static.set_scale(zscale=self._vertical_exaggeration)
-		if self._ruler is not None:
-			self._draw_ruler(static)
+		self._draw_extras(static)
+		if self._corner_axes:
+			static.show_axes()
 		if self.plotter.camera_set:
 			_apply_camera(static, self.get_camera())
 		image = static.screenshot(return_img=True)
@@ -651,11 +1233,77 @@ def _corners(extents):
 	return bounds[:, :, 0].min(axis=0), bounds[:, :, 1].max(axis=0)
 
 
-def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0)):
-	"""Draw the ruler around the layers' extents. They come from the layers, not the plotter,
+# The camera of each view of :meth:`Viewer.set_camera_view`: the direction pyvista looks along, whether
+# the projection is parallel, and the axis the ruler leaves out, which a flat view looks along
+_VIEWS = {'iso': ('iso', False, None), 'x': ('yz', False, None), 'y': ('xz', False, None),
+		  'z': ('xy', False, None), 'top': ('xy', True, 'z'), 'east': ('xz', True, 'y'),
+		  'north': ('yz', True, 'x')}
+# Where the scene is framed: the centre of the projection moves left by 3% of the width (VTK's
+# window coordinates run from -1 to 1), so the scene is centred in what the colour bars on the
+# right leave free, and fills 72% of the view, which leaves room for the ruler's labels
+_WINDOW_CENTER = (0.06, 0.0)
+_FILL = 0.72
+# How far a parallel camera sits from the scene, in half diagonals of the scene
+_FAR_CAMERA = 50
+
+# The name of the function in the exported page that chooses the ticks of the ruler. The page is
+# made by vtk.js, which gets the numbers of the ruler wrong for a stretched scene or a ruler that
+# counts from another origin, so the function is wrapped. The name is minified, found in the
+# exporter of trame_vtk, and may change with it (see Viewer.export_html)
+_TICKS_JS = 'generateTicks:Zl'
+
+def _gradient(cmap, direction='to right'):
+	"""The CSS background of a colormap's bar: a gradient between 32 of the colours pyvista draws it
+	with, so the bar is what the 3D view shows"""
+	import pyvista as pv
+	colours = ['#{:02x}{:02x}{:02x}'.format(*rgba[:3]) for rgba in pv.LookupTable(cmap=cmap, n_values=32).values]
+	return 'linear-gradient({}, {})'.format(direction, ', '.join(colours))
+
+
+# The directions of the axis arrows in the usual red, green and blue
+_ARROW_COLOURS = ('#d62728', '#2ca02c', '#1f77b4')
+_ARROW_LABELS = ('X (Easting)', 'Y (Northing)', 'Z (Elevation)')
+_AXES = ('Easting', 'Northing', 'Elevation')
+# The most labels VTK puts on an axis at every multiple of a spacing (checked for spacings of 1 to 100
+# over 1 to 59 spacings): it labels fewer than asked for when it won't space that many
+_MAX_LABELS = 10
+
+
+def _snap(lo, hi, step):
+	"""The axis from ``lo`` to ``hi`` widened to whole steps, and its number of labels"""
+	import numpy as np
+	lo, hi = np.floor(lo / step) * step, np.ceil(hi / step) * step
+	if hi == lo:
+		hi = lo + step
+	return lo, hi, int(round((hi - lo) / step)) + 1
+
+
+def _chosen_step(lo, hi, chosen):
+	"""The spacing ``chosen`` for an axis from ``lo`` to ``hi``, or the smallest round multiple of
+	it (1, 2, 2.5 or 5 times a power of 10) at which VTK labels every multiple of the spacing.
+	VTK puts the labels itself, and labels fewer than it is asked for when it won't space that many"""
+	import numpy as np
+	from pyvista.plotting.cube_axes_actor import make_axis_labels
+	power = int(np.floor(np.log10(chosen)))
+	for step in (f * 10.0 ** p for p in range(power, power + 7) for f in (1, 2, 2.5, 5)):
+		if step < chosen or not np.isclose(step / chosen, round(step / chosen)):
+			continue
+		lo_s, hi_s, n = _snap(lo, hi, step)
+		labels = make_axis_labels(vmin=lo_s, vmax=hi_s, n=n, fmt='%.6f')
+		drawn = np.array([float(labels.GetValue(i)) for i in range(labels.GetNumberOfValues())])
+		if len(drawn) == n:
+			return step
+	raise ValueError("No tick spacing of {:g} or a multiple of it fits {:g} to {:g}".format(chosen, lo, hi))
+
+
+def _ruler_layout(extents, vertical_exaggeration, origin, spacing):
+	"""Where the ruler goes around the layers' extents. They come from the layers, not the plotter,
 	which also holds the ruler itself, so redrawing it never grows the box. With vertical
 	exaggeration the box is stretched like the scene but labelled with the real elevations. The
-	labels count from ``origin``: the box is rounded in those counts, then moved back."""
+	labels count from ``origin``: the box is rounded in those counts, then moved back. ``spacing``
+	is the chosen spacing of east and north, and of elevation (None for a round one that suits the
+	scene). Returns the stretched bounds of the box, the numbers its axes show, their number of
+	labels and decimals, and a note on a spacing that could not be used (empty if there is none)."""
 	import numpy as np
 	bounds = np.array(extents, dtype=float).reshape(-1, 3, 2)
 	origin = np.array(origin, dtype=float)
@@ -665,27 +1313,45 @@ def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0
 	# and a shorter one proportionally fewer, so labels on a short axis don't run together
 	spans = np.where(upper > lower, upper - lower, 1.0)
 	on_screen = spans * [1, 1, vertical_exaggeration]
-	box, nlabels, decimals = [], [], []
-	for lo, hi, span, shown in zip(lower, upper, spans, on_screen):
-		intervals = max(2, round(4 * shown / on_screen.max()))
-		power = 10 ** np.floor(np.log10(span / intervals))
-		step = next(m * power for m in (1, 2, 5, 10) if m * power >= span / intervals)
-		lo, hi = np.floor(lo / step) * step, np.ceil(hi / step) * step
-		if hi == lo:
-			hi = lo + step
+	box, nlabels, decimals, notes = [], [], [], []
+	for axis, (lo, hi, span, shown) in enumerate(zip(lower, upper, spans, on_screen)):
+		chosen = (spacing[0], spacing[0], spacing[1])[axis]
+		if chosen is None:
+			intervals = max(2, round(4 * shown / on_screen.max()))
+			power = 10 ** np.floor(np.log10(span / intervals))
+			step = next(m * power for m in (1, 2, 5, 10) if m * power >= span / intervals)
+		else:
+			step = _chosen_step(lo, hi, chosen)
+			if step != chosen:
+				notes.append('{}: {:g} does not fit, using {:g}'.format(_AXES[axis], chosen, step))
+		lo, hi, n = _snap(lo, hi, step)
 		box += [lo, hi]
-		nlabels.append(int(round((hi - lo) / step)) + 1)
-		decimals.append(max(0, int(-np.floor(np.log10(step)))))
+		nlabels.append(n)
+		decimals.append(next(d for d in range(7) if abs(step * 10 ** d - round(step * 10 ** d)) < 1e-9))
 	placed = [v + origin[i // 2] for i, v in enumerate(box)]
 	stretched = placed[:4] + [placed[4] * vertical_exaggeration, placed[5] * vertical_exaggeration]
+	return stretched, box, nlabels, decimals, '; '.join(notes)
+
+
+def _draw_ruler(plotter, extents, titles, vertical_exaggeration=1.0, origin=(0.0, 0.0, 0.0), color='black',
+				spacing=(None, None), hidden_axis=None):
+	"""Draw the ruler laid out by :func:`_ruler_layout`, without the axis ``hidden_axis`` ('x', 'y' or
+	'z', or None). Returns the layout's note on a spacing that could not be used."""
+	stretched, box, nlabels, decimals, note = _ruler_layout(extents, vertical_exaggeration, origin, spacing)
+	origin = list(origin)
 	titles = {key: title + (' from {:g}'.format(origin[i]) if origin[i] else '')
 			  for i, (key, title) in enumerate(titles.items())}
 	axes = plotter.show_bounds(bounds=stretched, axes_ranges=box, grid='back', location='outer', ticks='both',
 							   minor_ticks=False, font_size=9, n_xlabels=nlabels[0],
-							   n_ylabels=nlabels[1], n_zlabels=nlabels[2], color='black', **titles)
+							   n_ylabels=nlabels[1], n_zlabels=nlabels[2], color=color, **titles)
 	axes.x_label_format = '%.{}f'.format(decimals[0])
 	axes.y_label_format = '%.{}f'.format(decimals[1])
 	axes.z_label_format = '%.{}f'.format(decimals[2])
+	# show_bounds(show_zaxis=False) left the axis visible (checked with pyvista 0.49), so it is set here
+	if hidden_axis is not None:
+		setattr(axes, '{}_axis_visibility'.format(hidden_axis), False)
+		setattr(axes, '{}_label_visibility'.format(hidden_axis), False)
+	return note
 
 
 # Cell array with each cell's category as 0, 1, 2, ... in code order, which is what gets coloured
@@ -773,11 +1439,33 @@ def _apply_camera(plotter, camera):
 	plotter.camera_position = (camera['position'], camera['focal_point'], camera['view_up'])
 	plotter.camera.view_angle = camera['view_angle']
 	plotter.camera.parallel_scale = camera['parallel_scale']
+	# Views saved before the camera could be fitted have no shift of the window
+	plotter.camera.SetWindowCenter(*camera.get('window_center', (0.0, 0.0)))
+
+
+def _other_vars(data, var, other_vars):
+	"""The variables a layer keeps besides ``var``, as a dictionary from the name to its ``catdict``
+	(``True`` for categories with no names) or None for a continuous variable"""
+	import pandas as pd
+	from ..data.data import DataFile
+	if other_vars is None:
+		if not isinstance(data, DataFile):
+			return {}
+		variables = [data.variables] if isinstance(data.variables, str) else list(data.variables or [])
+		found = {v: None for v in variables if pd.api.types.is_numeric_dtype(data.data[v])}
+		if data.cat is not None:
+			found[data.cat] = data.catdict if isinstance(data.catdict, dict) else True
+	elif isinstance(other_vars, dict):
+		found = dict(other_vars)
+	else:
+		found = {v: None for v in other_vars}
+	found.pop(var, None)
+	return found
 
 
 def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color=None, label=None,
 		   threshold=None, orient=None, slice_number=None, slice_coordinate=None,
-		   slice_thickness=None, pointtol=None, catdict=None, **kwargs):
+		   slice_thickness=None, pointtol=None, catdict=None, other_vars=None, **kwargs):
 	"""
 	Add drill holes, a block model or a mesh to a 3D scene. Calls share one scene through
 	``viewer``, the same way 2D plots share ``ax``.
@@ -807,6 +1495,11 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			``var`` is coloured by category if this is passed, or if data is a DataFile and
 			``var`` is its ``cat`` column (then DataFile.catdict is used). Categories get the
 			same colours as in :func:`gs.location_plot() <pygeostat.plotting.location_plot.location_plot>`
+		other_vars (list or dict): other variables of ``data`` to keep on the layer, so that
+			``Viewer.set_layer(color_by=...)`` and the panel can colour it by them. A dictionary
+			gives the categorical ones their ``catdict`` (``True`` for codes with no names) and
+			``None`` for a continuous one. If None and data is a DataFile, its numeric variables
+			and its ``cat`` column (with DataFile.catdict)
 		threshold (tuple): (min, max) of ``var`` to show; blocks, intervals or points outside it,
 			or without a value, are hidden. Colours keep the full range of ``var`` unless ``clim``
 			is passed
@@ -856,15 +1549,18 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 		var = data.variables
 	griddef = None
 	kind = 'blocks'
+	others = {} if var is None or isinstance(data, pv.DataSet) else _other_vars(data, var, other_vars)
+	mesh_vars = [var] + list(others) if others else var
 	if isinstance(data, pv.DataSet):
 		mesh = data
 	elif 'griddef' in kwargs or 'size' in kwargs or getattr(data, 'griddef', None) is not None:
-		mesh = block_mesh(data, var=var, **kwargs)
+		mesh = block_mesh(data, var=mesh_vars, **kwargs)
 		if 'size' not in kwargs:
 			griddef = kwargs['griddef'] if 'griddef' in kwargs else data.griddef
 	else:
-		mesh = drillhole_mesh(data, var=var, **kwargs)
+		mesh = drillhole_mesh(data, var=mesh_vars, **kwargs)
 		kind = 'holes' if SEGMENT in mesh.cell_data else 'points'
+	given_cmap = cmap
 	categorical = var is not None and (catdict is not None or (
 		isinstance(data, DataFile) and var == data.cat))
 	if categorical:
@@ -881,7 +1577,11 @@ def view3d(data, var=None, viewer=None, cmap=None, clim=None, opacity=1.0, color
 			data_range = mesh.get_data_range(var)
 			if clim is None:
 				clim = data_range
-	source = _Source(mesh, var, griddef)
+	colourings = {} if var is None else {
+		var: (catdict if isinstance(catdict, dict) else True) if categorical else None, **others}
+	source = _Source(mesh, var, griddef, colourings, {
+		'continuous': None, 'categorical': None, ('categorical' if categorical else 'continuous'): given_cmap},
+		{var: label or var})
 	section = None if orient is None else dict(
 		orient=orient, slice_number=slice_number, slice_coordinate=slice_coordinate,
 		slice_thickness=slice_thickness, pointtol=pointtol)

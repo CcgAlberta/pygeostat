@@ -833,8 +833,8 @@ def two_layer_viewer(grid3d):
 
 def test_view_round_trip(grid3d):
     """get_view survives json and gives the same scene back on a fresh viewer: the layers'
-    visibility, opacity, colour limits, threshold and slice, the ruler origin, the exaggeration
-    and the camera."""
+    visibility, opacity, colour limits, threshold and slice, the ruler origin, the exaggeration,
+    the background, the ruler's ticks, what is drawn around the layers and the camera."""
     import json
     viewer = two_layer_viewer(grid3d)
     viewer.set_layer('value', opacity=0.4, clim=(-1, 1), threshold=(-2, 2), orient='xz', slice_number=7,
@@ -842,6 +842,10 @@ def test_view_round_trip(grid3d):
     viewer.set_layer('Bitumen', visible=False)
     viewer.set_axis_origin((1, 2, 3))
     viewer.set_vertical_exaggeration(4)
+    viewer.set_background('black')
+    viewer.add_ruler()
+    viewer.set_axis_ticks(xy=20)
+    viewer.set_scene(outline=True, axis_arrows=True, corner_axes=True)
     viewer.plotter.camera.position = (300, -400, 200)
     view = json.loads(json.dumps(viewer.get_view()))
     fresh = two_layer_viewer(grid3d)
@@ -849,6 +853,7 @@ def test_view_round_trip(grid3d):
     assert fresh.get_view() == view
     assert fresh._layers[0].mesh.n_cells == viewer._layers[0].mesh.n_cells
     assert not fresh._layers[1].actor.visibility
+    assert fresh._ruler is not None and fresh._tick_spacing == (20, None) and 'outline' in fresh.plotter.renderer.actors
 
 
 def test_set_view_with_other_layers(grid3d):
@@ -1152,3 +1157,801 @@ def test_colour_bars_stop_at_the_room_there_is():
             mesh.cell_data['v{}'.format(i)] = np.arange(mesh.n_cells, dtype=float)
             gs.view3d(mesh, 'v{}'.format(i), viewer=viewer)
     assert len(viewer.plotter.scalar_bars.keys()) == 10
+
+
+def test_set_background(grid3d):
+    """The background and the text on it change together, also for a colour bar made afterwards,
+    and a view saved before the background existed shows with the white one."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_background('Black')
+    assert viewer._background == 'black'
+    assert pv.Color(viewer.plotter.background_color) == pv.Color('#3a3a3a')
+    gs.view3d(gs.ExampleData('oilsands'), 'Bitumen', viewer=viewer)
+    for bar in viewer.plotter.scalar_bars.values():
+        assert bar.GetTitleTextProperty().GetColor() == (1.0, 1.0, 1.0)
+    view = viewer.get_view()
+    del view['background']
+    viewer.set_view(view)
+    assert viewer._background == 'white'
+    assert pv.Color(viewer.plotter.background_color) == pv.Color('white')
+    with pytest.raises(ValueError, match="'white', 'black'"):
+        viewer.set_background('red')
+    assert viewer._background == 'white'
+
+
+def test_show_static_uses_the_background(grid3d):
+    """The picture has the scene's background colour in its corner."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_background('black')
+    fig, ax = viewer.show_static(figsize=(3, 3), cbar=False)
+    np.testing.assert_array_equal(ax.images[0].get_array()[0, 0][:3], [0x3a, 0x3a, 0x3a])
+    viewer.set_background('white')
+    fig, ax = viewer.show_static(figsize=(3, 3), cbar=False)
+    np.testing.assert_array_equal(ax.images[0].get_array()[0, 0][:3], [255, 255, 255])
+
+
+def test_set_scene(grid3d):
+    """The box, the arrows and the corner marker are drawn when asked for and taken away when not,
+    and the ruler is added by asking for it and stays hidden when switched off."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    def actors():
+        return viewer.plotter.renderer.actors
+
+    assert 'outline' not in actors() and 'axis arrows' not in actors() and viewer._ruler is None
+    viewer.set_scene(outline=True, axis_arrows=True, corner_axes=True, ruler=True)
+    assert viewer._ruler is not None and viewer.plotter.renderer.cube_axes_actor is not None
+    np.testing.assert_allclose(actors()['outline'].mapper.dataset.bounds, viewer._layers[0].mesh.bounds)
+    assert 'axis arrows' in actors() and 'axis arrow labels-labels' in actors()
+    assert viewer.plotter.renderer.axes_widget.GetEnabled()
+    viewer.set_scene(outline=False, axis_arrows=False, corner_axes=False, ruler=False)
+    assert 'outline' not in actors() and 'axis arrows' not in actors() and 'axis arrow labels-labels' not in actors()
+    assert not viewer.plotter.renderer.axes_widget.GetEnabled()
+    assert viewer.plotter.renderer.cube_axes_actor is None
+    # Drawing again (a new layer, the exaggeration) does not bring the ruler back
+    viewer.set_vertical_exaggeration(2)
+    assert viewer.plotter.renderer.cube_axes_actor is None
+
+
+def test_set_scene_follows_the_layers_and_the_scale(grid3d):
+    """The box wraps every layer added after it was switched on; the z arrow has the scene's
+    exaggeration in its length but not in its shape (its actor is not scaled again)."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_scene(outline=True, axis_arrows=True)
+    viewer.set_vertical_exaggeration(3)
+    gs.view3d(gs.ExampleData('oilsands'), 'Bitumen', viewer=viewer)
+    lower, upper = gs.plotting3d.viewer._corners(viewer._extents)
+    np.testing.assert_allclose(viewer.plotter.renderer.actors['outline'].mapper.dataset.bounds,
+                               np.stack([lower, upper], axis=1).ravel())
+    assert viewer.plotter.renderer.actors['axis arrows'].GetScale() == (1.0, 1.0, 1.0)
+    bounds = viewer.plotter.renderer.actors['axis arrows'].mapper.dataset.bounds
+    assert bounds[5] - bounds[4] == pytest.approx(bounds[1] - bounds[0], rel=0.2)
+
+
+def test_set_axis_ticks(grid3d):
+    """A chosen spacing sets the labels of the ruler; one that VTK does not label is replaced by a
+    multiple of it, with a note; a spacing of 0 or less is refused and changes nothing."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    cube = viewer.plotter.renderer.cube_axes_actor
+    viewer.set_axis_ticks(xy=20)
+    assert cube.GetBounds()[:2] == (0.0, 80.0) and cube.GetXAxisRange() == (0.0, 80.0)
+    assert viewer.tick_note == ''
+    # 9 labels are asked for along the 40 high elevation, but VTK puts 5 and not 0, 5, 10 ... 40
+    viewer.set_axis_ticks(z=5)
+    assert viewer.tick_note == 'Elevation: 5 does not fit, using 10'
+    assert viewer.plotter.renderer.cube_axes_actor.GetZAxisRange() == (0.0, 40.0)
+    # Only a multiple of the spacing replaces it: 10 would fit, 20 is the multiple of 4 that does
+    viewer.set_axis_ticks(z=4)
+    assert viewer.tick_note == 'Elevation: 4 does not fit, using 20'
+    viewer.set_axis_ticks(xy=1, z=1)
+    assert viewer.tick_note.startswith('Easting: 1 does not fit, using 10; Northing:')
+    viewer.set_axis_ticks()
+    assert viewer.tick_note == '' and viewer._tick_spacing == (None, None)
+    viewer.set_axis_ticks(xy=20)
+    with pytest.raises(ValueError, match='above 0'):
+        viewer.set_axis_ticks(xy=0)
+    assert viewer._tick_spacing == (20, None)
+
+
+def test_view_without_a_ruler_does_not_add_one(grid3d):
+    """A view saved with no ruler says so, and showing it on a scene with none adds none."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    view = viewer.get_view()
+    assert view['scene']['ruler'] is False
+    viewer.set_view(view)
+    assert viewer._ruler is None
+
+
+def test_set_axis_ticks_with_an_origin(grid3d):
+    """The labels still land on multiples of the chosen spacing when they count from another origin
+    (the box starts at -1240 in those counts, which is -5.5 in the scene)."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_axis_origin((1234.5, 0, 0))
+    viewer.set_axis_ticks(xy=20)
+    cube = viewer.plotter.renderer.cube_axes_actor
+    assert cube.GetXAxisRange() == (-1240.0, -1140.0) and cube.GetBounds()[0] == pytest.approx(-5.5)
+
+
+def screen_box(viewer, bounds):
+    """(lowest, highest) corner of a box as fractions of the window, as it is drawn now."""
+    renderer = viewer.plotter.renderer
+    width, height = viewer.plotter.window_size
+    points = []
+    for x in bounds[:2]:
+        for y in bounds[2:4]:
+            for z in bounds[4:]:
+                renderer.SetWorldPoint(x, y, z, 1.0)
+                renderer.WorldToDisplay()
+                display = renderer.GetDisplayPoint()
+                points.append((display[0] / width, display[1] / height))
+    return np.min(points, axis=0), np.max(points, axis=0)
+
+
+@pytest.mark.parametrize('exaggeration', [1, 3])
+@pytest.mark.parametrize('view', ['iso', 'x', 'y', 'z', 'top', 'east', 'north'])
+def test_set_camera_view_fits_the_ruler(grid3d, view, exaggeration):
+    """Every view shows the whole ruler inside the window, left of the colour bars, not tiny."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_vertical_exaggeration(exaggeration)
+    viewer.set_camera_view(view)
+    box = screen_box(viewer, _ruler_bounds(viewer))
+    assert (box[0] > 0.02).all() and (box[1][1] < 0.98) and box[1][0] < 0.88
+    # The box fills 72% of the window in its longer direction in a flat view
+    if view in ('top', 'east', 'north'):
+        assert max(box[1] - box[0]) == pytest.approx(0.72, abs=0.08)
+
+
+def _ruler_bounds(viewer):
+    return viewer.plotter.renderer.cube_axes_actor.GetBounds()
+
+
+def test_set_camera_view_directions(grid3d):
+    """Each view looks along its axis; flat views are parallel and leave out that axis of the ruler,
+    the others are in perspective with all three axes; a name that is not a view changes nothing."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    looking = {'top': (0, 0, -1), 'east': (0, 1, 0), 'north': (-1, 0, 0), 'z': (0, 0, -1), 'y': (0, 1, 0), 'x': (-1, 0, 0)}
+    for view, direction in looking.items():
+        viewer.set_camera_view(view)
+        np.testing.assert_allclose(viewer.plotter.camera.direction, direction, atol=1e-6)
+        flat = view in ('top', 'east', 'north')
+        assert viewer.plotter.camera.parallel_projection == flat
+        hidden = {'top': 'z', 'east': 'y', 'north': 'x'}.get(view)
+        cube = viewer.plotter.renderer.cube_axes_actor
+        shown = [cube.GetXAxisVisibility(), cube.GetYAxisVisibility(), cube.GetZAxisVisibility()]
+        assert shown == [axis != hidden for axis in 'xyz']
+    viewer.set_camera_view('iso')
+    assert not viewer.plotter.camera.parallel_projection and viewer._hidden_axis is None
+    position = viewer.get_camera()['position']
+    with pytest.raises(ValueError, match="'top'"):
+        viewer.set_camera_view('up')
+    assert viewer.get_camera()['position'] == position
+
+
+def test_set_parallel_projection_keeps_the_size(grid3d):
+    """Switching to a parallel projection and back keeps the scene about as big on the screen."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    bounds = viewer._layers[0].mesh.bounds
+    before = screen_box(viewer, bounds)
+    viewer.set_parallel_projection(True)
+    assert viewer.plotter.camera.parallel_projection
+    parallel = screen_box(viewer, bounds)
+    viewer.set_parallel_projection(False)
+    assert not viewer.plotter.camera.parallel_projection
+    after = screen_box(viewer, bounds)
+    for box in (parallel, after):
+        np.testing.assert_allclose(box[1] - box[0], before[1] - before[0], rtol=0.15)
+
+
+def test_fit_view_frames_the_scene_without_turning_it(grid3d):
+    """Fit view brings a zoomed or moved scene back into the window and keeps the direction."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    direction = viewer.plotter.camera.direction
+    viewer.plotter.camera.zoom(4)
+    viewer.fit_view()
+    box = screen_box(viewer, viewer._layers[0].mesh.bounds)
+    assert (box[0] > 0.02).all() and (box[1] < 0.98).all()
+    np.testing.assert_allclose(viewer.plotter.camera.direction, direction, atol=1e-6)
+
+
+def test_view_saves_a_flat_view(grid3d):
+    """A flat view comes back from a saved view with its axis left out of the ruler."""
+    import json
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_camera_view('east')
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['scene']['hidden_axis'] == 'y' and view['camera']['parallel_projection']
+    fresh = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    fresh.add_ruler()
+    fresh.set_view(view)
+    assert fresh.get_view() == view
+    assert not fresh.plotter.renderer.cube_axes_actor.GetYAxisVisibility()
+
+
+def test_fit_view_leaves_room_for_the_colour_bars(grid3d):
+    """The fitted box sits left of the middle of the window, where the colour bars leave room."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    viewer.set_camera_view('top')
+    box = screen_box(viewer, _ruler_bounds(viewer))
+    assert 0.40 < (box[0][0] + box[1][0]) / 2 < 0.49
+
+
+def test_flat_views_keep_the_camera_far_away(grid3d):
+    """A parallel camera is far from the scene (more than the scene's diagonal times 20), which keeps
+    the ruler's labels the size they have in perspective."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.add_ruler()
+    diagonal = np.linalg.norm(np.diff(np.reshape(viewer._layers[0].mesh.bounds, (3, 2)), axis=1))
+    for view in ('top', 'east'):
+        viewer.set_camera_view(view)
+        camera = viewer.plotter.camera
+        assert np.linalg.norm(np.subtract(camera.position, camera.focal_point)) > 20 * diagonal
+    viewer.set_parallel_projection(False)
+    camera = viewer.plotter.camera
+    assert np.linalg.norm(np.subtract(camera.position, camera.focal_point)) < 20 * diagonal
+
+
+def test_perspective_views_start_from_the_same_angle(grid3d):
+    """Showing the same perspective view again gives the same picture, whatever view came between
+    (the fit narrows the view angle, so each view starts again from 30 degrees)."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    first = viewer.get_camera()
+    for view in ('x', 'top', 'z', 'iso'):
+        viewer.set_camera_view(view)
+    again = viewer.get_camera()
+    assert again['view_angle'] == pytest.approx(first['view_angle'], rel=1e-3)
+    np.testing.assert_allclose(again['position'], first['position'], rtol=1e-3)
+
+
+def lookup_start(table):
+    """The first colour of a lookup table."""
+    return np.array(table.GetTableValue(0)[:3])
+
+
+def test_set_layer_colormap(grid3d):
+    """A new colormap colours the layer and its colour bar, keeping the layer's threshold, slice and
+    hiding; it is refused for a layer with no variable, or for a name that is not a colormap, and
+    then nothing changes."""
+    import matplotlib as mpl
+    viewer = two_layer_viewer(grid3d)
+    blocks, holes = viewer._layers
+    viewer.set_layer('value', threshold=(0, 2), visible=False, cmap='plasma')
+    expected = np.array(mpl.colormaps['plasma'](0)[:3])
+    np.testing.assert_allclose(lookup_start(blocks.actor.mapper.lookup_table), expected, atol=0.01)
+    np.testing.assert_allclose(lookup_start(viewer.plotter.scalar_bars['value'].GetLookupTable()), expected, atol=0.01)
+    assert blocks.cmap == 'plasma' and not blocks.actor.visibility
+    assert blocks.mesh.n_cells == blocks.source.cut((0, 2), None).n_cells
+    viewer.set_layer('value', cmap='topo1')
+    np.testing.assert_allclose(lookup_start(blocks.actor.mapper.lookup_table), [1, 1, 1], atol=0.01)
+    with pytest.raises(ValueError, match="Unknown colormap 'nonsense'"):
+        viewer.set_layer('Bitumen', cmap='nonsense')
+    points = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 1.0], 'z': [0.0, 1.0], 'code': [1, 3]})
+    gs.view3d(points, 'code', x='x', y='y', z='z', catdict={1: 'a', 3: 'b'}, label='cat', viewer=viewer)
+    gs.view3d(points, x='x', y='y', z='z', color='red', label='plain', viewer=viewer)
+    with pytest.raises(ValueError, match="'plain' is not coloured by a variable"):
+        viewer.set_layer('plain', cmap='viridis')
+    assert blocks.cmap == 'topo1'
+
+
+def test_set_layer_colormap_on_holes_follows_the_slice(two_holes):
+    """The holes on the slice have the layer's new colormap too."""
+    import matplotlib as mpl
+    viewer = hole_viewer(two_holes)
+    layer = viewer._layers[0]
+    viewer.set_slicer(enabled=True, origin=(0, 0, 0), normal=(1, 0, 0), tolerance=4, show_holes=True)
+    viewer.set_layer('Au', cmap='plasma')
+    assert layer.crossing_actor is not None
+    np.testing.assert_allclose(lookup_start(layer.crossing_actor.mapper.lookup_table),
+                               mpl.colormaps['plasma'](0)[:3], atol=0.01)
+
+
+def test_set_layer_edges(grid3d):
+    """Cell edges are drawn for a block layer, and refused for other layers."""
+    viewer = two_layer_viewer(grid3d)
+    blocks = viewer._layers[0]
+    assert not blocks.actor.prop.show_edges
+    viewer.set_layer('value', edges=True)
+    assert blocks.actor.prop.show_edges
+    viewer.set_layer('value', threshold=(0, 2))
+    assert blocks.actor.prop.show_edges
+    viewer.set_layer('value', edges=False)
+    assert not blocks.actor.prop.show_edges
+    with pytest.raises(ValueError, match="'Bitumen' is not a block layer"):
+        viewer.set_layer('Bitumen', edges=True)
+
+
+def test_view_saves_colormaps_and_edges(grid3d):
+    """A saved view brings back the colormap and the cell edges; a colormap made by hand, whose name
+    cannot be found, stays as it is."""
+    import json
+    from matplotlib.colors import ListedColormap
+    viewer = two_layer_viewer(grid3d)
+    viewer.set_layer('value', cmap='plasma', edges=True)
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert [(l['cmap'], l['edges']) for l in view['layers']] == [('plasma', True), (viewer._layers[1].cmap, None)]
+    fresh = two_layer_viewer(grid3d)
+    fresh.set_view(view)
+    assert fresh.get_view() == view
+    custom = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], cmap=ListedColormap(['red', 'blue'], name='mine'),
+                       viewer=gs.Viewer(off_screen=True))
+    custom.set_view(custom.get_view())
+    assert custom._layers[0].cmap == 'mine'
+
+
+def test_set_layer_colormap_on_a_ready_mesh():
+    """A layer added as a mesh, with no data behind it, can change its colormap too."""
+    import matplotlib as mpl
+    mesh = pv.Sphere()
+    mesh['height'] = mesh.points[:, 2]
+    viewer = gs.Viewer(off_screen=True)
+    viewer.add(mesh, name='height', scalars='height', cmap='viridis', clim=(-0.5, 0.5),
+               scalar_bar_args={'title': 'height'})
+    viewer.set_layer('height', cmap='plasma')
+    layer = viewer._layers[0]
+    np.testing.assert_allclose(lookup_start(layer.actor.mapper.lookup_table), mpl.colormaps['plasma'](0)[:3], atol=0.01)
+    assert layer.cmap == 'plasma' and layer.clim == (-0.5, 0.5)
+
+
+def test_set_layer_radius(two_holes):
+    """The tubes get the new radius with the same cells and arrays; the threshold and the colours stay,
+    and a hole that the slicer's plane only reaches with the wider tube now crosses it."""
+    viewer = hole_viewer(two_holes)
+    layer = viewer._layers[0]
+    cells, values = layer.mesh.n_cells, layer.mesh.cell_data['Au'].copy()
+    assert layer.radius == 3.0 and layer.mesh.bounds[:2] == pytest.approx((-3.0, 53.0), abs=0.2)
+    viewer.set_layer('Au', threshold=(2, 8), visible=False)
+    viewer.set_layer('Au', radius=6)
+    assert layer.radius == 6.0 and layer.mesh.bounds[:2] == pytest.approx((-6.0, 56.0), abs=0.2)
+    assert layer.source.mesh.n_cells == cells
+    np.testing.assert_array_equal(layer.source.mesh.cell_data['Au'], values)
+    np.testing.assert_array_equal(layer.mesh.cell_data['Au'], values[values >= 2])
+    assert layer.threshold == (2, 8) and not layer.actor.visibility
+    viewer.set_layer('Au', radius=3, threshold=False, visible=True)
+    viewer.set_slicer(enabled=True, origin=(4, 0, 15), normal=(1, 0, 0), tolerance=100, show_holes=True)
+    assert layer.crossing is None
+    viewer.set_layer('Au', radius=6)
+    assert layer.crossing is not None and layer.crossing.n_cells > 0
+
+
+def test_set_layer_radius_keeps_categories(two_holes):
+    """The category colours of a drill hole layer are the same after the tubes change."""
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    viewer = gs.view3d(two_holes, 'code', x='x', y='y', z='z', dh='hole', trace=True, radius=3,
+                       catdict={1: 'a', 3: 'b'}, viewer=gs.Viewer(off_screen=True))
+    layer = viewer._layers[0]
+    before = layer.mesh.cell_data['category index'].copy()
+    viewer.set_layer('code', radius=5)
+    np.testing.assert_array_equal(layer.mesh.cell_data['category index'], before)
+    assert layer.kwargs['annotations'] == {0: 'a', 1: 'b'}
+
+
+def test_set_layer_radius_is_refused_for_other_layers(grid3d, two_holes):
+    """Only a drill hole layer has tubes, a radius is above 0, and a refused change changes nothing."""
+    viewer = hole_viewer(two_holes)
+    gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=viewer)
+    with pytest.raises(ValueError, match="'value' is not a drill hole layer"):
+        viewer.set_layer('value', radius=2)
+    for radius in (0, -1):
+        with pytest.raises(ValueError, match='above 0'):
+            viewer.set_layer('Au', radius=radius, opacity=0.5)
+    assert viewer._layers[0].radius == 3.0 and viewer._layers[0].kwargs['opacity'] == 1.0
+    mesh = pv.Cylinder()
+    viewer.add(mesh, name='ready', kind='holes')
+    with pytest.raises(ValueError, match="'ready' is not a drill hole layer"):
+        viewer.set_layer('ready', radius=2)
+    assert viewer.get_view()['layers'][-1]['radius'] is None
+
+
+def test_view_saves_the_tube_radius(two_holes):
+    """A saved view brings back the tube radius."""
+    import json
+    viewer = hole_viewer(two_holes)
+    viewer.set_layer('Au', radius=5)
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['layers'][0]['radius'] == 5.0
+    fresh = hole_viewer(two_holes)
+    fresh.set_view(view)
+    assert fresh._layers[0].radius == 5.0 and fresh.get_view() == view
+
+
+def test_set_layer_radius_keeps_the_number_of_sides(two_holes):
+    """Tubes made with 8 sides still have 8 after the radius changes."""
+    viewer = gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3, n_sides=8,
+                       viewer=gs.Viewer(off_screen=True))
+    layer = viewer._layers[0]
+    cells = layer.mesh.n_cells
+    viewer.set_layer('Au', radius=4)
+    assert layer.mesh.n_cells == cells
+
+
+def make_coloured_holes(two_holes):
+    """Two drill holes coloured by Au, with Cu and a code to colour by instead."""
+    two_holes['Cu'] = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    return gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=3,
+                     other_vars={'Cu': None, 'code': {1: 'a', 3: 'b'}}, viewer=gs.Viewer(off_screen=True))
+
+
+@pytest.fixture
+def coloured_holes(two_holes):
+    return make_coloured_holes(two_holes)
+
+
+def test_set_layer_color_by(coloured_holes):
+    """The layer is coloured by the other variable, with its own colour limits, colour bar and
+    categories, and goes back to its first one; the threshold keeps using the first variable."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    assert layer.color_var == 'Au' and list(layer.source.colourings) == ['Au', 'Cu', 'code']
+    viewer.set_layer('Au', threshold=(2, 8), visible=False)
+    viewer.set_layer('Au', color_by='Cu')
+    assert layer.color_var == 'Cu' and layer.kwargs['scalars'] == 'Cu' and layer.clim == (10.0, 70.0)
+    assert layer.data_range == (10.0, 70.0) and 'Cu' in viewer.plotter.scalar_bars.keys()
+    assert 'Au' not in viewer.plotter.scalar_bars.keys()
+    assert layer.threshold == (2, 8) and not layer.actor.visibility
+    assert layer.mesh.n_cells == layer.source.cut((2, 8), None).n_cells
+    viewer.set_layer('Au', color_by='code', threshold=False)
+    assert layer.kwargs['scalars'] == 'category index' and layer.kwargs['annotations'] == {0: 'a', 1: 'b'}
+    assert layer.clim is None and layer.categorical and 'code' in viewer.plotter.scalar_bars.keys()
+    np.testing.assert_array_equal(layer.mesh.cell_data['category index'], (layer.mesh.cell_data['code'] == 3) * 1.0)
+    viewer.set_layer('Au', color_by='Au')
+    assert layer.kwargs['scalars'] == 'Au' and layer.clim == (1.0, 7.0) and 'Au' in viewer.plotter.scalar_bars.keys()
+    assert 'code' not in viewer.plotter.scalar_bars.keys()
+
+
+def test_set_layer_color_by_refuses_other_names(coloured_holes):
+    """A name the layer cannot be coloured by is refused with the names it can, and changes nothing."""
+    viewer = coloured_holes
+    with pytest.raises(ValueError, match=r"\['Au', 'Cu', 'code'\], not 'Zn'"):
+        viewer.set_layer('Au', color_by='Zn', opacity=0.5)
+    layer = viewer._layers[0]
+    assert layer.color_var == 'Au' and layer.kwargs['opacity'] == 1.0
+
+
+def test_set_layer_palette_of_categories(coloured_holes):
+    """A layer coloured by categories takes another palette, which it keeps while coloured by
+    something else, and a palette too short for its categories is refused."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', color_by='code')
+    first = [tuple(c) for c in layer.kwargs['cmap'].colors]
+    viewer.set_layer('Au', cmap='cat_pastel')
+    assert layer.cmap == 'cat_pastel' and [tuple(c) for c in layer.kwargs['cmap'].colors] != first
+    viewer.set_layer('Au', color_by='Cu', cmap='plasma')
+    assert layer.cmap == 'plasma'
+    viewer.set_layer('Au', color_by='code')
+    assert layer.cmap == 'cat_pastel'
+    viewer.set_layer('Au', color_by='Au')
+    assert layer.cmap == 'plasma'
+
+
+def test_view3d_keeps_the_variables_of_a_datafile(two_holes):
+    """A DataFile layer keeps its numeric variables and its category column to colour by."""
+    two_holes['Cu'] = 1.0
+    two_holes['name'] = 'x'
+    two_holes['code'] = [1, 3] * 4
+    data = gs.DataFile(data=two_holes, x='x', y='y', z='z', dh='hole', variables=['Au', 'Cu', 'name'], cat='code',
+                       catdict={1: 'a', 3: 'b'})
+    viewer = gs.view3d(data, 'Au', trace=True, viewer=gs.Viewer(off_screen=True))
+    assert viewer._layers[0].source.colourings == {'Au': None, 'Cu': None, 'code': {1: 'a', 3: 'b'}}
+    viewer = gs.view3d(data, 'Au', trace=True, other_vars=[], viewer=gs.Viewer(off_screen=True))
+    assert list(viewer._layers[0].source.colourings) == ['Au']
+
+
+def test_view_saves_the_colouring(coloured_holes, two_holes):
+    """A saved view brings back the variable a layer is coloured by and its palette."""
+    import json
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', cmap='cat_pastel')
+    two_holes = two_holes.copy()
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['layers'][0]['color_by'] == 'code' and view['layers'][0]['cmap'] == 'cat_pastel'
+    fresh = make_coloured_holes(two_holes)
+    fresh.set_view(view)
+    assert fresh._layers[0].color_var == 'code' and fresh._layers[0].cmap == 'cat_pastel'
+    assert fresh.get_view() == view
+
+
+def test_view_brings_back_a_palette_cut_from_a_colormap(coloured_holes, two_holes):
+    """A view saved with categories coloured by a continuous colormap's name brings that palette
+    back on a layer whose colormap has the same name but is for another kind of variable."""
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', cmap='viridis')
+    view = viewer.get_view()
+    fresh = make_coloured_holes(two_holes.copy())
+    assert fresh._layers[0].cmap == viewer._layers[0].cmap == 'viridis'
+    fresh.set_view(view)
+    assert fresh._layers[0].categorical
+    assert [tuple(c) for c in fresh._layers[0].kwargs['cmap'].colors] == [
+        tuple(c) for c in viewer._layers[0].kwargs['cmap'].colors]
+
+
+def codes_shown(layer):
+    """The codes of the intervals of a layer that are drawn."""
+    return sorted(set(layer.mesh.cell_data['code']))
+
+
+def test_set_layer_categories(coloured_holes):
+    """Only the chosen categories are drawn, with the colours they had; the filter goes with a new
+    threshold, slice or colormap, and ends when the layer is coloured by another variable."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', color_by='code')
+    colours = [tuple(c) for c in layer.kwargs['cmap'].colors]
+    viewer.set_layer('Au', categories=['b'])
+    assert codes_shown(layer) == [3.0] and layer.categories == ('b',)
+    assert layer.kwargs['clim'] == (-0.5, 1.5) and [tuple(c) for c in layer.kwargs['cmap'].colors] == colours
+    viewer.set_layer('Au', threshold=(0, 100))
+    assert codes_shown(layer) == [3.0]
+    viewer.set_layer('Au', cmap='cat_pastel')
+    assert codes_shown(layer) == [3.0]
+    viewer.set_layer('Au', categories=['a', 'b'])
+    assert codes_shown(layer) == [1.0, 3.0]
+    viewer.set_layer('Au', categories=['a'])
+    viewer.set_layer('Au', categories=[])
+    assert codes_shown(layer) == [1.0, 3.0] and layer.categories == ()
+    viewer.set_layer('Au', categories=['a'], visible=False)
+    viewer.set_layer('Au', color_by='Cu')
+    assert layer.categories == () and layer.mesh.n_cells == layer.source.mesh.n_cells and not layer.actor.visibility
+    viewer.set_layer('Au', color_by='code')
+    assert layer.categories == () and codes_shown(layer) == [1.0, 3.0]
+    viewer.set_layer('Au', color_by='code', categories=['b'])
+    assert codes_shown(layer) == [3.0]
+
+
+def test_set_layer_categories_are_refused(coloured_holes):
+    """Names that are not categories, a layer without categories and a filter that leaves nothing are
+    refused, and nothing changes."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    with pytest.raises(ValueError, match="is not coloured by categories"):
+        viewer.set_layer('Au', categories=['a'])
+    viewer.set_layer('Au', color_by='code', categories=['a'])
+    with pytest.raises(ValueError, match=r"no categories \['c'\]; they are \['a', 'b'\]"):
+        viewer.set_layer('Au', categories=['b', 'c'], opacity=0.5)
+    with pytest.raises(ValueError, match='Nothing is left'):
+        viewer.set_layer('Au', threshold=(7, 8), opacity=0.5)
+    assert layer.categories == ('a',) and layer.threshold is None and layer.kwargs['opacity'] == 1.0
+    assert codes_shown(layer) == [1.0]
+
+
+def test_set_layer_categories_follow_the_holes_on_the_slice(coloured_holes):
+    """The holes on the slice show the chosen categories only."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', color_by='code', categories=['b'])
+    viewer.set_slicer(enabled=True, origin=(0, 0, 0), normal=(1, 0, 0), tolerance=100, show_holes=True)
+    assert layer.crossing is not None and sorted(set(layer.crossing.cell_data['code'])) == [3.0]
+
+
+def test_view_saves_the_categories(coloured_holes, two_holes):
+    """A saved view brings back the categories shown."""
+    import json
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', categories=['b'])
+    view = json.loads(json.dumps(viewer.get_view()))
+    assert view['layers'][0]['categories'] == ['b']
+    fresh = make_coloured_holes(two_holes.copy())
+    assert fresh.get_view()['layers'][0]['categories'] is None
+    fresh.set_view(view)
+    assert fresh._layers[0].categories == ('b',) and codes_shown(fresh._layers[0]) == [3.0]
+    assert fresh.get_view() == view
+
+
+def test_drillhole_mesh_keeps_the_hole_names():
+    """The names of the drill holes are kept by index, with a whole number written without .0."""
+    from pygeostat.plotting3d.meshes import HOLE_NAMES
+    data = pd.DataFrame({'x': [0.0] * 3 + [5.0] * 3, 'y': 0.0, 'z': [3.0, 2.0, 1.0] * 2,
+                         'id': [9.0] * 3 + [10.5] * 3, 'Au': np.arange(6.0)})
+    mesh = gs.drillhole_mesh(data, var='Au', x='x', y='y', z='z', dh='id', trace=True)
+    assert list(mesh.field_data[HOLE_NAMES]) == ['9', '10.5']
+    mesh = gs.drillhole_mesh(data, var='Au', x='x', y='y', z='z', dh='id', trace=True, radius=2)
+    assert list(mesh.field_data[HOLE_NAMES]) == ['9', '10.5']
+    intervals = pd.DataFrame({'sx': [0.0], 'sy': 0.0, 'sz': 5.0, 'ex': 0.0, 'ey': 0.0, 'ez': 1.0, 'Au': [1.0]})
+    mesh = gs.drillhole_mesh(intervals, var='Au', start=('sx', 'sy', 'sz'), end=('ex', 'ey', 'ez'))
+    assert HOLE_NAMES not in mesh.field_data
+
+
+def test_interval_info(coloured_holes):
+    """The hole, the ends of the interval and the value of each variable, with the name of a
+    category, for a cell of the layer and for a cell of the holes on the slice."""
+    from pygeostat.plotting3d.meshes import SEGMENT
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    cell = int(np.flatnonzero(layer.mesh.cell_data[SEGMENT] == 3)[0])      # the first interval of hole b
+    info = viewer.interval_info('Au', cell)
+    assert info == {'hole': 'b', 'upper': [50.0, 0.0, 30.0], 'lower': [50.0, 0.0, 20.0],
+                    'values': {'Au': 5.0, 'Cu': 50.0, 'code': 'a'}}
+    viewer.set_slicer(enabled=True, origin=(50, 0, 0), normal=(1, 0, 0), tolerance=4, show_holes=True)
+    slice_cell = int(np.flatnonzero(layer.crossing.cell_data[SEGMENT] == 5)[0])
+    assert viewer.interval_info('Au', slice_cell, on_slice=True)['values'] == {'Au': 7.0, 'Cu': 70.0, 'code': 'b'}
+    with pytest.raises(ValueError, match="no drill hole intervals on the slice"):
+        viewer.set_slicer(show_holes=False)
+        viewer.interval_info('Au', 0, on_slice=True)
+
+
+def test_interval_info_without_values_or_names(two_holes):
+    """A missing value is None, a variable with categories but no names gives its code, and holes
+    without a name column give no name."""
+    two_holes.loc[0, 'Au'] = np.nan
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    viewer = gs.view3d(two_holes, 'Au', x='x', y='y', z='z', trace=True, dh='hole', other_vars={'code': True},
+                       viewer=gs.Viewer(off_screen=True))
+    assert viewer.interval_info('Au', 0)['values'] == {'Au': None, 'code': '1'}
+    intervals = pd.DataFrame({'sx': [0.0], 'sy': 0.0, 'sz': 5.0, 'ex': 0.0, 'ey': 0.0, 'ez': 1.0, 'Au': [1.0]})
+    viewer = gs.view3d(intervals, 'Au', start=('sx', 'sy', 'sz'), end=('ex', 'ey', 'ez'),
+                       viewer=gs.Viewer(off_screen=True))
+    assert viewer.interval_info('Au', 0)['hole'] is None
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', label='points', viewer=viewer)
+    with pytest.raises(ValueError, match="'points' has no drill hole intervals"):
+        viewer.interval_info('points', 0)
+
+
+def test_only_drill_holes_are_pickable(grid3d, two_holes):
+    """Blocks and points are not pickable by default, so a click reaches a hole behind them; a mesh
+    added with ``pickable=True`` is."""
+    viewer = hole_viewer(two_holes)
+    gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=viewer)
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', label='points', viewer=viewer)
+    viewer.add(pv.Sphere(), name='pickable', pickable=True)
+    holes, blocks, points, pickable = viewer._layers
+    assert holes.actor.pickable and not blocks.actor.pickable and not points.actor.pickable and pickable.actor.pickable
+    viewer.set_layer('value', threshold=(0, 1))
+    assert not blocks.actor.pickable
+
+
+def png_size(path):
+    """The width and height written in a PNG file."""
+    import struct
+    with open(path, 'rb') as f:
+        header = f.read(24)
+    assert header[:8] == b'\x89PNG\r\n\x1a\n'
+    return struct.unpack('>II', header[16:24])
+
+
+def test_save_screenshot(grid3d, tmp_path):
+    """The picture is the size of the plotter's window and has the scene's background."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_background('black')
+    viewer.save_screenshot(str(tmp_path / 'scene.png'))
+    assert png_size(tmp_path / 'scene.png') == tuple(viewer.plotter.window_size)
+    import matplotlib.image as mpimg
+    np.testing.assert_allclose(mpimg.imread(tmp_path / 'scene.png')[0, 0, :3], 0x3a / 255, atol=0.01)
+
+
+def overlay_of(page):
+    """The HTML that the exported page adds on top of the scene (the colour bars and the note)."""
+    import json
+    start = page.index('const html=') + len('const html=')
+    return json.loads(page[start:page.index(';function add', start)].replace('<\\/', '</'))
+
+
+def test_export_html(grid3d, two_holes, tmp_path):
+    """The page has the ruler fixed for the exaggeration and the origin, a colour bar of each
+    visible variable drawn as HTML (a range, or the names of the categories), and a note of the
+    exaggeration; the scene's own colour bars are back afterwards."""
+    two_holes['code'] = [1, 1, 3, 3] * 2
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    gs.view3d(two_holes, 'code', x='x', y='y', z='z', dh='hole', trace=True, catdict={1: 'Sand', 3: 'Shale'},
+              viewer=viewer)
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, label='hidden', viewer=viewer)
+    viewer.set_layer('hidden', visible=False)
+    viewer.add_ruler()
+    viewer.set_vertical_exaggeration(3)
+    viewer.set_axis_origin((100, -5, 2))
+    visible = {title: bar.GetVisibility() for title, bar in viewer.plotter.scalar_bars.items()}
+    assert sorted(visible.values()) == [0, 1, 1]
+    viewer.export_html(str(tmp_path / 'scene.html'))
+    page = (tmp_path / 'scene.html').read_text(encoding='utf-8')
+    assert 'generateTicks:(b)=>{const t=Zl([b[0]-(100.0),b[1]-(100.0),b[2]-(-5.0),b[3]-(-5.0),b[4]/(3.0)-(2.0)' in page
+    overlay = overlay_of(page)
+    assert 'Sand' in overlay and 'Shale' in overlay and '<b>value</b>' in overlay and '<b>hidden</b>' not in overlay
+    assert 'Vertical exaggeration 3x (elevation labels show true values minus 2)' in overlay
+    assert page.count('</body>') == 1
+    assert {title: bar.GetVisibility() for title, bar in viewer.plotter.scalar_bars.items()} == visible
+
+
+def test_export_html_without_an_exaggeration_has_no_note(grid3d, tmp_path):
+    """No note when the scene is not stretched, and one that says the labels count from the lowest edge."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    assert 'Vertical exaggeration' not in overlay_of(viewer._export_page().decode())
+    viewer.set_vertical_exaggeration(2)
+    viewer.set_axis_origin(from_zero=True)
+    assert 'true values counted from the lowest edge' in overlay_of(viewer._export_page().decode())
+    viewer.set_axis_origin()
+    assert '(elevation labels show true values)' in overlay_of(viewer._export_page().decode())
+    viewer.set_axis_origin((0, 0, -4))
+    assert 'true values plus 4' in overlay_of(viewer._export_page().decode())
+
+
+def test_export_html_is_refused_for_an_exporter_it_does_not_know(grid3d, tmp_path, monkeypatch):
+    """When the name of the tick function is not found in the page, nothing is written, so a page
+    with wrong elevations is never made; the scene's colour bars are back."""
+    from pygeostat.plotting3d import viewer as viewer_module
+    scene = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    monkeypatch.setattr(viewer_module, '_TICKS_JS', 'generateTicks:NotThere')
+    path = tmp_path / 'scene.html'
+    with pytest.raises(RuntimeError, match='cannot fix the ruler'):
+        scene.export_html(str(path))
+    assert not path.exists() and all(bar.GetVisibility() for bar in scene.plotter.scalar_bars.values())
+
+
+def test_export_html_leaves_the_scenes_colour_bars_out(grid3d, monkeypatch):
+    """The colour bars are hidden while the page is made, as vtk.js would draw all of them in one place."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    component = type(viewer.plotter.trame)
+    export = component.export_html
+    seen = []
+
+    def watching(self, filename):
+        seen.append([bar.GetVisibility() for bar in viewer.plotter.scalar_bars.values()])
+        return export(self, filename)
+    monkeypatch.setattr(component, 'export_html', watching)
+    viewer._export_page()
+    assert seen == [[0]]
+    assert [bar.GetVisibility() for bar in viewer.plotter.scalar_bars.values()] == [1]
+
+
+def test_export_html_has_one_colour_bar_for_layers_that_share_a_title(two_holes):
+    """Two layers coloured by the same variable have one bar in the page."""
+    viewer = hole_viewer(two_holes)
+    gs.view3d(two_holes, 'Au', x='x', y='y', z='z', dh='hole', trace=True, radius=1, viewer=viewer)
+    assert viewer.layers == ['Au', 'Au (2)']
+    assert overlay_of(viewer._export_page().decode()).count('<b>Au</b>') == 1
+
+
+def test_set_layer_colormap_keeps_the_colour_limits(coloured_holes):
+    """Changing only the colormap leaves the colour limits as they were; colouring by another variable
+    and back gives the limits of the variable."""
+    viewer = coloured_holes
+    layer = viewer._layers[0]
+    viewer.set_layer('Au', clim=(2, 4))
+    viewer.set_layer('Au', cmap='plasma')
+    assert layer.clim == (2, 4) and layer.cmap == 'plasma'
+    viewer.set_layer('Au', color_by='Cu')
+    assert layer.clim == (10.0, 70.0)
+    viewer.set_layer('Au', color_by='Au')
+    assert layer.clim == (1.0, 7.0)
+
+
+def test_view_saved_by_the_panel_before_these_controls_still_loads(coloured_holes):
+    """A view with only what the panel saved before (camera, exaggeration, ruler origin, slicer and the
+    layers' visibility, opacity, colour limits, threshold and slice) shows, and changes nothing else."""
+    viewer = coloured_holes
+    viewer.set_layer('Au', color_by='code', categories=['b'], radius=5)
+    viewer.set_background('black')
+    old = viewer.get_view()
+    for key in ('background', 'axis_ticks', 'scene'):
+        del old[key]
+    for layer in old['layers']:
+        for key in ('color_by', 'cmap', 'edges', 'radius', 'categories'):
+            del layer[key]
+    old['layers'][0]['opacity'] = 0.5
+    viewer.set_view(old)
+    layer = viewer._layers[0]
+    assert layer.kwargs['opacity'] == 0.5 and layer.color_var == 'code' and layer.categories == ('b',)
+    assert layer.radius == 5.0 and viewer._background == 'white'
+
+
+def test_camera_carries_the_shift_of_the_window(grid3d):
+    """The shift that fit_view makes is in get_camera, so show_static frames the scene as the panel
+    does; a camera saved without it has no shift."""
+    viewer = gs.view3d(grid3d[0], 'value', griddef=grid3d[1], viewer=gs.Viewer(off_screen=True))
+    viewer.set_camera_view('iso')
+    camera = viewer.get_camera()
+    assert camera['window_center'] == [0.06, 0.0]
+    static = pv.Plotter(off_screen=True)
+    from pygeostat.plotting3d.viewer import _apply_camera
+    _apply_camera(static, camera)
+    assert static.camera.GetWindowCenter() == (0.06, 0.0)
+    del camera['window_center']
+    viewer.set_camera(camera)
+    assert viewer.plotter.camera.GetWindowCenter() == (0.0, 0.0)
