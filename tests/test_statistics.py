@@ -16,19 +16,96 @@ def accuracy_data():
 
 
 def test_accuracy_summary_by_hand():
-    """Summary statistics for fractions 0.25, 0.75 and 0.5 in the 25%, 50% and 75% intervals"""
+    """A, P and G for fractions 0.25, 0.75 and 0.5 in the 25%, 50% and 75% intervals, with local
+    variances of 0.2 and 0.4 in Gaussian units (global variance 1)"""
     from pygeostat.statistics.utils import _accuracy_summary
     pints = np.array([0.25, 0.5, 0.75])
     propindic = {0.25: [1, 0, 0, 0], 0.5: [1, 1, 1, 0], 0.75: [1, 1, 0, 0]}
 
-    propavg, stats = _accuracy_summary(pints, propindic, variances=[1.0, 3.0])
+    propavg, stats = _accuracy_summary(pints, propindic, variances=[1.0, 3.0],
+                                       gaussian_variances=[0.2, 0.4])
 
     np.testing.assert_allclose(propavg['FracIn'], [0.25, 0.75, 0.5])
     assert stats['avgvar'] == pytest.approx(2.0)
     assert stats['mse'] == pytest.approx((0 + 0.25 ** 2 + 0.25 ** 2) / 3)
-    assert stats['acc'] == pytest.approx(2 / 3)  # on the line counts as accurate
-    assert stats['pre'] == pytest.approx(1 - 2 * 0.25 / 3)
-    assert stats['goo'] == pytest.approx(1 - (0.25 + 2 * 0.25) / 3)
+    # Only the 75% interval is below the 1:1 line, by 0.25: A = (1 - 2 * 0.25 / 3) * 100
+    assert stats['acc'] == pytest.approx(100 * (1 - 2 * 0.25 / 3))
+    assert stats['pre'] == pytest.approx(70.0)
+    assert stats['goo'] == pytest.approx(2 / (1 / stats['acc'] + 1 / 70.0))
+    assert min(stats['acc'], stats['pre']) < stats['goo'] < max(stats['acc'], stats['pre'])
+
+
+def test_accuracy_summary_limits():
+    """A is 0 when no true value is in any interval and 100 when all intervals are on or above the
+    line; P is negative (not clipped) when the local variance exceeds the global one, and G is then
+    not defined; G is 0 when A is 0; P and G are NaN without Gaussian variances."""
+    from pygeostat.statistics.utils import _accuracy_summary
+    pints = np.array([0.25, 0.5, 0.75])
+    none_in = {p: [0, 0] for p in pints}
+    all_in = {p: [1, 1] for p in pints}
+
+    _, nothing = _accuracy_summary(pints, none_in, [1.0], gaussian_variances=[0.5])
+    assert nothing['acc'] == pytest.approx(100 * (1 - 2 * 0.5))      # mean of the intervals is 0.5
+    assert nothing['acc'] == 0 and nothing['goo'] == 0 and nothing['pre'] == pytest.approx(50)
+    _, perfect = _accuracy_summary(pints, all_in, [1.0], gaussian_variances=[0.0])
+    assert perfect['acc'] == 100 and perfect['pre'] == 100 and perfect['goo'] == pytest.approx(100)
+    _, wide = _accuracy_summary(pints, all_in, [1.0], gaussian_variances=[1.5, 1.5])
+    assert wide['pre'] == pytest.approx(-50) and np.isnan(wide['goo'])
+    _, global_twice = _accuracy_summary(pints, all_in, [1.0], gaussian_variances=[1.0], global_variance=2.0)
+    assert global_twice['pre'] == pytest.approx(50)
+    _, no_gaussian = _accuracy_summary(pints, all_in, [1.0])
+    assert np.isnan(no_gaussian['pre']) and np.isnan(no_gaussian['goo']) and no_gaussian['acc'] == 100
+
+
+def test_normal_score_table():
+    """Distinct values get the normal quantile of the midpoint of their rank; weights move the
+    midpoints; tied values share the mean score; values beyond the data keep the end scores."""
+    from scipy.stats import norm
+    from pygeostat.statistics.utils import _normal_score_table
+    values, scores = _normal_score_table([3.0, 1.0, 2.0, 4.0])
+    np.testing.assert_array_equal(values, [1, 2, 3, 4])
+    np.testing.assert_allclose(scores, norm.ppf([0.125, 0.375, 0.625, 0.875]))
+    values, scores = _normal_score_table([1.0, 2.0], weights=[3.0, 1.0])
+    np.testing.assert_allclose(scores, norm.ppf([0.375, 0.875]))
+    values, scores = _normal_score_table([1.0, 2.0, 2.0, 3.0])
+    np.testing.assert_allclose(scores[1], norm.ppf([0.375, 0.625]).mean())
+    np.testing.assert_allclose(np.interp([0.0, 10.0], *_normal_score_table([1.0, 2.0])),
+                               norm.ppf([0.25, 0.75]))
+
+
+def test_accsim_precision_in_gaussian_units(accuracy_data):
+    """P comes from the local variance of Gaussian realizations: given directly, or made by the
+    normal score transform of the data; the true values play no part in it."""
+    truth, reals = accuracy_data
+    rng = np.random.default_rng(1)
+    gaussian = rng.normal(0, 0.5, reals.shape)               # local variance about 0.25
+    _, direct = gs.accsim(truth, reals, reals_gaussian=gaussian)
+    assert direct['pre'] == pytest.approx(100 * (1 - np.mean(np.var(gaussian, axis=1))))
+    assert 70 < direct['pre'] < 80
+    _, shuffled = gs.accsim(rng.permutation(truth), reals, reals_gaussian=gaussian)
+    assert shuffled['pre'] == pytest.approx(direct['pre'])
+    _, transformed = gs.accsim(truth, reals, data=truth)     # transform made from the data
+    assert transformed['pre'] < 100 and np.isfinite(transformed['goo'])
+    _, without = gs.accsim(truth, reals)
+    assert np.isnan(without['pre']) and np.isnan(without['goo']) and 0 <= without['acc'] <= 100
+    with pytest.raises(ValueError, match='shape'):
+        gs.accsim(truth, reals, reals_gaussian=gaussian[:, :5])
+
+
+def test_accsim_default_probability_intervals(accuracy_data):
+    """9 intervals (10% to 90%) for fewer than 300 true values and 19 (5% to 95%) otherwise, unless
+    the increment is given."""
+    truth, reals = accuracy_data
+    assert len(truth) < 300
+    propavg, _ = gs.accsim(truth, reals)
+    np.testing.assert_allclose(propavg['ProbInt'], np.arange(1, 10) / 10)
+    propavg, _ = gs.accsim(np.tile(truth, 3), np.tile(reals, (3, 1)))
+    assert len(propavg) == (9 if len(truth) * 3 < 300 else 19)
+    many = np.random.default_rng(0).normal(size=(300, 20))
+    propavg, _ = gs.accsim(many[:, 0], many)
+    assert len(propavg) == 19
+    propavg, _ = gs.accsim(many[:, 0], many, pinc=0.25)
+    assert len(propavg) == 3
 
 
 def test_accmik_matches_accsim(accuracy_data):
@@ -92,3 +169,18 @@ def test_accsim_truth_must_be_one_column(accuracy_data):
 
     with pytest.raises(ValueError, match='single column'):
         gs.accsim(np.c_[truth, truth], reals)
+
+
+def test_accsim_precision_with_a_different_number_of_realizations_per_location():
+    """Locations may have different numbers of realizations, and the global variance must be positive."""
+    rng = np.random.default_rng(0)
+    truth = np.zeros(20)
+    reals = np.empty(20, dtype=object)
+    for i in range(20):
+        reals[i] = rng.normal(size=5 + i % 3)
+    _, stats = gs.accsim(truth, reals, data=rng.normal(size=50))
+    assert np.isfinite(stats['pre']) and stats['pre'] < 100
+    _, stats = gs.accsim(truth, reals, reals_gaussian=[r * 0 for r in reals])
+    assert stats['pre'] == 100
+    with pytest.raises(ValueError, match='positive'):
+        gs.accsim(truth, reals, data=[1.0, 2.0], global_variance=0)

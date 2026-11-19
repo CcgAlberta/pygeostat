@@ -107,16 +107,30 @@ def near_positive_definite(input_matrix):
     return pdmat
 
 
-def accsim(truth, reals, pinc=0.05):
+def accsim(truth, reals, pinc=None, reals_gaussian=None, data=None, weights=None,
+           global_variance=1.0):
     """
     Calculates the proportion of locations where the true value falls within symmetric p-PI
     intervals when completing a jackknife study. A portion of the data is excluded from the
     conditioning dataset and the excluded sample locations simulated values are then checked.
 
+    The summary measures are Clayton Deutsch's accuracy (A), precision (P) and goodness (G), all in
+    percent. With ``p`` the probability intervals and ``t`` the fraction of the true values in each:
+
+    * ``A = (1 - 2 * mean(max(0, p - t))) * 100``: between 0 and 100; intervals on or above the 1:1
+      line add nothing, so only those below it lower A
+    * ``P = (1 - mean(local variance) / global variance) * 100``, in Gaussian units. It is negative
+      if the mean local variance is larger than the global variance, and is not clipped. The true
+      values are not used
+    * ``G = 2 / (1/A + 1/P)``, the harmonic average of A and P, between them when both are positive
+
     .. seealso::
 
         Pyrcz, M. J., & Deutsch, C. V. (2014). Geostatistical Reservoir Modeling (2nd ed.). New
         York, NY: Oxford University Press, p. 350-351.
+
+        Deutsch, C. V. (2026). Refresh on the Accuracy Plot and Measures of Performance of
+        Probabilistic Prediction. Paper 40, CCG Annual Report 28.
 
     Arguments:
         truth: Tidy (long-form) 1D data where a single column containing the true values.
@@ -126,7 +140,16 @@ def accsim(truth, reals, pinc=0.05):
             A pandas dataframe or numpy matrix can be passed
 
     Keyword Arguments:
-        pinc (float): Increments between the probability intervals to calculate within (0, 1)
+        pinc (float): Increments between the probability intervals within (0, 1). If None, 0.1
+            (9 intervals, 10% to 90%) for fewer than 300 true values and 0.05 (19 intervals,
+            5% to 95%) otherwise
+        reals_gaussian: The realizations in Gaussian units (before the back transform), the same
+            shape as ``reals``. Used for P and G
+        data: The data values that the normal score transform of the simulation was made from. If
+            ``reals_gaussian`` is None, the same transform is applied to ``reals`` to get Gaussian
+            units for P and G
+        weights: Declustering weights of ``data``, if the transform used them
+        global_variance (float): The variance of the transformed data, 1 for a normal score transform
 
     Returns:
         propavg (pd.DataFrame): Dataframe with the calculated probability intervals and the
@@ -134,7 +157,8 @@ def accsim(truth, reals, pinc=0.05):
 
     Returns:
         sumstats (dict): Dictionary containing the average variance (U), mean squared error (MSE),
-        accuracy measure (acc), precision measure (pre), and a goodness measure (goo)
+        accuracy (acc, A), precision (pre, P) and goodness (goo, G). P and G are NaN without
+        ``reals_gaussian`` or ``data``
 
     """
     import pandas as pd
@@ -143,10 +167,51 @@ def accsim(truth, reals, pinc=0.05):
         reals = reals.values
     elif not isinstance(reals, np.ndarray):
         raise ValueError("The argument `reals` must be a pd.DataFrame or np.matrix")
+    if pinc is None:
+        pinc = default_probability_increment(len(truth))
+    if not global_variance > 0:
+        raise ValueError("`global_variance` must be positive")
+    gaussian_variances = None
+    if reals_gaussian is not None:
+        if len(reals_gaussian) != len(reals) or any(
+                np.shape(g) != np.shape(r) for g, r in zip(reals_gaussian, reals)):
+            raise ValueError("`reals_gaussian` must have the shape of `reals`, {}".format(reals.shape))
+        gaussian_variances = [np.var(np.asarray(g, dtype=float)) for g in reals_gaussian]
+    elif data is not None:
+        table = _normal_score_table(data, weights)
+        # Row by row, so locations with different numbers of realizations work too
+        gaussian_variances = [np.var(np.interp(np.asarray(r, dtype=float), *table)) for r in reals]
     pints, propindic, variances = _interval_responses(truth, reals, pinc)
-    return _accuracy_summary(pints, propindic, variances)
+    return _accuracy_summary(pints, propindic, variances, gaussian_variances, global_variance)
 
-def accmik(truth, thresholds, mikprobs, pinc=0.05):
+
+def default_probability_increment(ndata):
+    """The probability increment for ``ndata`` true values: 9 intervals (10% to 90%) for fewer than
+    a few hundred data (taken as 300), 19 intervals (5% to 95%) for more"""
+    return 0.1 if ndata < 300 else 0.05
+
+
+def _normal_score_table(data, weights=None):
+    """
+    The normal score transform of ``data`` as a table (values, scores), for np.interp: the data
+    sorted, each with the normal quantile of the midpoint of its (weighted) cumulative probability,
+    and the mean score for tied values. Values beyond the data take the lowest or highest score.
+    """
+    from scipy.stats import norm
+    data = np.asarray(data, dtype=float).ravel()
+    weights = np.ones(len(data)) if weights is None else np.asarray(weights, dtype=float).ravel()
+    keep = ~np.isnan(data)
+    data, weights = data[keep], weights[keep]
+    order = np.argsort(data, kind='stable')
+    data, weights = data[order], weights[order]
+    cumulative = np.cumsum(weights)
+    scores = norm.ppf((cumulative - weights / 2) / cumulative[-1])
+    values, first = np.unique(data, return_index=True)
+    scores = np.array([scores[a:b].mean() for a, b in zip(first, list(first[1:]) + [len(data)])])
+    return values, scores
+
+
+def accmik(truth, thresholds, mikprobs, pinc=None):
     """
     Similar to accsim but accepting mik distributions instead
 
@@ -180,6 +245,8 @@ def accmik(truth, thresholds, mikprobs, pinc=0.05):
         mikprobs = mikprobs.values
     elif not isinstance(mikprobs, np.ndarray):
         raise ValueError("The argument `mikprobs` must be a pd.DataFrame or np.matrix")
+    if pinc is None:
+        pinc = default_probability_increment(len(truth))
     pints, propindic, variances = _interval_responses(truth, mikprobs, pinc, cdf_x=thresholds)
     return _accuracy_summary(pints, propindic, variances)
 
@@ -201,21 +268,29 @@ def _truth_1d(truth):
     return truth
 
 
-def _accuracy_summary(pints, propindic, variances):
+def _accuracy_summary(pints, propindic, variances, gaussian_variances=None, global_variance=1.0):
     """
     Fraction of the true values inside each probability interval, and the summary statistics
-    returned by accsim and accmik.
+    returned by accsim and accmik: the accuracy A, precision P and goodness G (percent) of
+    Clayton Deutsch. P and G need the local variances in Gaussian units (``gaussian_variances``).
     """
     import pandas as pd
     fracin = np.array([np.mean(propindic[pint]) for pint in pints])
     propavg = pd.DataFrame({'ProbInt': pints, 'FracIn': fracin})
-    accurate = fracin >= pints
     excess = fracin - pints
+    accuracy = 100 * (1 - 2 * np.mean(np.maximum(0, -excess)))
+    precision = np.nan
+    goodness = np.nan
+    if gaussian_variances is not None:
+        precision = 100 * (1 - np.mean(gaussian_variances) / global_variance)
+        # The harmonic average is not defined for a negative P, and is 0 when A or P is 0
+        if precision == 0 or accuracy == 0:
+            goodness = 0.0
+        elif precision > 0:
+            goodness = 2 / (1 / accuracy + 1 / precision)
     sumstats = {'avgvar': np.mean(variances),
                 'mse': np.mean(excess ** 2),
-                'acc': np.mean(accurate),
-                'pre': 1 - 2 * np.mean(np.where(accurate, excess, 0)),
-                'goo': 1 - np.mean(np.where(accurate, excess, -2 * excess))}
+                'acc': accuracy, 'pre': precision, 'goo': goodness}
     return propavg, sumstats
 
 
