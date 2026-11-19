@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import pygeostat as gs
 from matplotlib import pyplot as plt
+from matplotlib.collections import LineCollection
+from matplotlib.colors import to_rgb
 
 @pytest.fixture
 def plot_output_dir():
@@ -182,6 +184,34 @@ def test_accuracy_plot(plot_output_dir, accuracy_plot_data):
         pytest.fail(f'Unable to test the accuracy plot with simple settings \n{str(ex)}')
 
     assert os.path.isfile(output_file)
+
+
+def test_accuracy_plot_mik(plot_output_dir, accuracy_plot_data):
+    """Test the accuracy plot from MIK probabilities at thresholds"""
+    truth, reals = accuracy_plot_data
+    thresholds = np.quantile(reals, np.linspace(0.05, 0.95, 19))
+    mikprobs = (reals[:, :, None] <= thresholds).mean(axis=1)
+    output_file = os.path.join(plot_output_dir, 'accuracy_plot_mik_test.png')
+
+    gs.accuracy_plot(truth=truth, reals=mikprobs, mik_thresholds=thresholds,
+                     output_file=output_file)
+
+    assert os.path.isfile(output_file)
+
+
+def test_accuracy_plot_compare(accuracy_plot_data):
+    """Test overlaying two models on one axis with labels"""
+    truth, reals = accuracy_plot_data
+    _, ax = plt.subplots(1, 1)
+
+    gs.accuracy_plot(truth=truth, reals=reals, label='all', ax=ax)
+    gs.accuracy_plot(truth=truth, reals=reals[:, :10], label='ten', color='C1',
+                     stat_xy=(0.95, 0.4), ax=ax)
+
+    assert ax.get_legend_handles_labels()[1] == ['all', 'ten']
+    lines = [c for c in ax.collections if isinstance(c, LineCollection)]
+    assert np.allclose(lines[0].get_color()[0][:3], to_rgb('red'))  # black markers, red lines
+    assert np.allclose(lines[1].get_color()[0][:3], to_rgb('C1'))   # others keep their colour
 
 
 def test_slice_plot_simple(plot_output_dir, slice_plot_data):
