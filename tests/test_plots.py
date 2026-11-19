@@ -32,7 +32,7 @@ def accuracy_plot_data():
     """Prepare data for the accuracy plots."""
     data = gs.ExampleData('accuracy_plot')
     reals = data[list(data.columns[1:])].values
-    truth = data[list(data.columns[0:])].values
+    truth = data[data.columns[0]].values
     return truth, reals
 
 @pytest.fixture
