@@ -210,8 +210,50 @@ def test_accuracy_plot_compare(accuracy_plot_data):
 
     assert ax.get_legend_handles_labels()[1] == ['all', 'ten']
     lines = [c for c in ax.collections if isinstance(c, LineCollection)]
-    assert np.allclose(lines[0].get_color()[0][:3], to_rgb('red'))  # black markers, red lines
-    assert np.allclose(lines[1].get_color()[0][:3], to_rgb('C1'))   # others keep their colour
+    assert len(lines) == 2
+    # the second model was given a colour, so all its lines have it
+    assert np.allclose(lines[1].get_color()[:, :3], to_rgb('C1'))
+
+
+def accuracy_plot_colours(truth, reals):
+    """Marker colours, line colours and the (x, y) of each point of a default accuracy plot."""
+    _, ax = plt.subplots(1, 1)
+    gs.accuracy_plot(truth=truth, reals=reals, ax=ax)
+    points = [c for c in ax.collections if not isinstance(c, LineCollection)][0]
+    lines = [c for c in ax.collections if isinstance(c, LineCollection)][0]
+    x, y = points.get_offsets().T
+    return points.get_facecolors()[:, :3], lines.get_color()[:, :3], x, y, ax
+
+
+def test_accuracy_plot_green_red(accuracy_plot_data):
+    """By default a point and its line are green at or above the 1:1 line and red below it."""
+    truth, reals = accuracy_plot_data
+    points, lines, x, y, _ = accuracy_plot_colours(truth, reals)
+    expected = np.array([to_rgb('tab:green') if above else to_rgb('tab:red') for above in y >= x])
+    assert np.allclose(points, expected)
+    assert np.allclose(lines, expected)
+
+
+def test_accuracy_plot_red_when_below():
+    """Truth far from the realizations puts every point below the 1:1 line, so all are red."""
+    rng = np.random.default_rng(0)
+    reals = rng.normal(0, 1, (200, 50))
+    truth = rng.normal(8, 1, 200)
+    points, lines, x, y, _ = accuracy_plot_colours(truth, reals)
+    assert np.all(y < x)
+    assert np.allclose(points, to_rgb('tab:red'))
+    assert np.allclose(lines, to_rgb('tab:red'))
+
+
+def test_accuracy_plot_grid(accuracy_plot_data):
+    """A light grey grid is drawn behind the points by default and can be turned off."""
+    truth, reals = accuracy_plot_data
+    ax = gs.accuracy_plot(truth=truth, reals=reals)
+    line = ax.xaxis.get_gridlines()[0]
+    assert line.get_visible() and np.allclose(to_rgb(line.get_color()), to_rgb('0.7'))
+    assert ax.get_axisbelow() is True
+    ax_off = gs.accuracy_plot(truth=truth, reals=reals, grid=False)
+    assert not ax_off.xaxis.get_gridlines()[0].get_visible()
 
 
 def test_slice_plot_simple(plot_output_dir, slice_plot_data):
@@ -767,3 +809,33 @@ def test_gmm_plotting():
     except Exception as ex:
         pytest.fail(f'Unable to test GMM plotting: {str(ex)}')
 
+
+def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
+    """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
+    Gaussian realizations or the data of the transform, and MIK shows n/a too."""
+    truth, reals = accuracy_plot_data
+    ax = gs.accuracy_plot(truth=truth, reals=reals)
+    text = ax.texts[0].get_text()
+    assert '$P_{26} = n/a$' in text and '$G_{26} = n/a$' in text and '$A_{26} = ' in text
+    _, stats = gs.accsim(truth, reals, data=truth)
+    ax = gs.accuracy_plot(truth=truth, reals=reals, data=truth)
+    text = ax.texts[0].get_text()
+    assert 'n/a' not in text
+    assert '$A_{{26}} = {:0.1f}\\%$'.format(stats['acc']) in text
+    assert '$P_{{26}} = {:0.1f}\\%$'.format(stats['pre']) in text
+    assert '$G_{{26}} = {:0.1f}\\%$'.format(stats['goo']) in text
+    thresholds = np.quantile(reals, np.linspace(0.05, 0.95, 19))
+    mikprobs = (reals[:, :, None] <= thresholds).mean(axis=1)
+    ax = gs.accuracy_plot(truth=truth, reals=mikprobs, mik_thresholds=thresholds)
+    assert '$P_{26} = n/a$' in ax.texts[0].get_text()
+    plt.close('all')
+
+
+def test_accuracy_plot_axis_labels_follow_the_paper(accuracy_plot_data):
+    """The axes are titled as in Clayton Deutsch's paper, and the labels can still be set."""
+    truth, reals = accuracy_plot_data
+    ax = gs.accuracy_plot(truth=truth, reals=reals)
+    assert (ax.get_xlabel(), ax.get_ylabel()) == ('Predicted Probability', 'True Fraction')
+    ax = gs.accuracy_plot(truth=truth, reals=reals, xlabel='p', ylabel='t')
+    assert (ax.get_xlabel(), ax.get_ylabel()) == ('p', 't')
+    plt.close('all')
