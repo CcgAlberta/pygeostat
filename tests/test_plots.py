@@ -937,6 +937,18 @@ def test_histogram_plot_limits_and_grid(histogram_plot_data):
     plt.close('all')
 
 
+def test_validation_plot_outliers():
+    est = pd.Series([0., 1., 2., 3., 4.], index=[10, 11, 12, 13, 14])
+    true = pd.Series([0., 1., 2.5, 0., 4.], index=est.index)  # errors 0, 0, 0.5, 3, 0
+    ax = gs.validation_plot(est, true, outliers=2, stat_blk=False)
+    red = [c for c in ax.collections if len(c.get_offsets()) == 1]
+    assert len(red) == 2 and all(tuple(c.get_facecolor()[0][:3]) == (1.0, 0.0, 0.0) for c in red)
+    assert sorted(tuple(c.get_offsets()[0]) for c in red) == [(2.0, 2.5), (3.0, 0.0)]  # the largest |y - x|
+    plain = gs.validation_plot(est, true, stat_blk=False)
+    assert not [c for c in plain.collections if len(c.get_offsets()) == 1]  # off by default
+    plt.close('all')
+
+
 def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
     """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
     Gaussian realizations or the data of the transform, and MIK shows n/a too."""
