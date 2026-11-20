@@ -936,16 +936,28 @@ def test_histogram_plot_limits_and_grid(histogram_plot_data):
     assert data_lim[0] <= histogram_plot_data.data['Phi'].min() and data_lim[1] >= histogram_plot_data.data['Phi'].max()
     plt.close('all')
 
-
 def test_validation_plot_outliers():
     est = pd.Series([0., 1., 2., 3., 4.], index=[10, 11, 12, 13, 14])
     true = pd.Series([0., 1., 2.5, 0., 4.], index=est.index)  # errors 0, 0, 0.5, 3, 0
     ax = gs.validation_plot(est, true, outliers=2, stat_blk=False)
+    offsets = {t.get_text(): t.xyann[1] for t in ax.texts}
+    assert sorted(offsets) == ['12', '13']          # the two largest |y - x|
+    assert offsets['12'] > 0 and offsets['13'] < 0  # 12 is above the line, 13 below
     red = [c for c in ax.collections if len(c.get_offsets()) == 1]
     assert len(red) == 2 and all(tuple(c.get_facecolor()[0][:3]) == (1.0, 0.0, 0.0) for c in red)
-    assert sorted(tuple(c.get_offsets()[0]) for c in red) == [(2.0, 2.5), (3.0, 0.0)]  # the largest |y - x|
-    plain = gs.validation_plot(est, true, stat_blk=False)
-    assert not [c for c in plain.collections if len(c.get_offsets()) == 1]  # off by default
+    assert not gs.validation_plot(est, true, stat_blk=False).texts  # off by default
+    ax = gs.validation_plot(est.values, true.values, outliers=1, stat_blk=False)  # arrays: label by position
+    assert [t.get_text() for t in ax.texts] == ['3']
+    plt.close('all')
+
+
+def test_validation_plot_options_for_the_highlighted_points_and_the_regression_line():
+    """Highlighted points can have no numbers."""
+    est = pd.Series([0., 1., 2., 3., 4.])
+    true = pd.Series([0., 1., 2.5, 0., 4.])
+    ax = gs.validation_plot(est, true, outliers=2, outlier_labels=False, stat_blk=False)
+    assert not ax.texts
+    assert len([c for c in ax.collections if len(c.get_offsets()) == 1]) == 2  # the red points stay
     plt.close('all')
 
 

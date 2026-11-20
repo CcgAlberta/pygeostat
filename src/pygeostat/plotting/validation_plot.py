@@ -25,7 +25,7 @@ from . set_style import set_plot_style
 def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, title=None, stat_blk='all',
                     stat_xy=(0.95, 0.05), stat_ha=None, stat_fontsize=None, mc='k', ms=None, plot_style=None,
                     lw=None, grid=None, axis_xy=None, custom_style=None, output_file=None, ax=None, dens=False, 
-                    rasterized=False, outliers=None, outlier_color='red', **kwargs):
+                    rasterized=False, outliers=None, outlier_color='red', outlier_labels=True, **kwargs):
     """
     This function uses numpy to calculate the regression model and matplotlib to plot the
     scatter plot, regression line, and 45 degree line. Statistics are calculated using numpy.
@@ -77,9 +77,12 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
             :class:`gs.GridDef <pygeostat.data.grid_definition.GridDef>`. Use ``False`` or ``None``
             to turn it off
         custom_style (dict): Alter some of the predefined parameters in the ``plot_style`` selected.
-        outliers (int): number of points with the largest ``|y - x|`` to draw in ``outlier_color``.
-            Nothing is highlighted if None.
+        outliers (int): number of points with the largest ``|y - x|`` to draw in ``outlier_color`` and
+            label with their index (the position, for a list or array). A point above the 45 degree line
+            is labelled above, one below it is labelled below. Nothing is highlighted if None.
         outlier_color (str): Any permissible matplotlib color value for the highlighted points
+        outlier_labels (bool): write the index above or below each highlighted point. ``False`` keeps the
+            coloured points without numbers
         output_file (str): Output figure file name and location
         **kwargs: Optional permissible keyword arguments to pass to
             :func:`gs.export_image() <pygeostat.plotting.export_image.export_image>`
@@ -158,9 +161,13 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
     # Plot the scatter plot
     ax.scatter(x, y, c=mc, s=ms, lw=lw, rasterized=rasterized)
     if outliers:
-        xs, ys = np.asarray(x), np.asarray(y)
-        for i in np.argsort(-np.abs(ys - xs))[:outliers]:
-            ax.scatter(xs[i], ys[i], c=outlier_color, s=ms, lw=lw, rasterized=rasterized, zorder=3)
+        xs, ys = pd.Series(x), pd.Series(y)  # arrays have no index, so their position labels the points
+        for i in np.argsort(-np.abs(ys.values - xs.values))[:outliers]:
+            ax.scatter(xs.iloc[i], ys.iloc[i], c=outlier_color, s=ms, lw=lw, rasterized=rasterized, zorder=3)
+            if outlier_labels:
+                above = ys.iloc[i] >= xs.iloc[i]
+                ax.annotate(str(xs.index[i]), (xs.iloc[i], ys.iloc[i]), xytext=(0, 6 if above else -6),
+                            textcoords='offset points', ha='center', va='bottom' if above else 'top')
     # Get the axis limits determined by plt.scatter()
     if ax.get_ylim()[1] >= ax.get_xlim()[1]:
         maxlim = ax.get_ylim()
