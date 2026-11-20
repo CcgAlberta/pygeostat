@@ -325,7 +325,11 @@ def read_gsb(flname, ireal=-1, tmin=None, null=None):
         raise AssertionError("Error reading GSB data!, Error #{}".format(errorvalue))
 
     # Clean up column names and trimmed data
-    vnames = [''.join([v.decode("utf-8") for v in vname]).strip() for vname in vnames]
+    vnames = [
+        (vname.decode("utf-8") if isinstance(vname, bytes) else
+        ''.join([v.decode("utf-8") for v in vname])).strip()
+        for vname in vnames
+    ]
 
     # Convert to pandas dataframe
     data = pd.DataFrame(data=reals.transpose(), columns=vnames)
@@ -559,9 +563,10 @@ def write_gsb(data, flname, tvar=None, nreals=1, variables=None, griddef=None, f
         raise ValueError("Invalid trimming variable {}".format(tvar))
 
     # Character conversion of strings
-    cvariables = []
-    for varname in [var.ljust(64) for var in variables]:
-        cvariables.append([v for v in varname])
+    cvariables = np.array(
+        [var.ljust(64).encode('ascii') for var in variables],
+        dtype='S64'
+    )
 
     tmin = Parameters.get('data.tmin', None)
     if tmin is None:
