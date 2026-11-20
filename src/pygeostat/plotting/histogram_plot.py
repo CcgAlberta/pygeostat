@@ -22,7 +22,7 @@ def histogram_plot(data, var=None, weights=None, cat=None, catdict=None, bins=No
                     stat_blk=None, stat_xy=None, stat_ha=None, roundstats=None, sigfigs=None, color=None,
                     edgecolor=None, edgeweights=None, grid=None, axis_xy=None, label_count=False,
                     rotateticks=None, plot_style=None, custom_style=None, output_file=None, out_kws=None,
-                    stat_fontsize=None, stat_linespacing=None, logx=False, **kwargs):
+                    stat_fontsize=None, stat_linespacing=None, logx=False, ticks=None, **kwargs):
     """
     Generates a matplotlib style histogram with summary statistics. Trimming is now only applied
     to NaN values (Pygeostat null standard).
@@ -101,6 +101,9 @@ def histogram_plot(data, var=None, weights=None, cat=None, catdict=None, bins=No
         label_count (bool): label the number of samples found for each category in catdict. Does
             nothing if no catdict is found
         rotateticks (bool tuple): Indicate if the axis tick labels should be rotated (x, y)
+        ticks (bool, float or dict): tick marks on both axes. ``True`` draws them, ``False`` removes
+            them, a number sets their length, and a dictionary is passed to ``ax.tick_params``.
+            Based on Parameters['plotting.ticks'] if None.
         plot_style (str): Use a predefined set of matplotlib plotting parameters as specified by
             :class:`gs.GridDef <pygeostat.data.grid_definition.GridDef>`. Use ``False`` or ``None``
             to turn it off
@@ -213,7 +216,8 @@ def histogram_plot(data, var=None, weights=None, cat=None, catdict=None, bins=No
 
     """
     import pygeostat as gs
-    from . utils import format_plot, _set_stat_fontsize, _format_grid, _format_tick_labels, setup_plot, catcmapfromcontinuous
+    from . utils import (format_plot, _set_stat_fontsize, _format_grid, _format_tick_labels, _format_ticks,
+                         setup_plot, catcmapfromcontinuous)
     from . cmaps import _cat_pastel_data, _cat_vibrant_data
     import copy
     # Now converting to a numpy array, as encountering some odd pandas performance, and there's
@@ -587,6 +591,7 @@ def histogram_plot(data, var=None, weights=None, cat=None, catdict=None, bins=No
     else:
         # The grid should be below for a histogram
         _format_grid(ax, grid, below=True)
+    _format_ticks(ax, ticks)
     # Export figure
     if output_file or ('pdfpages' in out_kws):
         gs.export_image(output_file, **out_kws)

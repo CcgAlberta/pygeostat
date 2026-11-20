@@ -898,6 +898,28 @@ def test_format_axes_limits_grid_and_background():
     plt.close('all')
 
 
+def test_histogram_plot_ticks_fontsize_background(histogram_plot_data):
+    """ticks reach the histogram."""
+    plt.close('all')
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=7)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    assert ax.yaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    plt.close('all')
+
+
+def test_histogram_plot_ticks_default_and_off(histogram_plot_data):
+    """Tick marks are drawn by default (Parameters['plotting.ticks']) and ticks=False removes them."""
+    plt.close('all')
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 4
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=False)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 0
+    plt.close('all')
+
+
 def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
     """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
     Gaussian realizations or the data of the transform, and MIK shows n/a too."""
