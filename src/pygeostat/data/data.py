@@ -209,9 +209,13 @@ class DataFile:
 		if (data is not None) and (not isinstance(data, pd.DataFrame)):
 			try:
 				self.data = pd.DataFrame(data=data, columns=columns)
-			except:
-				raise ValueError("Please ensure the passed `data` can be coerced into a pandas"
-								 " dataframe (i.e., data = pd.DataFrame(data=data)")
+			except (ValueError, TypeError) as e:
+				# ValueError: inconsistent data shape, wrong number of columns
+				# TypeError: data type cannot be converted to DataFrame
+				raise ValueError(
+					f"Cannot convert provided data to pandas DataFrame. "
+					f"Original error: {e}"
+				) from e
 		# Initialize the specialized columns
 		self.dh = dh
 		self.ifrom = ifrom
