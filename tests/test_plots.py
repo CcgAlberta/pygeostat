@@ -899,12 +899,16 @@ def test_format_axes_limits_grid_and_background():
 
 
 def test_histogram_plot_ticks_fontsize_background(histogram_plot_data):
-    """ticks reach the histogram."""
+    """ticks and fontsize reach the histogram; stat_fontsize still sizes the statistics."""
     plt.close('all')
-    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=7)
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=7,
+                           fontsize={'label': 15, 'tick': 8, 'title': 11}, title='t', stat_fontsize=13)
     ax.figure.canvas.draw()
     assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
     assert ax.yaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    assert (ax.xaxis.label.get_fontsize(), ax.yaxis.label.get_fontsize(), ax.title.get_fontsize()) == (15, 15, 11)
+    assert ax.get_xticklabels()[0].get_fontsize() == 8
+    assert {t.get_fontsize() for t in ax.texts} == {13}  # fontsize leaves the statistics alone
     plt.close('all')
 
 
