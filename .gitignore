@@ -121,3 +121,4 @@ CleanUp.bat
 *.json
 pygeostat/fortran/tmp
 Makefile
+cl_docs
