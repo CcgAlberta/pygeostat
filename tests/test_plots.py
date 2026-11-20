@@ -809,6 +809,10 @@ def test_gmm_plotting():
     except Exception as ex:
         pytest.fail(f'Unable to test GMM plotting: {str(ex)}')
 
+def _tick_length(ax):
+    ax.figure.canvas.draw()
+    return ax.xaxis.get_major_ticks()[0].tick1line.get_markersize()
+
 
 def _plain_axes():
     fig, ax = plt.subplots()
@@ -817,6 +821,46 @@ def _plain_axes():
     ax.set_ylabel('y')
     ax.set_title('t')
     return ax
+
+
+@pytest.mark.parametrize('ticks, length', [(True, 4), (False, 0), (7, 7), ({'length': 9}, 9),
+                                           (np.True_, 4), (np.False_, 0), (np.float64(5), 5)])
+def test_format_axes_ticks(ticks, length):
+    """True draws 4 point marks, False none, a number sets the length, a dict goes to tick_params."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    _format_axes(ax, ticks=ticks)
+    assert _tick_length(ax) == length
+    plt.close(ax.figure)
+
+
+def test_format_axes_ticks_refuses_text():
+    """A string such as '4' is not a tick length."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    with pytest.raises(TypeError, match='ticks must be'):
+        _format_axes(ax, ticks='4')
+    plt.close(ax.figure)
+
+
+def test_format_axes_ticks_default_follows_parameter():
+    """ticks=None uses Parameters['plotting.ticks'], so the default can be changed once for all plots."""
+    from pygeostat.plotting.utils import _format_axes
+    saved = gs.Parameters['plotting.ticks']
+    try:
+        assert saved is True
+        ax = _plain_axes()
+        _format_axes(ax)
+        assert _tick_length(ax) == 4
+        gs.Parameters['plotting.ticks'] = False
+        ax2 = _plain_axes()
+        _format_axes(ax2)
+        assert _tick_length(ax2) == 0
+        _format_axes(ax2, ticks=True)
+        assert _tick_length(ax2) == 4
+    finally:
+        gs.Parameters['plotting.ticks'] = saved
+        plt.close('all')
 
 
 def test_format_axes_limits_grid_and_background():

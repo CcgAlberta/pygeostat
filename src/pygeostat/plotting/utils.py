@@ -11,6 +11,7 @@
 #-----------------------------------------------------------------------------
 import copy
 import gc
+import numbers
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -1082,14 +1083,45 @@ def _format_grid(ax, grid=None, below=False):
         ax.grid(True, which='major', color='k', linestyle=':', lw=0.2)
 
 
-def _format_axes(ax, grid=None, xlim=None, ylim=None, background=None):
+def _format_ticks(ax, ticks=None):
     '''
-    Private function for the options that every pygeostat plot gives to its axis: grid,
+    Private function for the tick marks of both axes.
+
+    Parameters:
+        ax(matplotlib axis handle): axis to modify
+        ticks(bool, float or dict): ``True`` draws tick marks 4 points long pointing outwards,
+            ``False`` removes them, a number sets their length, and a dictionary is passed to
+            ``ax.tick_params`` (for example ``{'length': 6, 'direction': 'in', 'top': True}``).
+            Based on Parameters['plotting.ticks'] if None.
+
+    Return:
+        ax(Matplotlib axis handle): modified axis handle
+    '''
+    if ticks is None:
+        ticks = Parameters['plotting.ticks']
+    if isinstance(ticks, dict):
+        ax.tick_params(**ticks)
+    elif isinstance(ticks, (bool, np.bool_)):
+        if ticks:
+            ax.tick_params(which='major', length=4, width=1, direction='out')
+        else:
+            ax.tick_params(which='major', length=0)
+    elif isinstance(ticks, numbers.Real):
+        ax.tick_params(which='major', length=float(ticks), width=1, direction='out')
+    else:
+        raise TypeError('ticks must be True, False, a length or a dictionary, not {!r}'.format(ticks))
+    return ax
+
+
+def _format_axes(ax, grid=None, ticks=None, xlim=None, ylim=None, background=None):
+    '''
+    Private function for the options that every pygeostat plot gives to its axis: grid, tick marks,
     limits and background. Call it once the plot is drawn and labelled.
 
     Parameters:
         ax(matplotlib axis handle): axis to modify
         grid(bool): grid lines. Based on Parameters['plotting.grid'] if None
+        ticks(bool, float or dict): see :func:`_format_ticks`
         xlim, ylim(tuple): limits of the axes, ``(lower, upper)``. The limits of the data are kept
             if None
         background(color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``.
@@ -1102,6 +1134,7 @@ def _format_axes(ax, grid=None, xlim=None, ylim=None, background=None):
         if lim is not None and len(lim) != 2:
             raise ValueError('{} must be (lower, upper), not {}'.format(name, lim))
     _format_grid(ax, grid)
+    _format_ticks(ax, ticks)
     if xlim is not None:
         ax.set_xlim(xlim)
     if ylim is not None:
