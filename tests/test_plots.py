@@ -966,6 +966,18 @@ def test_validation_plot_options_for_the_highlighted_points_and_the_regression_l
     plt.close('all')
 
 
+def test_validation_plot_axes_options():
+    est = pd.Series([0., 1., 2., 3., 4.])
+    true = pd.Series([0., 1., 2.5, 0., 4.])
+    ax = gs.validation_plot(est, true, stat_blk=False, ticks=6, fontsize={'label': 16, 'tick': 9},
+                            background='lightgrey')
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 6
+    assert ax.xaxis.label.get_fontsize() == 16 and ax.get_yticklabels()[0].get_fontsize() == 9
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
+    plt.close('all')
+
+
 def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
     """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
     Gaussian realizations or the data of the transform, and MIK shows n/a too."""
