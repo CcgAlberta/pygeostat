@@ -1113,15 +1113,50 @@ def _format_ticks(ax, ticks=None):
     return ax
 
 
-def _format_axes(ax, grid=None, ticks=None, xlim=None, ylim=None, background=None):
+def _format_fontsize(ax, fontsize=None):
+    '''
+    Private function for the font size of the axis labels, tick labels and title.
+
+    Parameters:
+        ax(matplotlib axis handle): axis to modify
+        fontsize(float or dict): one size for the axis labels, the tick labels and the title, or
+            a dictionary with any of the keys ``'label'``, ``'tick'`` and ``'title'`` to set
+            them one by one. The sizes of the style are kept if None, and for a key that is left
+            out.
+
+    Return:
+        ax(Matplotlib axis handle): modified axis handle
+    '''
+    if fontsize is None:
+        return ax
+    if not isinstance(fontsize, dict):
+        fontsize = {'label': fontsize, 'tick': fontsize, 'title': fontsize}
+    unknown = set(fontsize) - {'label', 'tick', 'title'}
+    if unknown:
+        raise ValueError("fontsize keys must be 'label', 'tick' or 'title', not {}".format(sorted(unknown)))
+    for key, size in fontsize.items():
+        if isinstance(size, (bool, np.bool_)) or not isinstance(size, numbers.Real) or size <= 0:
+            raise ValueError('fontsize of {} must be a number above zero, not {!r}'.format(key, size))
+    if 'label' in fontsize:
+        for axis in (ax.xaxis, ax.yaxis) + ((ax.zaxis,) if hasattr(ax, 'zaxis') else ()):
+            axis.label.set_fontsize(fontsize['label'])
+    if 'tick' in fontsize:
+        ax.tick_params(axis='both', which='both', labelsize=fontsize['tick'])
+    if 'title' in fontsize:
+        ax.title.set_fontsize(fontsize['title'])
+    return ax
+
+
+def _format_axes(ax, grid=None, ticks=None, fontsize=None, xlim=None, ylim=None, background=None):
     '''
     Private function for the options that every pygeostat plot gives to its axis: grid, tick marks,
-    limits and background. Call it once the plot is drawn and labelled.
+    font size, limits and background. Call it once the plot is drawn and labelled.
 
     Parameters:
         ax(matplotlib axis handle): axis to modify
         grid(bool): grid lines. Based on Parameters['plotting.grid'] if None
         ticks(bool, float or dict): see :func:`_format_ticks`
+        fontsize(float or dict): see :func:`_format_fontsize`
         xlim, ylim(tuple): limits of the axes, ``(lower, upper)``. The limits of the data are kept
             if None
         background(color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``.
@@ -1135,6 +1170,7 @@ def _format_axes(ax, grid=None, ticks=None, xlim=None, ylim=None, background=Non
             raise ValueError('{} must be (lower, upper), not {}'.format(name, lim))
     _format_grid(ax, grid)
     _format_ticks(ax, ticks)
+    _format_fontsize(ax, fontsize)
     if xlim is not None:
         ax.set_xlim(xlim)
     if ylim is not None:

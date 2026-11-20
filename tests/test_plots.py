@@ -863,6 +863,26 @@ def test_format_axes_ticks_default_follows_parameter():
         plt.close('all')
 
 
+def test_format_axes_fontsize():
+    """One number sets labels, ticks and title; a dict sets them one by one and keeps the rest."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    _format_axes(ax, fontsize=20)
+    assert (ax.xaxis.label.get_fontsize(), ax.yaxis.label.get_fontsize(), ax.title.get_fontsize()) == (20, 20, 20)
+    assert ax.get_xticklabels()[0].get_fontsize() == 20
+    ax = _plain_axes()
+    title_before = ax.title.get_fontsize()
+    _format_axes(ax, fontsize={'label': 15, 'tick': 9})
+    assert ax.xaxis.label.get_fontsize() == 15 and ax.get_yticklabels()[0].get_fontsize() == 9
+    assert ax.title.get_fontsize() == title_before
+    with pytest.raises(ValueError, match="'label', 'tick' or 'title'"):
+        _format_axes(ax, fontsize={'size': 3})
+    for bad in (0, -3, '12', True, {'label': 0}):
+        with pytest.raises(ValueError, match='number above zero'):
+            _format_axes(ax, fontsize=bad)
+    plt.close('all')
+
+
 def test_format_axes_limits_grid_and_background():
     """Limits, grid and background are set only when given; a limit that is not a pair is refused."""
     from pygeostat.plotting.utils import _format_axes
