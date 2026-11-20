@@ -25,7 +25,7 @@ from . set_style import set_plot_style
 def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, title=None, stat_blk='all',
                     stat_xy=(0.95, 0.05), stat_ha=None, stat_fontsize=None, mc='k', ms=None, plot_style=None,
                     lw=None, grid=None, axis_xy=None, custom_style=None, output_file=None, ax=None, dens=False, 
-                    rasterized=False, outliers=None, outlier_color='red', outlier_labels=True, **kwargs):
+                    rasterized=False, outliers=None, outlier_color='red', outlier_labels=True, reg_line=True, **kwargs):
     """
     This function uses numpy to calculate the regression model and matplotlib to plot the
     scatter plot, regression line, and 45 degree line. Statistics are calculated using numpy.
@@ -83,6 +83,7 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
         outlier_color (str): Any permissible matplotlib color value for the highlighted points
         outlier_labels (bool): write the index above or below each highlighted point. ``False`` keeps the
             coloured points without numbers
+        reg_line (bool): draw the regression line (red). ``False`` leaves only the 45 degree line
         output_file (str): Output figure file name and location
         **kwargs: Optional permissible keyword arguments to pass to
             :func:`gs.export_image() <pygeostat.plotting.export_image.export_image>`
@@ -176,7 +177,8 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
     # Plot the regression model
     regmodel = np.polyfit(x, y, 1)
     predicted = np.polyval(regmodel, [maxlim[0], maxlim[1]])
-    ax.plot([maxlim[0], maxlim[1]], predicted, '-', lw=0.5, color='red')
+    if reg_line:
+        ax.plot([maxlim[0], maxlim[1]], predicted, '-', lw=0.5, color='red')
     # Plots stats
     if stat_blk:
         ndat = len(x)

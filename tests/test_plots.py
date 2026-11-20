@@ -952,12 +952,17 @@ def test_validation_plot_outliers():
 
 
 def test_validation_plot_options_for_the_highlighted_points_and_the_regression_line():
-    """Highlighted points can have no numbers."""
+    """Highlighted points can have no numbers, the regression line can be left out, and the statistics can go."""
     est = pd.Series([0., 1., 2., 3., 4.])
     true = pd.Series([0., 1., 2.5, 0., 4.])
     ax = gs.validation_plot(est, true, outliers=2, outlier_labels=False, stat_blk=False)
     assert not ax.texts
     assert len([c for c in ax.collections if len(c.get_offsets()) == 1]) == 2  # the red points stay
+    red_lines = lambda a: [l for l in a.get_lines() if l.get_color() == 'red']
+    assert len(red_lines(ax)) == 1
+    plt.close('all')
+    ax = gs.validation_plot(est, true, reg_line=False, stat_blk=False)
+    assert not red_lines(ax) and len(ax.get_lines()) == 1  # only the 45 degree line
     plt.close('all')
 
 
