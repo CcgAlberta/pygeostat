@@ -899,15 +899,17 @@ def test_format_axes_limits_grid_and_background():
 
 
 def test_histogram_plot_ticks_fontsize_background(histogram_plot_data):
-    """ticks and fontsize reach the histogram; stat_fontsize still sizes the statistics."""
+    """ticks, fontsize and background reach the histogram; stat_fontsize still sizes the statistics."""
     plt.close('all')
     ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=7,
-                           fontsize={'label': 15, 'tick': 8, 'title': 11}, title='t', stat_fontsize=13)
+                           fontsize={'label': 15, 'tick': 8, 'title': 11}, title='t', background='lightgrey',
+                           stat_fontsize=13)
     ax.figure.canvas.draw()
     assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
     assert ax.yaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
     assert (ax.xaxis.label.get_fontsize(), ax.yaxis.label.get_fontsize(), ax.title.get_fontsize()) == (15, 15, 11)
     assert ax.get_xticklabels()[0].get_fontsize() == 8
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
     assert {t.get_fontsize() for t in ax.texts} == {13}  # fontsize leaves the statistics alone
     plt.close('all')
 
@@ -921,6 +923,17 @@ def test_histogram_plot_ticks_default_and_off(histogram_plot_data):
     ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=False)
     ax.figure.canvas.draw()
     assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 0
+    plt.close('all')
+
+
+def test_histogram_plot_limits_and_grid(histogram_plot_data):
+    """The limits come from the data unless xlim and ylim are given; grid turns the grid lines on or off."""
+    plt.close('all')
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, xlim=(0.0, 0.5), ylim=(0, 50), grid=True)
+    assert ax.get_xlim() == (0.0, 0.5) and ax.get_ylim() == (0, 50)
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    data_lim = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, grid=False).get_xlim()
+    assert data_lim[0] <= histogram_plot_data.data['Phi'].min() and data_lim[1] >= histogram_plot_data.data['Phi'].max()
     plt.close('all')
 
 

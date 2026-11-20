@@ -22,7 +22,8 @@ def histogram_plot(data, var=None, weights=None, cat=None, catdict=None, bins=No
                     stat_blk=None, stat_xy=None, stat_ha=None, roundstats=None, sigfigs=None, color=None,
                     edgecolor=None, edgeweights=None, grid=None, axis_xy=None, label_count=False,
                     rotateticks=None, plot_style=None, custom_style=None, output_file=None, out_kws=None,
-                    stat_fontsize=None, stat_linespacing=None, logx=False, ticks=None, fontsize=None, **kwargs):
+                    stat_fontsize=None, stat_linespacing=None, logx=False, ticks=None, fontsize=None,
+                    background=None, **kwargs):
     """
     Generates a matplotlib style histogram with summary statistics. Trimming is now only applied
     to NaN values (Pygeostat null standard).
@@ -107,6 +108,8 @@ def histogram_plot(data, var=None, weights=None, cat=None, catdict=None, bins=No
         fontsize (float or dict): font size of the axis labels, tick labels and title (one number),
             or a dictionary with any of the keys ``'label'``, ``'tick'`` and ``'title'``. It does not
             change the statistics (see ``stat_fontsize``). The sizes of the style are kept if None.
+        background (color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``.
+            The colour of the style is kept if None.
         plot_style (str): Use a predefined set of matplotlib plotting parameters as specified by
             :class:`gs.GridDef <pygeostat.data.grid_definition.GridDef>`. Use ``False`` or ``None``
             to turn it off
@@ -596,6 +599,8 @@ def histogram_plot(data, var=None, weights=None, cat=None, catdict=None, bins=No
         _format_grid(ax, grid, below=True)
     _format_ticks(ax, ticks)
     _format_fontsize(ax, fontsize)
+    if background is not None:
+        ax.set_facecolor(background)
     # Export figure
     if output_file or ('pdfpages' in out_kws):
         gs.export_image(output_file, **out_kws)
