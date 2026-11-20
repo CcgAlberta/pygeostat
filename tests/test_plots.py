@@ -995,3 +995,13 @@ def test_accuracy_plot_axis_labels_follow_the_paper(accuracy_plot_data):
     ax = gs.accuracy_plot(truth=truth, reals=reals, xlabel='p', ylabel='t')
     assert (ax.get_xlabel(), ax.get_ylabel()) == ('p', 't')
     plt.close('all')
+
+
+def test_validation_plot_shows_the_mean_squared_error_not_its_square_root():
+    """The statistics block has MSE (the mean of (x - y)^2), where it had the RMSE."""
+    plt.close('all')
+    est = pd.Series([0., 1., 2., 3.])
+    true = pd.Series([0., 1., 2., 7.])  # errors 0, 0, 0, 4: MSE 4.0, RMSE 2.0
+    ax = gs.validation_plot(est, true, stat_blk=['mse'])
+    assert ax.texts[0].get_text() == '$MSE = 4.000$'
+    plt.close('all')

@@ -188,7 +188,7 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
         xstdev = np.nanstd(x)
         cov = np.cov(x, y)[0, 1]
         rho = stats.pearsonr(x, y)[0]
-        mse = np.sqrt(((x - y) ** 2).mean())
+        mse = ((x - y) ** 2).mean()
         sor = stats.linregress(x, y)[0]
         statlist = {'ndat': ('$n = {}$'.format(ndat)),
                     'ymean': (r'$m_y = {:0.3f}$'.format(ymean)),
@@ -197,7 +197,7 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
                     'xstdev': (r'$\sigma_x = {:0.3f}$'.format(xstdev)),
                     'cov': ('$cov = {:0.3f}$'.format(cov)),
                     'rho': (r'$\rho = {:0.3f}$'.format(rho)),
-                    'mse': ('$RMSE = {:0.3f}$'.format(mse)),
+                    'mse': ('$MSE = {:0.3f}$'.format(mse)),
                     'sor': ('$SoR = {:0.3f}$'.format(sor)),
                     'newline': ''}
         # Default statistic sets
