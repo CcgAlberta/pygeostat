@@ -810,6 +810,30 @@ def test_gmm_plotting():
         pytest.fail(f'Unable to test GMM plotting: {str(ex)}')
 
 
+def _plain_axes():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1, 2], [0, 1, 4])
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title('t')
+    return ax
+
+
+def test_format_axes_limits_grid_and_background():
+    """Limits, grid and background are set only when given; a limit that is not a pair is refused."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    data_xlim = ax.get_xlim()
+    _format_axes(ax, ylim=(-1, 10), grid=True, background='lightgrey')
+    assert ax.get_ylim() == (-1, 10)
+    assert ax.get_xlim() == data_xlim
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    assert ax.get_facecolor() == (0.8274509803921568, 0.8274509803921568, 0.8274509803921568, 1.0)
+    with pytest.raises(ValueError, match='xlim must be'):
+        _format_axes(ax, xlim=(1, 2, 3))
+    plt.close('all')
+
+
 def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
     """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
     Gaussian realizations or the data of the transform, and MIK shows n/a too."""

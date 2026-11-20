@@ -1082,6 +1082,35 @@ def _format_grid(ax, grid=None, below=False):
         ax.grid(True, which='major', color='k', linestyle=':', lw=0.2)
 
 
+def _format_axes(ax, grid=None, xlim=None, ylim=None, background=None):
+    '''
+    Private function for the options that every pygeostat plot gives to its axis: grid,
+    limits and background. Call it once the plot is drawn and labelled.
+
+    Parameters:
+        ax(matplotlib axis handle): axis to modify
+        grid(bool): grid lines. Based on Parameters['plotting.grid'] if None
+        xlim, ylim(tuple): limits of the axes, ``(lower, upper)``. The limits of the data are kept
+            if None
+        background(color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``.
+            The colour of the style is kept if None
+
+    Return:
+        ax(Matplotlib axis handle): modified axis handle
+    '''
+    for name, lim in (('xlim', xlim), ('ylim', ylim)):
+        if lim is not None and len(lim) != 2:
+            raise ValueError('{} must be (lower, upper), not {}'.format(name, lim))
+    _format_grid(ax, grid)
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
+    if background is not None:
+        ax.set_facecolor(background)
+    return ax
+
+
 def _spatial_labels(ax, orient, griddef=None, slice_number=0, title=None, xlabel=None, ylabel=None,
                     unit=None, sigfigs=3):
     '''
