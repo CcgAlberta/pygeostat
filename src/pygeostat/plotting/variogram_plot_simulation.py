@@ -20,7 +20,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
                             xlim=None, ylim=None, trimylim=True, title=None, variable=None, xlabel=None,
                             unit=None, ylabel=None, refclr=None, simclr=None, alpha=None, ls='-', lw=1,
                             lw_real=None, legend_label=None, plot_style=None, custom_style=None, output_file=None,
-                            out_kws=None, grid=None, **kwargs):
+                            out_kws=None, grid=None, ticks=None, fontsize=None, background=None, **kwargs):
     """
     variogram_plot_simulation provides a means of checking variogram reproduction of simulation realizations to the
     input variogram model. A variogram reference system is used to know which variograms to plot
@@ -67,6 +67,14 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         trimylim (bool): Indicate if realization plots should cease plotting once they pass the
             limits specified by ``ylim``.
         grid (bool): plots the major grid lines if True. Based on Parameters['plotting.grid'] if None.
+        ticks (bool, float or dict): tick marks on both axes. ``True`` draws them, ``False`` removes
+            them, a number sets their length, and a dictionary is passed to ``ax.tick_params``.
+            Based on Parameters['plotting.ticks'] if None.
+        fontsize (float or dict): font size of the axis labels, tick labels and title (one number), or a
+            dictionary with any of the keys ``'label'``, ``'tick'`` and ``'title'``. The sizes of the
+            style are kept if None.
+        background (color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``.
+            The colour of the style is kept if None.
         title (str): Title for the plot. Can use ``dirs`` from :func:`gs.get_uniquevarids()
             <pygeostat.plotting.variogram_utils.get_uniquevarids>` if direction data is desired in the
             title.
@@ -258,7 +266,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         ax.set_xlim(xlim)
     if ylim:
         ax.set_ylim(ylim)
-    _format_axes(ax, grid=grid)
+    _format_axes(ax, grid=grid, ticks=ticks, fontsize=fontsize, background=background)
     if legend_label:
         ax.legend()
     # Export figure

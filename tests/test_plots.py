@@ -987,14 +987,21 @@ def _varsim_data():
 
 
 def test_variogram_plot_simulation_options():
-    """grid reaches the variogram reproduction plot; limits were already there."""
+    """ticks, fontsize, grid and background reach the variogram reproduction plot; limits were already there."""
     plt.close('all')
     sim, ref = _varsim_data()
-    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, grid=True, xlim=(0, 8), ylim=(0, 1.5))
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, ticks=7, fontsize={'label': 15, 'tick': 9},
+                                      background='lightgrey', grid=True, xlim=(0, 8), ylim=(0, 1.5))
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    assert ax.xaxis.label.get_fontsize() == 15 and ax.get_xticklabels()[0].get_fontsize() == 9
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
     assert ax.xaxis.get_gridlines()[0].get_visible()
     assert ax.get_xlim() == (0, 8) and ax.get_ylim() == (0, 1.5)
     plt.close('all')
-    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, grid=False)
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, ticks=False, grid=False)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 0
     assert not ax.xaxis.get_gridlines()[0].get_visible()
     plt.close('all')
 
