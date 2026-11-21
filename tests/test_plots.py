@@ -978,6 +978,18 @@ def test_validation_plot_axes_options():
     plt.close('all')
 
 
+def test_histogram_plot_simulation_options():
+    """grid and ylim reach the histogram reproduction plot, next to xlim."""
+    plt.close('all')
+    sims = np.random.default_rng(0).normal(size=(50, 4))
+    ref = np.random.default_rng(1).normal(size=20)
+    grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, grid=True, ylim=(0, 0.5), xlim=(-2, 2))
+    assert ax.get_xlim() == (-2, 2) and ax.get_ylim() == (0, 0.5)
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    plt.close('all')
+
+
 def test_histogram_plot_simulation_counts_and_label():
     sims = np.random.default_rng(0).normal(size=(50, 4))
     sims[:5, 0] = np.nan  # one realization has 5 missing values: (45 + 3 x 50) / 4 = 48.75 values per realization

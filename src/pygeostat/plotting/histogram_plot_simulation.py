@@ -25,7 +25,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
                             figsize=None, xlim=None, title=None, xlabel=None, stat_blk='all',
                             stat_xy=(0.95, 0.05), reference_color=None, simulation_color=None, alpha=None, lw=1,
                             plot_style=None, custom_style=None, output_file=None, out_kws=None, sim_kws=None,
-                            **kwargs):
+                            ylim=None, grid=None, **kwargs):
     """
     histogram_plot_simulation emulates the pygeostat histogram_plot program as a means of checking histogram
     reproduction of simulated realizations to the original histogram. The use of python generators
@@ -95,6 +95,8 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         ax (mpl.axis): Matplotlib axis to plot the figure
         figsize (tuple): Figure size (width, height)
         xlim (float tuple): Minimum and maximum limits of data along the x axis
+        ylim (float tuple): Minimum and maximum limits of the cumulative frequency axis
+        grid (bool): plots the major grid lines if True. Based on Parameters['plotting.grid'] if None.
         title (str): Title for the plot
         xlabel (str): X-axis label
         stat_blk (str or list): Indicate what preset statistics block to write or a specific list
@@ -407,9 +409,8 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
             xlabel = gs.get_label(simulated_data)
         if xlabel is None:
             xlabel = 'Value'
-    # axis_xy and grid are applied by format_plot based on the current Parameters setting
-    # no kwarg in this function for now since it's already loaded
-    ax = format_plot(ax, xlabel, 'Cumulative Frequency', title, xlim=xlim)
+    # axis_xy is applied by format_plot based on the current Parameters setting
+    ax = format_plot(ax, xlabel, 'Cumulative Frequency', title, grid=grid, xlim=xlim, ylim=ylim)
     # Ensure that we have top spline, in case it was removed above
     ax.spines['top'].set_visible(True)
     # Plot statistics block
