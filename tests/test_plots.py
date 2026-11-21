@@ -979,14 +979,22 @@ def test_validation_plot_axes_options():
 
 
 def test_histogram_plot_simulation_options():
-    """grid and ylim reach the histogram reproduction plot, next to xlim."""
+    """ticks, fontsize, grid, ylim and background reach the histogram reproduction plot; fontsize leaves the
+    statistics alone."""
     plt.close('all')
     sims = np.random.default_rng(0).normal(size=(50, 4))
     ref = np.random.default_rng(1).normal(size=20)
     grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
-    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, grid=True, ylim=(0, 0.5), xlim=(-2, 2))
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, ticks=6, fontsize={'label': 14, 'tick': 8},
+                                      grid=True, ylim=(0, 0.5), xlim=(-2, 2), background='lightgrey')
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 6
+    assert ax.xaxis.label.get_fontsize() == 14 and ax.get_xticklabels()[0].get_fontsize() == 8
     assert ax.get_xlim() == (-2, 2) and ax.get_ylim() == (0, 0.5)
     assert ax.xaxis.get_gridlines()[0].get_visible()
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
+    default_size = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4).texts[0].get_fontsize()
+    assert ax.texts[0].get_fontsize() == default_size  # the statistics keep their own size
     plt.close('all')
 
 

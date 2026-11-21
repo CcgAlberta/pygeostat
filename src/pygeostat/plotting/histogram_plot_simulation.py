@@ -25,7 +25,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
                             figsize=None, xlim=None, title=None, xlabel=None, stat_blk='all',
                             stat_xy=(0.95, 0.05), reference_color=None, simulation_color=None, alpha=None, lw=1,
                             plot_style=None, custom_style=None, output_file=None, out_kws=None, sim_kws=None,
-                            ylim=None, grid=None, **kwargs):
+                            ylim=None, grid=None, ticks=None, fontsize=None, background=None, **kwargs):
     """
     histogram_plot_simulation emulates the pygeostat histogram_plot program as a means of checking histogram
     reproduction of simulated realizations to the original histogram. The use of python generators
@@ -97,6 +97,14 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         xlim (float tuple): Minimum and maximum limits of data along the x axis
         ylim (float tuple): Minimum and maximum limits of the cumulative frequency axis
         grid (bool): plots the major grid lines if True. Based on Parameters['plotting.grid'] if None.
+        ticks (bool, float or dict): tick marks on both axes. ``True`` draws them, ``False`` removes
+            them, a number sets their length, and a dictionary is passed to ``ax.tick_params``.
+            Based on Parameters['plotting.ticks'] if None.
+        fontsize (float or dict): font size of the axis labels, tick labels and title (one number), or a
+            dictionary with any of the keys ``'label'``, ``'tick'`` and ``'title'``. It does not
+            change the statistics. The sizes of the style are kept if None.
+        background (color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``.
+            The colour of the style is kept if None.
         title (str): Title for the plot
         xlabel (str): X-axis label
         stat_blk (str or list): Indicate what preset statistics block to write or a specific list
@@ -152,7 +160,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     #  Sanity checks, file type determination, and try loading fortran
     # -----------------------------------------------------------------------
     import pygeostat as gs
-    from . utils import format_plot, _set_stat_fontsize
+    from . utils import format_plot, _set_stat_fontsize, _format_ticks, _format_fontsize
     # Figure out what type of input simulated_data is
     subsamp = False
     ndim = False
@@ -435,6 +443,10 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         ax.text(stat_xy[0], stat_xy[1], txtstats, va=va, ha=ha, fontsize=stat_fontsize,
                 transform=ax.transAxes)
     # Export figure
+    _format_ticks(ax, ticks)
+    _format_fontsize(ax, fontsize)
+    if background is not None:
+        ax.set_facecolor(background)
     if output_file or ('pdfpages' in out_kws):
         gs.export_image(output_file, **out_kws)
 
