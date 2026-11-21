@@ -67,7 +67,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     statistics block can be customized to a user defined list and order. Available statistics are
     as follows:
 
-    >>> ['nreal', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat', 'refavg', 'refstd']
+    >>> ['nreal', 'realn', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat', 'refavg', 'refstd']
 
     Please review the documentation of the :func:`gs.set_plot_style() <pygeostat.plotting.set_plot_style>` and
     :func:`gs.export_image() <pygeostat.plotting.export_image>` functions for details on their
@@ -222,6 +222,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     # -----------------------------------------------------------------------
     # Set-up variables
     realavg, realavgstd, realstd, realstdstd, refavg, refstd = ([] for i in range(6))
+    realn = []
     # Handle pd and np input
     if array:
         if isinstance(simulated_data, pd.DataFrame):
@@ -334,11 +335,13 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         if stat_blk:
             realavg.append(np.nanmean(real))
             realstd.append(np.nanstd(real))
+            realn.append(np.count_nonzero(~np.isnan(real)))
         if generator:
             nreal += 1
         gs.histogram_plot(real, ax=ax, icdf=True, lw=(lw / 2), stat_blk=False, color=simulation_color, alpha=alpha, plot_style=False, **sim_kws)
     # Calculate more realization dist statistics if required
     if stat_blk:
+        realn = np.mean(realn)
         realavgstd = np.std(realavg)
         realavg = np.mean(realavg)
         realstdstd = np.std(realstd)
@@ -410,6 +413,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     # Plot statistics block
     if stat_blk:
         statlist = {'nreal': (r'$n_{real} = %0.0f$' % nreal),
+                    'realn': (r'$n/real = %0.0f$' % realn),
                     'realavg': (r'$m_{real} = %0.3f$' % realavg),
                     'realavgstd': (r'$\sigma_{m_{real}} = %0.3f$' % realavgstd),
                     'realstd': (r'$\sigma_{real} = %0.3f$' % realstd),
@@ -417,7 +421,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
                     'ndat': ('$n_{ref} = %0.0f$' % ndat),
                     'refavg': (r'$m_{ref} = %0.3f$' % refavg),
                     'refstd': (r'$\sigma_{ref} = %0.3f$' % refstd)}
-        statsets = {'all': ['nreal', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat',
+        statsets = {'all': ['nreal', 'realn', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat',
                             'refavg', 'refstd'],
                     'minimal': ['nreal']}
         if subsamp:

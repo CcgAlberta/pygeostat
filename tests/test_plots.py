@@ -978,6 +978,16 @@ def test_validation_plot_axes_options():
     plt.close('all')
 
 
+def test_histogram_plot_simulation_counts_and_label():
+    sims = np.random.default_rng(0).normal(size=(50, 4))
+    sims[:5, 0] = np.nan  # one realization has 5 missing values: (45 + 3 x 50) / 4 = 48.75 values per realization
+    ref = np.random.default_rng(1).normal(size=20)
+    grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4)
+    assert 'n/real = 49$' in ax.texts[0].get_text()  # 48.75, shown without decimals
+    plt.close('all')
+
+
 def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
     """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
     Gaussian realizations or the data of the transform, and MIK shows n/a too."""
