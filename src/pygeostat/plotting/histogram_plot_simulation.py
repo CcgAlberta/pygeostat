@@ -405,6 +405,8 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         xlabel = gs.get_label(reference_data)
         if xlabel is None:
             xlabel = gs.get_label(simulated_data)
+        if xlabel is None:
+            xlabel = 'Value'
     # axis_xy and grid are applied by format_plot based on the current Parameters setting
     # no kwarg in this function for now since it's already loaded
     ax = format_plot(ax, xlabel, 'Cumulative Frequency', title, xlim=xlim)

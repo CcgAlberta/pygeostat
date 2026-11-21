@@ -984,6 +984,7 @@ def test_histogram_plot_simulation_counts_and_label():
     ref = np.random.default_rng(1).normal(size=20)
     grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
     ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4)
+    assert ax.get_xlabel() == 'Value'  # no name in plain arrays
     assert 'n/real = 49$' in ax.texts[0].get_text()  # 48.75, shown without decimals
     plt.close('all')
 
