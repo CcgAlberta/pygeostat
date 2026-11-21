@@ -977,6 +977,14 @@ def test_validation_plot_axes_options():
     assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
     plt.close('all')
 
+def _varsim_data():
+    lags = np.arange(1., 11.)
+    sim = pd.concat([pd.DataFrame({'Variogram Index': i, 'Variogram Number': 1, 'Lag Distance': lags,
+                                   'Variogram Value': 1 - np.exp(-lags / 4) + 0.02 * i, 'Number of Pairs': 100,
+                                   'Calculation Azimuth': 0., 'Calculation Dip': 0.}) for i in (1, 2, 3)],
+                    ignore_index=True)
+    return sim, pd.DataFrame({'Lag Distance': lags, 'Variogram Value': 1 - np.exp(-lags / 4)})
+
 
 def test_histogram_plot_simulation_options():
     """ticks, fontsize, grid, ylim and background reach the histogram reproduction plot; fontsize leaves the
@@ -1010,10 +1018,18 @@ def test_histogram_plot_simulation_counts_and_label():
 
 
 def test_reproduction_plots_draw_the_realizations_in_the_same_light_grey():
-    """The default of the histogram reproduction plot is grey 0.5 with opacity 0.3."""
+    """The defaults of both reproduction plots are grey 0.5 with opacity 0.3, and the plot uses the parameter."""
     from pygeostat.pygeostat_parameters import default_parameters
-    assert default_parameters['plotting.histogram_plot_simulation.simclr'][0] == '0.5'
-    assert default_parameters['plotting.histogram_plot_simulation.alpha'][0] == '0.3'
+    for name in ('histogram_plot_simulation', 'variogram_plot_simulation'):
+        assert default_parameters['plotting.%s.simclr' % name][0] == '0.5'
+        assert default_parameters['plotting.%s.alpha' % name][0] == '0.3'
+    plt.close('all')
+    sim, ref = _varsim_data()
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref)
+    realization = ax.get_lines()[0]
+    assert realization.get_color() == gs.Parameters['plotting.variogram_plot_simulation.simclr']
+    assert realization.get_alpha() == gs.Parameters['plotting.variogram_plot_simulation.alpha']
+    plt.close('all')
 
 
 def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
