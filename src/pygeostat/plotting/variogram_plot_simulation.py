@@ -20,7 +20,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
                             xlim=None, ylim=None, trimylim=True, title=None, variable=None, xlabel=None,
                             unit=None, ylabel=None, refclr=None, simclr=None, alpha=None, ls='-', lw=1,
                             lw_real=None, legend_label=None, plot_style=None, custom_style=None, output_file=None,
-                            out_kws=None, **kwargs):
+                            out_kws=None, grid=None, **kwargs):
     """
     variogram_plot_simulation provides a means of checking variogram reproduction of simulation realizations to the
     input variogram model. A variogram reference system is used to know which variograms to plot
@@ -66,6 +66,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         ylim (float tuple): Minimum and maximum limits of data along the y axis
         trimylim (bool): Indicate if realization plots should cease plotting once they pass the
             limits specified by ``ylim``.
+        grid (bool): plots the major grid lines if True. Based on Parameters['plotting.grid'] if None.
         title (str): Title for the plot. Can use ``dirs`` from :func:`gs.get_uniquevarids()
             <pygeostat.plotting.variogram_utils.get_uniquevarids>` if direction data is desired in the
             title.
@@ -169,7 +170,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
     """
     import pygeostat as gs
     from .variogram_utils import get_uniquevarids
-    from . utils import format_plot, setup_plot
+    from . utils import format_plot, setup_plot, _format_axes
     from .export_image import export_image
 
     # Handle dictionary defaults
@@ -257,6 +258,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         ax.set_xlim(xlim)
     if ylim:
         ax.set_ylim(ylim)
+    _format_axes(ax, grid=grid)
     if legend_label:
         ax.legend()
     # Export figure

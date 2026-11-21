@@ -986,6 +986,19 @@ def _varsim_data():
     return sim, pd.DataFrame({'Lag Distance': lags, 'Variogram Value': 1 - np.exp(-lags / 4)})
 
 
+def test_variogram_plot_simulation_options():
+    """grid reaches the variogram reproduction plot; limits were already there."""
+    plt.close('all')
+    sim, ref = _varsim_data()
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, grid=True, xlim=(0, 8), ylim=(0, 1.5))
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    assert ax.get_xlim() == (0, 8) and ax.get_ylim() == (0, 1.5)
+    plt.close('all')
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, grid=False)
+    assert not ax.xaxis.get_gridlines()[0].get_visible()
+    plt.close('all')
+
+
 def test_histogram_plot_simulation_options():
     """ticks, fontsize, grid, ylim and background reach the histogram reproduction plot; fontsize leaves the
     statistics alone."""
