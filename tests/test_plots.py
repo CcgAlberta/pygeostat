@@ -1001,6 +1001,13 @@ def test_histogram_plot_simulation_counts_and_label():
     plt.close('all')
 
 
+def test_reproduction_plots_draw_the_realizations_in_the_same_light_grey():
+    """The default of the histogram reproduction plot is grey 0.5 with opacity 0.3."""
+    from pygeostat.pygeostat_parameters import default_parameters
+    assert default_parameters['plotting.histogram_plot_simulation.simclr'][0] == '0.5'
+    assert default_parameters['plotting.histogram_plot_simulation.alpha'][0] == '0.3'
+
+
 def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
     """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
     Gaussian realizations or the data of the transform, and MIK shows n/a too."""
