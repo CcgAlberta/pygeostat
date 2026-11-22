@@ -1112,3 +1112,23 @@ def test_histogram_plot_simulation_line_width_ylabel_and_stat_fontsize():
     assert ax.get_ylabel() == 'Probability'
     assert ax.texts[0].get_fontsize() == default_size + 4
     plt.close('all')
+
+
+def test_variogram_plot_simulation_line_style_sill_and_realization_label():
+    """ls reaches the variograms (it was accepted but ignored); sill_color, sill_lw and real_label replace the values
+    that were fixed in the code, and the defaults are unchanged."""
+    plt.close('all')
+    sim, ref = _varsim_data()
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, legend_label='Reference')
+    sill = [line for line in ax.lines if list(line.get_ydata()) == [1, 1]][0]
+    assert sill.get_color() == 'k' and sill.get_linewidth() == 1.5
+    assert {line.get_linestyle() for line in ax.lines} == {'-'}
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ['Realizations', 'Reference']
+    plt.close('all')
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, legend_label='Reference', ls='--', sill_color='red',
+                                      sill_lw=3, real_label='Simulated')
+    sill = [line for line in ax.lines if list(line.get_ydata()) == [1, 1]][0]
+    assert sill.get_color() == 'red' and sill.get_linewidth() == 3
+    assert sorted({line.get_linestyle() for line in ax.lines}) == ['-', '--']  # the sill line stays solid
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ['Simulated', 'Reference']
+    plt.close('all')

@@ -20,7 +20,8 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
                             xlim=None, ylim=None, trimylim=True, title=None, variable=None, xlabel=None,
                             unit=None, ylabel=None, refclr=None, simclr=None, alpha=None, ls='-', lw=1,
                             lw_real=None, legend_label=None, plot_style=None, custom_style=None, output_file=None,
-                            out_kws=None, grid=None, ticks=None, fontsize=None, background=None, **kwargs):
+                            out_kws=None, grid=None, ticks=None, fontsize=None, background=None, sill_color='k', sill_lw=1.5,
+                            real_label='Realizations', **kwargs):
     """
     variogram_plot_simulation provides a means of checking variogram reproduction of simulation realizations to the
     input variogram model. A variogram reference system is used to know which variograms to plot
@@ -89,7 +90,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         refclr (str): Any Matplotlib color for the reference variogram
         simclr (str): Any Matplotlib color for the realization variograms
         alpha (float): Transparency for realization variograms (0 = Transparent, 1 = Opaque)
-        ls (float): A valid Matplotlib line style for both reference and realization variograms
+        ls (str): A valid Matplotlib line style for both reference and realization variograms
         lw (float): Line width in points. The width provided in this parameter is used for the
             reference variogram.
         lw_real (float): Line width in points. If no value is passed, half the value of ``lw`` is
@@ -97,6 +98,9 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         legend_label (str or bool): A string containing the label that will be attached to the
             reference variogram if it exists. If the value `True` is passed, only the realizations
             will have a label.
+        sill_color (str): Any Matplotlib color for the sill line
+        sill_lw (float): Line width in points of the sill line
+        real_label (str): Legend label of the realization variograms
         plot_style (str): Use a predefined set of matplotlib plotting parameters as specified by
             :class:`gs.GridDef <pygeostat.data.grid_definition.GridDef>`. Use ``False`` or ``None``
             to turn it off
@@ -211,13 +215,13 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
     for i, index in enumerate(simulated_var_ids[simulated_var_id]):
         if legend_label:
             if i == (len(simulated_var_ids[simulated_var_id]) - 1):
-                label = 'Realizations'
+                label = real_label
             else:
                 label = False
         else:
             label = False
         gs.variogram_plot(data=simulated_data, index=index, sill=False, experimental=False, ax=ax, color=simclr,
-                  ylabel=False, xlabel=False, title=False, lw=lw_real, alpha=alpha, label=label,
+                  ylabel=False, xlabel=False, title=False, lw=lw_real, ls=ls, alpha=alpha, label=label,
                   plot_style=None, **kwargs)
     # Plot the reference variogram
     if refclr is None:
@@ -226,7 +230,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         if legend_label is True:
             legend_label = False
         gs.variogram_plot(data=reference_data, sill=False, experimental=False, index=refindex, ax=ax, color=refclr,
-                  ylabel=False, xlabel=False, title=False, lw=lw, label=legend_label,
+                  ylabel=False, xlabel=False, title=False, lw=lw, ls=ls, label=legend_label,
                   plot_style=None,
                   **kwargs)
     # Plot figure and axis labels
@@ -261,7 +265,7 @@ def variogram_plot_simulation(simulated_data, simulated_var_id, reference_data=F
         ax.set_title(title)
     # Set plot limits
     if not isinstance(sill, bool):
-        ax.plot(ax.get_xlim(), (sill, sill), 'k-', ls='-', lw=1.5)
+        ax.plot(ax.get_xlim(), (sill, sill), color=sill_color, ls='-', lw=sill_lw)
     if xlim:
         ax.set_xlim(xlim)
     if ylim:
