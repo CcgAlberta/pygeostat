@@ -19,6 +19,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Viewer.set_background()`, `set_scene()`, `set_axis_ticks()`, `fit_view()`, `set_parallel_projection()`,
   `set_camera_view()`, `interval_info()`, `save_screenshot()` and `export_html()`, new arguments of
   `Viewer.set_layer()` and the `other_vars` argument of `gs.view3d()` (#151)
+- Shared plot options in `pygeostat.plotting.utils` (`_format_ticks`, `_format_fontsize`, `_format_axes`) and the parameter `gs.Parameters['plotting.ticks']` (default `True`), so that plots offer `ticks`, `fontsize`, `xlim`, `ylim`, `grid` and `background` with the same meaning
+- `histogram_plot()` takes `ticks`, `fontsize` and `background`, next to its existing `xlim`, `ylim` and `grid`
+- `validation_plot()` takes `outliers` and `outlier_color` to draw the points furthest from the 45 degree line in colour with their index, `outlier_labels` and `reg_line` to leave out those numbers and the regression line, and the shared options `ticks`, `fontsize`, `background`
+- `histogram_plot_simulation()` shows the number of values per realization (`'realn'` in `stat_blk`) and takes `ylim`, `grid`, `ticks`, `fontsize` and `background`; `variogram_plot_simulation()` takes `grid`, `ticks`, `fontsize` and `background`, so the reproduction plots have the same options as the other plots
+- `accuracy_plot()` takes `color` and `label` to compare models on one axis, `reals_gaussian`, `data`, `weights` and `global_variance` for the precision and goodness
+
+### Fixed
+- Accuracy statistics for MIK (`accmik`): it no longer crashes (missing imports, pandas 3 indexing), the lower tail is padded with 0 instead of 1, the upper tail is padded so true values above the highest threshold are counted, and the average variance is exact instead of a random estimate. A `truth` with several columns is now an error
+
+### Changed
+- `accuracy_plot()` follows the updated definitions of accuracy, precision and goodness of Deutsch (2026), Paper 40, CCG Annual Report 28, and the statistics block labels them A26, P26 and G26. It also applies `stat_fontsize` and `axis_xy` (accepted but ignored before), shows the statistics as decimals, and draws coloured deviation lines from each point to the 1:1 line
+- The statistics block of `validation_plot()` shows the mean squared error (`MSE`) where it showed the root mean squared error (`RMSE`)
+- Plots that use the shared options draw tick marks by default (4 points, pointing outwards). The plot styles had no major tick marks before; set `gs.Parameters['plotting.ticks'] = False` or pass `ticks=False` to get the old look
+- The realizations of the histogram and variogram reproduction plots are drawn in a lighter grey by default (`simclr` `'0.5'`, `alpha` `0.3`)
 
 ## [1.2.0] - 2025-06-25
 
