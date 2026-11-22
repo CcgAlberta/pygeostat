@@ -1129,6 +1129,8 @@ def test_variogram_plot_simulation_line_style_sill_and_realization_label():
                                       sill_lw=3, real_label='Simulated')
     sill = [line for line in ax.lines if list(line.get_ydata()) == [1, 1]][0]
     assert sill.get_color() == 'red' and sill.get_linewidth() == 3
-    assert sorted({line.get_linestyle() for line in ax.lines}) == ['-', '--']  # the sill line stays solid
+    others = [line for line in ax.lines if line is not sill]
+    assert len(others) == 4 and {line.get_linestyle() for line in others} == {'--'}  # 3 realizations and the reference
+    assert sill.get_linestyle() == '-'  # the sill line stays solid
     assert [t.get_text() for t in ax.get_legend().get_texts()] == ['Simulated', 'Reference']
     plt.close('all')
