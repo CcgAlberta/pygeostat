@@ -23,9 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `histogram_plot()` takes `ticks`, `fontsize` and `background`, next to its existing `xlim`, `ylim` and `grid`
 - `validation_plot()` takes `outliers` and `outlier_color` to draw the points furthest from the 45 degree line in colour with their index, `outlier_labels` and `reg_line` to leave out those numbers and the regression line, and the shared options `ticks`, `fontsize`, `background`
 - `histogram_plot_simulation()` shows the number of values per realization (`'realn'` in `stat_blk`) and takes `ylim`, `grid`, `ticks`, `fontsize` and `background`; `variogram_plot_simulation()` takes `grid`, `ticks`, `fontsize` and `background`, so the reproduction plots have the same options as the other plots
+- `histogram_plot_simulation()` takes `lw_real`, `ylabel` and `stat_fontsize`, and `variogram_plot_simulation()` takes `sill_color`, `sill_lw` and `real_label`, for values that were fixed in the code. The defaults are unchanged
 - `accuracy_plot()` takes `color` and `label` to compare models on one axis, `reals_gaussian`, `data`, `weights` and `global_variance` for the precision and goodness
 
 ### Fixed
+- `variogram_plot_simulation()` applies `ls`, which was accepted but ignored
 - Accuracy statistics for MIK (`accmik`): it no longer crashes (missing imports, pandas 3 indexing), the lower tail is padded with 0 instead of 1, the upper tail is padded so true values above the highest threshold are counted, and the average variance is exact instead of a random estimate. A `truth` with several columns is now an error
 
 ### Changed
