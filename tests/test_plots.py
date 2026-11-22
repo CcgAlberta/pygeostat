@@ -1091,3 +1091,24 @@ def test_validation_plot_shows_the_mean_squared_error_not_its_square_root():
     ax = gs.validation_plot(est, true, stat_blk=['mse'])
     assert ax.texts[0].get_text() == '$MSE = 4.000$'
     plt.close('all')
+
+
+def test_histogram_plot_simulation_line_width_ylabel_and_stat_fontsize():
+    """lw_real, ylabel and stat_fontsize replace the values that were fixed in the code; the defaults are unchanged."""
+    plt.close('all')
+    sims = np.random.default_rng(0).normal(size=(50, 4))
+    ref = np.random.default_rng(1).normal(size=20)
+    grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, lw=2)
+    widths = sorted(set(line.get_linewidth() for line in ax.lines))
+    assert widths == [1.0, 2.0]  # realizations at half of lw, the reference at lw
+    assert ax.get_ylabel() == 'Cumulative Frequency'
+    default_size = ax.texts[0].get_fontsize()
+    plt.close('all')
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, lw=2, lw_real=0.25, ylabel='Probability',
+                                      stat_fontsize=default_size + 4)
+    widths = sorted(set(line.get_linewidth() for line in ax.lines))
+    assert widths == [0.25, 2.0]
+    assert ax.get_ylabel() == 'Probability'
+    assert ax.texts[0].get_fontsize() == default_size + 4
+    plt.close('all')

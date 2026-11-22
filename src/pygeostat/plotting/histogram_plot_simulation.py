@@ -25,7 +25,8 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
                             figsize=None, xlim=None, title=None, xlabel=None, stat_blk='all',
                             stat_xy=(0.95, 0.05), reference_color=None, simulation_color=None, alpha=None, lw=1,
                             plot_style=None, custom_style=None, output_file=None, out_kws=None, sim_kws=None,
-                            ylim=None, grid=None, ticks=None, fontsize=None, background=None, **kwargs):
+                            ylim=None, grid=None, ticks=None, fontsize=None, background=None, lw_real=None, ylabel=None,
+                            stat_fontsize=None, **kwargs):
     """
     histogram_plot_simulation emulates the pygeostat histogram_plot program as a means of checking histogram
     reproduction of simulated realizations to the original histogram. The use of python generators
@@ -113,8 +114,11 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         reference_color (str): Colour of original histogram
         simulation_color (str): Colour of simulation histograms
         alpha (float): Transparency for realization variograms (0 = Transparent, 1 = Opaque)
-        lw (float): Line width in points. The width provided in this parameter is used for the
-            reference variogram, half of the value is used for the realization variograms.
+        lw (float): Line width in points of the reference histogram
+        lw_real (float): Line width in points of the realization histograms. Half of ``lw`` if None.
+        ylabel (str): Y-axis label. 'Cumulative Frequency' if None.
+        stat_fontsize (float): Font size of the statistics block. Based on
+            Parameters['plotting.stat_fontsize'] if None.
         plot_style (str): Use a predefined set of matplotlib plotting parameters as specified by
             :class:`gs.GridDef <pygeostat.data.grid_definition.GridDef>`. Use ``False`` or ``None``
             to turn it off
@@ -335,6 +339,10 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     # Set-up figure
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
+    if lw_real is None:
+        lw_real = lw / 2
+    if ylabel is None:
+        ylabel = 'Cumulative Frequency'
     if simulation_color is None:
         simulation_color = Parameters['plotting.histogram_plot_simulation.simclr']
     if alpha is None:
@@ -348,7 +356,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
             realn.append(np.count_nonzero(~np.isnan(real)))
         if generator:
             nreal += 1
-        gs.histogram_plot(real, ax=ax, icdf=True, lw=(lw / 2), stat_blk=False, color=simulation_color, alpha=alpha, plot_style=False, **sim_kws)
+        gs.histogram_plot(real, ax=ax, icdf=True, lw=lw_real, stat_blk=False, color=simulation_color, alpha=alpha, plot_style=False, **sim_kws)
     # Calculate more realization dist statistics if required
     if stat_blk:
         realn = np.mean(realn)
@@ -418,7 +426,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         if xlabel is None:
             xlabel = 'Value'
     # axis_xy is applied by format_plot based on the current Parameters setting
-    ax = format_plot(ax, xlabel, 'Cumulative Frequency', title, grid=grid, xlim=xlim, ylim=ylim)
+    ax = format_plot(ax, xlabel, ylabel, title, grid=grid, xlim=xlim, ylim=ylim)
     # Ensure that we have top spline, in case it was removed above
     ax.spines['top'].set_visible(True)
     # Plot statistics block
@@ -439,7 +447,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
             statlist['n_subsample'] = '$n_{subsample} = %0.0f$' % n_subsample
             statsets['all'].append('n_subsample')
         txtstats, stat_xy, ha, va = gs.get_statblk(stat_blk, statsets, statlist, stat_xy)
-        stat_fontsize = _set_stat_fontsize(None)
+        stat_fontsize = _set_stat_fontsize(stat_fontsize)
         ax.text(stat_xy[0], stat_xy[1], txtstats, va=va, ha=ha, fontsize=stat_fontsize,
                 transform=ax.transAxes)
     # Export figure
