@@ -272,6 +272,7 @@ default_parameters = {
 	'plotting.rotateticks': [[0, 0], _validate_list_or_None],
 	'plotting.nticks': [None, _validate_list_int_or_None],
 	'plotting.grid': [False, _validate_bool],
+	'plotting.ticks': [True, _validate_bool],
 	'plotting.axis_xy': [False, _validate_bool],
 	'plotting.axis_xy_spatial': [False, _validate_bool],
 	'plotting.stat_fontsize': [None, _validate_float_or_None],
@@ -292,8 +293,8 @@ default_parameters = {
 	'plotting.histogram_plot.stat_xy': [(0.95, 0.95), _validate_list],
 	'plotting.histogram_plot.stat_xy_cdf': [(0.95, 0.05), _validate_list],
 	'plotting.histogram_plot_simulation.refclr': ['C3', _validate_color],
-	'plotting.histogram_plot_simulation.simclr': ['0.2', _validate_color],
-	'plotting.histogram_plot_simulation.alpha': ['0.5', _validate_float_or_None],
+	'plotting.histogram_plot_simulation.simclr': ['0.5', _validate_color],
+	'plotting.histogram_plot_simulation.alpha': ['0.3', _validate_float_or_None],
 	'plotting.location_plot.s': [20, _validate_float_or_None],
 	'plotting.location_plot.c': ['.4', _validate_color],
 	'plotting.location_plot.lw': ['5', _validate_float_or_None],
@@ -306,8 +307,8 @@ default_parameters = {
 	'plotting.variogram_plot.color': ['.5', _validate_color],
 	'plotting.variogram_plot.ms': [6.0, _validate_float],
 	'plotting.variogram_plot_simulation.refclr': ['C3', _validate_color],
-	'plotting.variogram_plot_simulation.simclr': ['0.2', _validate_color],
-	'plotting.variogram_plot_simulation.alpha': ['0.5', _validate_float_or_None],
+	'plotting.variogram_plot_simulation.simclr': ['0.5', _validate_color],
+	'plotting.variogram_plot_simulation.alpha': ['0.3', _validate_float_or_None],
 	'plotting.vplot.colors': [['C0', 'C1', 'C2'], _validate_string],
 	'data.tmin': [-998.0, _validate_float_or_None],
 	'data.null': [-999.0, _validate_float_or_None],
@@ -371,6 +372,8 @@ default_parameter_descriptions = {
 						'axis, respectively'),
 	'plotting.grid': ('If True, a grid is plotted in pygeostat ploting function unless, '
 					  'overridden by the associated kwarg'),
+	'plotting.ticks': ('If True, tick marks are drawn in the pygeostat plotting functions that have '
+					   'a ticks argument, unless it is overridden by that argument'),
 	'plotting.axis_xy': ('Converts plotting axes to GSLIB-style visibility (only left and '
 						 'bottom visible) if axis_xy is True. See plotting.axis_xy_spatial '
 						 'for the default setting of functions such as slice_plot and location_plot.'),

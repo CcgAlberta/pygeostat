@@ -15,7 +15,7 @@ import pandas as pd
 from scipy import stats
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from .utils import get_label, get_statblk
+from .utils import get_label, get_statblk, _format_axes
 from .export_image import export_image
 from ..statistics.kde import kde_scipy
 from . set_style import set_plot_style
@@ -25,7 +25,8 @@ from . set_style import set_plot_style
 def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, title=None, stat_blk='all',
                     stat_xy=(0.95, 0.05), stat_ha=None, stat_fontsize=None, mc='k', ms=None, plot_style=None,
                     lw=None, grid=None, axis_xy=None, custom_style=None, output_file=None, ax=None, dens=False, 
-                    rasterized=False, **kwargs):
+                    rasterized=False, outliers=None, outlier_color='red', outlier_labels=True, reg_line=True,
+                    ticks=None, fontsize=None, background=None, **kwargs):
     """
     This function uses numpy to calculate the regression model and matplotlib to plot the
     scatter plot, regression line, and 45 degree line. Statistics are calculated using numpy.
@@ -77,6 +78,20 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
             :class:`gs.GridDef <pygeostat.data.grid_definition.GridDef>`. Use ``False`` or ``None``
             to turn it off
         custom_style (dict): Alter some of the predefined parameters in the ``plot_style`` selected.
+        outliers (int): number of points with the largest ``|y - x|`` to draw in ``outlier_color`` and
+            label with their index (the position, for a list or array). A point above the 45 degree line
+            is labelled above, one below it is labelled below. Nothing is highlighted if None.
+        outlier_color (str): Any permissible matplotlib color value for the highlighted points
+        outlier_labels (bool): write the index above or below each highlighted point. ``False`` keeps the
+            coloured points without numbers
+        reg_line (bool): draw the regression line (red). ``False`` leaves only the 45 degree line
+        ticks (bool, float or dict): tick marks. ``True`` draws them, ``False`` removes them, a number sets
+            their length, a dictionary is passed to ``ax.tick_params``. If None, ``gs.Parameters['plotting.ticks']``
+        fontsize (float or dict): font size of the axis labels, tick labels and title (one number), or a
+            dictionary with any of ``'label'``, ``'tick'`` and ``'title'``. The style's sizes if None. The
+            statistics have ``stat_fontsize``
+        background (color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``. The
+            style's if None
         output_file (str): Output figure file name and location
         **kwargs: Optional permissible keyword arguments to pass to
             :func:`gs.export_image() <pygeostat.plotting.export_image.export_image>`
@@ -154,6 +169,14 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
         lw = 0
     # Plot the scatter plot
     ax.scatter(x, y, c=mc, s=ms, lw=lw, rasterized=rasterized)
+    if outliers:
+        xs, ys = pd.Series(x), pd.Series(y)  # arrays have no index, so their position labels the points
+        for i in np.argsort(-np.abs(ys.values - xs.values))[:outliers]:
+            ax.scatter(xs.iloc[i], ys.iloc[i], c=outlier_color, s=ms, lw=lw, rasterized=rasterized, zorder=3)
+            if outlier_labels:
+                above = ys.iloc[i] >= xs.iloc[i]
+                ax.annotate(str(xs.index[i]), (xs.iloc[i], ys.iloc[i]), xytext=(0, 6 if above else -6),
+                            textcoords='offset points', ha='center', va='bottom' if above else 'top')
     # Get the axis limits determined by plt.scatter()
     if ax.get_ylim()[1] >= ax.get_xlim()[1]:
         maxlim = ax.get_ylim()
@@ -162,7 +185,8 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
     # Plot the regression model
     regmodel = np.polyfit(x, y, 1)
     predicted = np.polyval(regmodel, [maxlim[0], maxlim[1]])
-    ax.plot([maxlim[0], maxlim[1]], predicted, '-', lw=0.5, color='red')
+    if reg_line:
+        ax.plot([maxlim[0], maxlim[1]], predicted, '-', lw=0.5, color='red')
     # Plots stats
     if stat_blk:
         ndat = len(x)
@@ -172,7 +196,7 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
         xstdev = np.nanstd(x)
         cov = np.cov(x, y)[0, 1]
         rho = stats.pearsonr(x, y)[0]
-        mse = np.sqrt(((x - y) ** 2).mean())
+        mse = ((x - y) ** 2).mean()
         sor = stats.linregress(x, y)[0]
         statlist = {'ndat': ('$n = {}$'.format(ndat)),
                     'ymean': (r'$m_y = {:0.3f}$'.format(ymean)),
@@ -181,7 +205,7 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
                     'xstdev': (r'$\sigma_x = {:0.3f}$'.format(xstdev)),
                     'cov': ('$cov = {:0.3f}$'.format(cov)),
                     'rho': (r'$\rho = {:0.3f}$'.format(rho)),
-                    'mse': ('$RMSE = {:0.3f}$'.format(mse)),
+                    'mse': ('$MSE = {:0.3f}$'.format(mse)),
                     'sor': ('$SoR = {:0.3f}$'.format(sor)),
                     'newline': ''}
         # Default statistic sets
@@ -198,6 +222,7 @@ def validation_plot(x, y, figsize=None, vlim=None, xlabel=None, ylabel=None, tit
     # Plot the 45 degree line
     ax.plot(maxlim, maxlim, lw=0.5, color='k')
     ax.set(xlim=maxlim, ylim=maxlim)  # Reset the axis limits as the 45 degree line pushed it out
+    _format_axes(ax, grid=grid, ticks=ticks, fontsize=fontsize, background=background)
 
     # Export figure
     if output_file or ('pdfpages' in kwargs):

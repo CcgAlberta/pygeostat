@@ -9,6 +9,33 @@ For detailed documentation of each function, see the {ref}`Plotting API Referenc
 
 ---
 
+## Common Plot Options
+
+Many plotting functions take the same optional arguments. Each one has a default, so a plot made without them
+needs no change. The API page of a function lists the ones it takes.
+
+| Argument | What it does | Default |
+|---|---|---|
+| `ticks` | `True` draws tick marks, `False` removes them, a number sets their length, a dictionary goes to `ax.tick_params` | `gs.Parameters['plotting.ticks']` (`True`) |
+| `fontsize` | one number for the axis labels, tick labels and title, or a dictionary with any of `'label'`, `'tick'` and `'title'` | the plot style |
+| `xlim`, `ylim` | `(lower, upper)` limits of an axis | the range of the data |
+| `grid` | background grid lines | `gs.Parameters['plotting.grid']` |
+| `background` | colour of the plotting area, for example `'lightgrey'` or `'white'` | the plot style |
+
+```python
+import pygeostat as gs
+
+data = gs.ExampleData('point3d_ind_mv')
+gs.histogram_plot(data, var='Phi', bins=20,
+                  ticks=6, fontsize={'label': 14, 'tick': 10},
+                  xlim=(0, 0.4), grid=True, background='lightgrey')
+```
+
+The statistics written on a plot have their own size (`stat_fontsize`), which `fontsize` does not change.
+To change a default for all plots, set the parameter, for example `gs.Parameters['plotting.ticks'] = False`.
+
+---
+
 ## Statistical Plots
 
 ::::{grid} 3

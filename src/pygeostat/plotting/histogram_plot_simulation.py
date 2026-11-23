@@ -25,7 +25,8 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
                             figsize=None, xlim=None, title=None, xlabel=None, stat_blk='all',
                             stat_xy=(0.95, 0.05), reference_color=None, simulation_color=None, alpha=None, lw=1,
                             plot_style=None, custom_style=None, output_file=None, out_kws=None, sim_kws=None,
-                            **kwargs):
+                            ylim=None, grid=None, ticks=None, fontsize=None, background=None, lw_real=None, ylabel=None,
+                            stat_fontsize=None, **kwargs):
     """
     histogram_plot_simulation emulates the pygeostat histogram_plot program as a means of checking histogram
     reproduction of simulated realizations to the original histogram. The use of python generators
@@ -67,7 +68,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     statistics block can be customized to a user defined list and order. Available statistics are
     as follows:
 
-    >>> ['nreal', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat', 'refavg', 'refstd']
+    >>> ['nreal', 'realn', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat', 'refavg', 'refstd']
 
     Please review the documentation of the :func:`gs.set_plot_style() <pygeostat.plotting.set_plot_style>` and
     :func:`gs.export_image() <pygeostat.plotting.export_image>` functions for details on their
@@ -95,6 +96,16 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         ax (mpl.axis): Matplotlib axis to plot the figure
         figsize (tuple): Figure size (width, height)
         xlim (float tuple): Minimum and maximum limits of data along the x axis
+        ylim (float tuple): Minimum and maximum limits of the cumulative frequency axis
+        grid (bool): plots the major grid lines if True. Based on Parameters['plotting.grid'] if None.
+        ticks (bool, float or dict): tick marks on both axes. ``True`` draws them, ``False`` removes
+            them, a number sets their length, and a dictionary is passed to ``ax.tick_params``.
+            Based on Parameters['plotting.ticks'] if None.
+        fontsize (float or dict): font size of the axis labels, tick labels and title (one number), or a
+            dictionary with any of the keys ``'label'``, ``'tick'`` and ``'title'``. It does not
+            change the statistics. The sizes of the style are kept if None.
+        background (color): colour of the plotting area, for example ``'lightgrey'`` or ``'white'``.
+            The colour of the style is kept if None.
         title (str): Title for the plot
         xlabel (str): X-axis label
         stat_blk (str or list): Indicate what preset statistics block to write or a specific list
@@ -103,8 +114,11 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         reference_color (str): Colour of original histogram
         simulation_color (str): Colour of simulation histograms
         alpha (float): Transparency for realization variograms (0 = Transparent, 1 = Opaque)
-        lw (float): Line width in points. The width provided in this parameter is used for the
-            reference variogram, half of the value is used for the realization variograms.
+        lw (float): Line width in points of the reference histogram
+        lw_real (float): Line width in points of the realization histograms. Half of ``lw`` if None.
+        ylabel (str): Y-axis label. 'Cumulative Frequency' if None.
+        stat_fontsize (float): Font size of the statistics block. Based on
+            Parameters['plotting.stat_fontsize'] if None.
         plot_style (str): Use a predefined set of matplotlib plotting parameters as specified by
             :class:`gs.GridDef <pygeostat.data.grid_definition.GridDef>`. Use ``False`` or ``None``
             to turn it off
@@ -150,7 +164,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     #  Sanity checks, file type determination, and try loading fortran
     # -----------------------------------------------------------------------
     import pygeostat as gs
-    from . utils import format_plot, _set_stat_fontsize
+    from . utils import format_plot, _set_stat_fontsize, _format_ticks, _format_fontsize
     # Figure out what type of input simulated_data is
     subsamp = False
     ndim = False
@@ -222,6 +236,7 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     # -----------------------------------------------------------------------
     # Set-up variables
     realavg, realavgstd, realstd, realstdstd, refavg, refstd = ([] for i in range(6))
+    realn = []
     # Handle pd and np input
     if array:
         if isinstance(simulated_data, pd.DataFrame):
@@ -324,6 +339,10 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
     # Set-up figure
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
+    if lw_real is None:
+        lw_real = lw / 2
+    if ylabel is None:
+        ylabel = 'Cumulative Frequency'
     if simulation_color is None:
         simulation_color = Parameters['plotting.histogram_plot_simulation.simclr']
     if alpha is None:
@@ -334,11 +353,13 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         if stat_blk:
             realavg.append(np.nanmean(real))
             realstd.append(np.nanstd(real))
+            realn.append(np.count_nonzero(~np.isnan(real)))
         if generator:
             nreal += 1
-        gs.histogram_plot(real, ax=ax, icdf=True, lw=(lw / 2), stat_blk=False, color=simulation_color, alpha=alpha, plot_style=False, **sim_kws)
+        gs.histogram_plot(real, ax=ax, icdf=True, lw=lw_real, stat_blk=False, color=simulation_color, alpha=alpha, plot_style=False, **sim_kws)
     # Calculate more realization dist statistics if required
     if stat_blk:
+        realn = np.mean(realn)
         realavgstd = np.std(realavg)
         realavg = np.mean(realavg)
         realstdstd = np.std(realstd)
@@ -402,14 +423,16 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
         xlabel = gs.get_label(reference_data)
         if xlabel is None:
             xlabel = gs.get_label(simulated_data)
-    # axis_xy and grid are applied by format_plot based on the current Parameters setting
-    # no kwarg in this function for now since it's already loaded
-    ax = format_plot(ax, xlabel, 'Cumulative Frequency', title, xlim=xlim)
+        if xlabel is None:
+            xlabel = 'Value'
+    # axis_xy is applied by format_plot based on the current Parameters setting
+    ax = format_plot(ax, xlabel, ylabel, title, grid=grid, xlim=xlim, ylim=ylim)
     # Ensure that we have top spline, in case it was removed above
     ax.spines['top'].set_visible(True)
     # Plot statistics block
     if stat_blk:
         statlist = {'nreal': (r'$n_{real} = %0.0f$' % nreal),
+                    'realn': (r'$n/real = %0.0f$' % realn),
                     'realavg': (r'$m_{real} = %0.3f$' % realavg),
                     'realavgstd': (r'$\sigma_{m_{real}} = %0.3f$' % realavgstd),
                     'realstd': (r'$\sigma_{real} = %0.3f$' % realstd),
@@ -417,17 +440,21 @@ def histogram_plot_simulation(simulated_data, reference_data, reference_variable
                     'ndat': ('$n_{ref} = %0.0f$' % ndat),
                     'refavg': (r'$m_{ref} = %0.3f$' % refavg),
                     'refstd': (r'$\sigma_{ref} = %0.3f$' % refstd)}
-        statsets = {'all': ['nreal', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat',
+        statsets = {'all': ['nreal', 'realn', 'realavg', 'realavgstd', 'realstd', 'realstdstd', 'ndat',
                             'refavg', 'refstd'],
                     'minimal': ['nreal']}
         if subsamp:
             statlist['n_subsample'] = '$n_{subsample} = %0.0f$' % n_subsample
             statsets['all'].append('n_subsample')
         txtstats, stat_xy, ha, va = gs.get_statblk(stat_blk, statsets, statlist, stat_xy)
-        stat_fontsize = _set_stat_fontsize(None)
+        stat_fontsize = _set_stat_fontsize(stat_fontsize)
         ax.text(stat_xy[0], stat_xy[1], txtstats, va=va, ha=ha, fontsize=stat_fontsize,
                 transform=ax.transAxes)
     # Export figure
+    _format_ticks(ax, ticks)
+    _format_fontsize(ax, fontsize)
+    if background is not None:
+        ax.set_facecolor(background)
     if output_file or ('pdfpages' in out_kws):
         gs.export_image(output_file, **out_kws)
 

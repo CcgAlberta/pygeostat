@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import pygeostat as gs
 from matplotlib import pyplot as plt
+from matplotlib.collections import LineCollection
+from matplotlib.colors import to_rgb
 
 @pytest.fixture
 def plot_output_dir():
@@ -32,7 +34,7 @@ def accuracy_plot_data():
     """Prepare data for the accuracy plots."""
     data = gs.ExampleData('accuracy_plot')
     reals = data[list(data.columns[1:])].values
-    truth = data[list(data.columns[0:])].values
+    truth = data[data.columns[0]].values
     return truth, reals
 
 @pytest.fixture
@@ -182,6 +184,76 @@ def test_accuracy_plot(plot_output_dir, accuracy_plot_data):
         pytest.fail(f'Unable to test the accuracy plot with simple settings \n{str(ex)}')
 
     assert os.path.isfile(output_file)
+
+
+def test_accuracy_plot_mik(plot_output_dir, accuracy_plot_data):
+    """Test the accuracy plot from MIK probabilities at thresholds"""
+    truth, reals = accuracy_plot_data
+    thresholds = np.quantile(reals, np.linspace(0.05, 0.95, 19))
+    mikprobs = (reals[:, :, None] <= thresholds).mean(axis=1)
+    output_file = os.path.join(plot_output_dir, 'accuracy_plot_mik_test.png')
+
+    gs.accuracy_plot(truth=truth, reals=mikprobs, mik_thresholds=thresholds,
+                     output_file=output_file)
+
+    assert os.path.isfile(output_file)
+
+
+def test_accuracy_plot_compare(accuracy_plot_data):
+    """Test overlaying two models on one axis with labels"""
+    truth, reals = accuracy_plot_data
+    _, ax = plt.subplots(1, 1)
+
+    gs.accuracy_plot(truth=truth, reals=reals, label='all', ax=ax)
+    gs.accuracy_plot(truth=truth, reals=reals[:, :10], label='ten', color='C1',
+                     stat_xy=(0.95, 0.4), ax=ax)
+
+    assert ax.get_legend_handles_labels()[1] == ['all', 'ten']
+    lines = [c for c in ax.collections if isinstance(c, LineCollection)]
+    assert len(lines) == 2
+    # the second model was given a colour, so all its lines have it
+    assert np.allclose(lines[1].get_color()[:, :3], to_rgb('C1'))
+
+
+def accuracy_plot_colours(truth, reals):
+    """Marker colours, line colours and the (x, y) of each point of a default accuracy plot."""
+    _, ax = plt.subplots(1, 1)
+    gs.accuracy_plot(truth=truth, reals=reals, ax=ax)
+    points = [c for c in ax.collections if not isinstance(c, LineCollection)][0]
+    lines = [c for c in ax.collections if isinstance(c, LineCollection)][0]
+    x, y = points.get_offsets().T
+    return points.get_facecolors()[:, :3], lines.get_color()[:, :3], x, y, ax
+
+
+def test_accuracy_plot_green_red(accuracy_plot_data):
+    """By default a point and its line are green at or above the 1:1 line and red below it."""
+    truth, reals = accuracy_plot_data
+    points, lines, x, y, _ = accuracy_plot_colours(truth, reals)
+    expected = np.array([to_rgb('tab:green') if above else to_rgb('tab:red') for above in y >= x])
+    assert np.allclose(points, expected)
+    assert np.allclose(lines, expected)
+
+
+def test_accuracy_plot_red_when_below():
+    """Truth far from the realizations puts every point below the 1:1 line, so all are red."""
+    rng = np.random.default_rng(0)
+    reals = rng.normal(0, 1, (200, 50))
+    truth = rng.normal(8, 1, 200)
+    points, lines, x, y, _ = accuracy_plot_colours(truth, reals)
+    assert np.all(y < x)
+    assert np.allclose(points, to_rgb('tab:red'))
+    assert np.allclose(lines, to_rgb('tab:red'))
+
+
+def test_accuracy_plot_grid(accuracy_plot_data):
+    """A light grey grid is drawn behind the points by default and can be turned off."""
+    truth, reals = accuracy_plot_data
+    ax = gs.accuracy_plot(truth=truth, reals=reals)
+    line = ax.xaxis.get_gridlines()[0]
+    assert line.get_visible() and np.allclose(to_rgb(line.get_color()), to_rgb('0.7'))
+    assert ax.get_axisbelow() is True
+    ax_off = gs.accuracy_plot(truth=truth, reals=reals, grid=False)
+    assert not ax_off.xaxis.get_gridlines()[0].get_visible()
 
 
 def test_slice_plot_simple(plot_output_dir, slice_plot_data):
@@ -737,3 +809,328 @@ def test_gmm_plotting():
     except Exception as ex:
         pytest.fail(f'Unable to test GMM plotting: {str(ex)}')
 
+def _tick_length(ax):
+    ax.figure.canvas.draw()
+    return ax.xaxis.get_major_ticks()[0].tick1line.get_markersize()
+
+
+def _plain_axes():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1, 2], [0, 1, 4])
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_title('t')
+    return ax
+
+
+@pytest.mark.parametrize('ticks, length', [(True, 4), (False, 0), (7, 7), ({'length': 9}, 9),
+                                           (np.True_, 4), (np.False_, 0), (np.float64(5), 5)])
+def test_format_axes_ticks(ticks, length):
+    """True draws 4 point marks, False none, a number sets the length, a dict goes to tick_params."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    _format_axes(ax, ticks=ticks)
+    assert _tick_length(ax) == length
+    plt.close(ax.figure)
+
+
+def test_format_axes_ticks_refuses_text():
+    """A string such as '4' is not a tick length."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    with pytest.raises(TypeError, match='ticks must be'):
+        _format_axes(ax, ticks='4')
+    plt.close(ax.figure)
+
+
+def test_format_axes_ticks_default_follows_parameter():
+    """ticks=None uses Parameters['plotting.ticks'], so the default can be changed once for all plots."""
+    from pygeostat.plotting.utils import _format_axes
+    saved = gs.Parameters['plotting.ticks']
+    try:
+        assert saved is True
+        ax = _plain_axes()
+        _format_axes(ax)
+        assert _tick_length(ax) == 4
+        gs.Parameters['plotting.ticks'] = False
+        ax2 = _plain_axes()
+        _format_axes(ax2)
+        assert _tick_length(ax2) == 0
+        _format_axes(ax2, ticks=True)
+        assert _tick_length(ax2) == 4
+    finally:
+        gs.Parameters['plotting.ticks'] = saved
+        plt.close('all')
+
+
+def test_format_axes_fontsize():
+    """One number sets labels, ticks and title; a dict sets them one by one and keeps the rest."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    _format_axes(ax, fontsize=20)
+    assert (ax.xaxis.label.get_fontsize(), ax.yaxis.label.get_fontsize(), ax.title.get_fontsize()) == (20, 20, 20)
+    assert ax.get_xticklabels()[0].get_fontsize() == 20
+    ax = _plain_axes()
+    title_before = ax.title.get_fontsize()
+    _format_axes(ax, fontsize={'label': 15, 'tick': 9})
+    assert ax.xaxis.label.get_fontsize() == 15 and ax.get_yticklabels()[0].get_fontsize() == 9
+    assert ax.title.get_fontsize() == title_before
+    with pytest.raises(ValueError, match="'label', 'tick' or 'title'"):
+        _format_axes(ax, fontsize={'size': 3})
+    for bad in (0, -3, '12', True, {'label': 0}):
+        with pytest.raises(ValueError, match='number above zero'):
+            _format_axes(ax, fontsize=bad)
+    plt.close('all')
+
+
+def test_format_axes_limits_grid_and_background():
+    """Limits, grid and background are set only when given; a limit that is not a pair is refused."""
+    from pygeostat.plotting.utils import _format_axes
+    ax = _plain_axes()
+    data_xlim = ax.get_xlim()
+    _format_axes(ax, ylim=(-1, 10), grid=True, background='lightgrey')
+    assert ax.get_ylim() == (-1, 10)
+    assert ax.get_xlim() == data_xlim
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    assert ax.get_facecolor() == (0.8274509803921568, 0.8274509803921568, 0.8274509803921568, 1.0)
+    with pytest.raises(ValueError, match='xlim must be'):
+        _format_axes(ax, xlim=(1, 2, 3))
+    plt.close('all')
+
+
+def test_histogram_plot_ticks_fontsize_background(histogram_plot_data):
+    """ticks, fontsize and background reach the histogram; stat_fontsize still sizes the statistics."""
+    plt.close('all')
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=7,
+                           fontsize={'label': 15, 'tick': 8, 'title': 11}, title='t', background='lightgrey',
+                           stat_fontsize=13)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    assert ax.yaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    assert (ax.xaxis.label.get_fontsize(), ax.yaxis.label.get_fontsize(), ax.title.get_fontsize()) == (15, 15, 11)
+    assert ax.get_xticklabels()[0].get_fontsize() == 8
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
+    assert {t.get_fontsize() for t in ax.texts} == {13}  # fontsize leaves the statistics alone
+    plt.close('all')
+
+
+def test_histogram_plot_ticks_default_and_off(histogram_plot_data):
+    """Tick marks are drawn by default (Parameters['plotting.ticks']) and ticks=False removes them."""
+    plt.close('all')
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 4
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, ticks=False)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 0
+    plt.close('all')
+
+
+def test_histogram_plot_limits_and_grid(histogram_plot_data):
+    """The limits come from the data unless xlim and ylim are given; grid turns the grid lines on or off."""
+    plt.close('all')
+    ax = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, xlim=(0.0, 0.5), ylim=(0, 50), grid=True)
+    assert ax.get_xlim() == (0.0, 0.5) and ax.get_ylim() == (0, 50)
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    data_lim = gs.histogram_plot(histogram_plot_data, var='Phi', bins=10, grid=False).get_xlim()
+    assert data_lim[0] <= histogram_plot_data.data['Phi'].min() and data_lim[1] >= histogram_plot_data.data['Phi'].max()
+    plt.close('all')
+
+def test_validation_plot_outliers():
+    est = pd.Series([0., 1., 2., 3., 4.], index=[10, 11, 12, 13, 14])
+    true = pd.Series([0., 1., 2.5, 0., 4.], index=est.index)  # errors 0, 0, 0.5, 3, 0
+    ax = gs.validation_plot(est, true, outliers=2, stat_blk=False)
+    offsets = {t.get_text(): t.xyann[1] for t in ax.texts}
+    assert sorted(offsets) == ['12', '13']          # the two largest |y - x|
+    assert offsets['12'] > 0 and offsets['13'] < 0  # 12 is above the line, 13 below
+    red = [c for c in ax.collections if len(c.get_offsets()) == 1]
+    assert len(red) == 2 and all(tuple(c.get_facecolor()[0][:3]) == (1.0, 0.0, 0.0) for c in red)
+    assert not gs.validation_plot(est, true, stat_blk=False).texts  # off by default
+    ax = gs.validation_plot(est.values, true.values, outliers=1, stat_blk=False)  # arrays: label by position
+    assert [t.get_text() for t in ax.texts] == ['3']
+    plt.close('all')
+
+
+def test_validation_plot_options_for_the_highlighted_points_and_the_regression_line():
+    """Highlighted points can have no numbers, the regression line can be left out, and the statistics can go."""
+    est = pd.Series([0., 1., 2., 3., 4.])
+    true = pd.Series([0., 1., 2.5, 0., 4.])
+    ax = gs.validation_plot(est, true, outliers=2, outlier_labels=False, stat_blk=False)
+    assert not ax.texts
+    assert len([c for c in ax.collections if len(c.get_offsets()) == 1]) == 2  # the red points stay
+    red_lines = lambda a: [l for l in a.get_lines() if l.get_color() == 'red']
+    assert len(red_lines(ax)) == 1
+    plt.close('all')
+    ax = gs.validation_plot(est, true, reg_line=False, stat_blk=False)
+    assert not red_lines(ax) and len(ax.get_lines()) == 1  # only the 45 degree line
+    plt.close('all')
+
+
+def test_validation_plot_axes_options():
+    est = pd.Series([0., 1., 2., 3., 4.])
+    true = pd.Series([0., 1., 2.5, 0., 4.])
+    ax = gs.validation_plot(est, true, stat_blk=False, ticks=6, fontsize={'label': 16, 'tick': 9},
+                            background='lightgrey')
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 6
+    assert ax.xaxis.label.get_fontsize() == 16 and ax.get_yticklabels()[0].get_fontsize() == 9
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
+    plt.close('all')
+
+def _varsim_data():
+    lags = np.arange(1., 11.)
+    sim = pd.concat([pd.DataFrame({'Variogram Index': i, 'Variogram Number': 1, 'Lag Distance': lags,
+                                   'Variogram Value': 1 - np.exp(-lags / 4) + 0.02 * i, 'Number of Pairs': 100,
+                                   'Calculation Azimuth': 0., 'Calculation Dip': 0.}) for i in (1, 2, 3)],
+                    ignore_index=True)
+    return sim, pd.DataFrame({'Lag Distance': lags, 'Variogram Value': 1 - np.exp(-lags / 4)})
+
+
+def test_variogram_plot_simulation_options():
+    """ticks, fontsize, grid and background reach the variogram reproduction plot; limits were already there."""
+    plt.close('all')
+    sim, ref = _varsim_data()
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, ticks=7, fontsize={'label': 15, 'tick': 9},
+                                      background='lightgrey', grid=True, xlim=(0, 8), ylim=(0, 1.5))
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 7
+    assert ax.xaxis.label.get_fontsize() == 15 and ax.get_xticklabels()[0].get_fontsize() == 9
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    assert ax.get_xlim() == (0, 8) and ax.get_ylim() == (0, 1.5)
+    plt.close('all')
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, ticks=False, grid=False)
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 0
+    assert not ax.xaxis.get_gridlines()[0].get_visible()
+    plt.close('all')
+
+
+def test_histogram_plot_simulation_options():
+    """ticks, fontsize, grid, ylim and background reach the histogram reproduction plot; fontsize leaves the
+    statistics alone."""
+    plt.close('all')
+    sims = np.random.default_rng(0).normal(size=(50, 4))
+    ref = np.random.default_rng(1).normal(size=20)
+    grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, ticks=6, fontsize={'label': 14, 'tick': 8},
+                                      grid=True, ylim=(0, 0.5), xlim=(-2, 2), background='lightgrey')
+    ax.figure.canvas.draw()
+    assert ax.xaxis.get_major_ticks()[0].tick1line.get_markersize() == 6
+    assert ax.xaxis.label.get_fontsize() == 14 and ax.get_xticklabels()[0].get_fontsize() == 8
+    assert ax.get_xlim() == (-2, 2) and ax.get_ylim() == (0, 0.5)
+    assert ax.xaxis.get_gridlines()[0].get_visible()
+    assert tuple(ax.get_facecolor()[:3]) == (0.8274509803921568,) * 3
+    default_size = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4).texts[0].get_fontsize()
+    assert ax.texts[0].get_fontsize() == default_size  # the statistics keep their own size
+    plt.close('all')
+
+
+def test_histogram_plot_simulation_counts_and_label():
+    sims = np.random.default_rng(0).normal(size=(50, 4))
+    sims[:5, 0] = np.nan  # one realization has 5 missing values: (45 + 3 x 50) / 4 = 48.75 values per realization
+    ref = np.random.default_rng(1).normal(size=20)
+    grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4)
+    assert ax.get_xlabel() == 'Value'  # no name in plain arrays
+    assert 'n/real = 49$' in ax.texts[0].get_text()  # 48.75, shown without decimals
+    plt.close('all')
+
+
+def test_reproduction_plots_draw_the_realizations_in_the_same_light_grey():
+    """The defaults of both reproduction plots are grey 0.5 with opacity 0.3, and the plot uses the parameter."""
+    from pygeostat.pygeostat_parameters import default_parameters
+    for name in ('histogram_plot_simulation', 'variogram_plot_simulation'):
+        assert default_parameters['plotting.%s.simclr' % name][0] == '0.5'
+        assert default_parameters['plotting.%s.alpha' % name][0] == '0.3'
+    plt.close('all')
+    sim, ref = _varsim_data()
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref)
+    realization = ax.get_lines()[0]
+    assert realization.get_color() == gs.Parameters['plotting.variogram_plot_simulation.simclr']
+    assert realization.get_alpha() == gs.Parameters['plotting.variogram_plot_simulation.alpha']
+    plt.close('all')
+
+
+def test_accuracy_plot_shows_a_p_and_g(accuracy_plot_data):
+    """The statistics block has A, P and G in percent, as accsim gives them; P and G are n/a without
+    Gaussian realizations or the data of the transform, and MIK shows n/a too."""
+    truth, reals = accuracy_plot_data
+    ax = gs.accuracy_plot(truth=truth, reals=reals)
+    text = ax.texts[0].get_text()
+    assert '$P_{26} = n/a$' in text and '$G_{26} = n/a$' in text and '$A_{26} = ' in text
+    _, stats = gs.accsim(truth, reals, data=truth)
+    ax = gs.accuracy_plot(truth=truth, reals=reals, data=truth)
+    text = ax.texts[0].get_text()
+    assert 'n/a' not in text
+    assert '$A_{{26}} = {:0.1f}\\%$'.format(stats['acc']) in text
+    assert '$P_{{26}} = {:0.1f}\\%$'.format(stats['pre']) in text
+    assert '$G_{{26}} = {:0.1f}\\%$'.format(stats['goo']) in text
+    thresholds = np.quantile(reals, np.linspace(0.05, 0.95, 19))
+    mikprobs = (reals[:, :, None] <= thresholds).mean(axis=1)
+    ax = gs.accuracy_plot(truth=truth, reals=mikprobs, mik_thresholds=thresholds)
+    assert '$P_{26} = n/a$' in ax.texts[0].get_text()
+    plt.close('all')
+
+
+def test_accuracy_plot_axis_labels_follow_the_paper(accuracy_plot_data):
+    """The axes are titled as in Clayton Deutsch's paper, and the labels can still be set."""
+    truth, reals = accuracy_plot_data
+    ax = gs.accuracy_plot(truth=truth, reals=reals)
+    assert (ax.get_xlabel(), ax.get_ylabel()) == ('Predicted Probability', 'True Fraction')
+    ax = gs.accuracy_plot(truth=truth, reals=reals, xlabel='p', ylabel='t')
+    assert (ax.get_xlabel(), ax.get_ylabel()) == ('p', 't')
+    plt.close('all')
+
+
+def test_validation_plot_shows_the_mean_squared_error_not_its_square_root():
+    """The statistics block has MSE (the mean of (x - y)^2), where it had the RMSE."""
+    plt.close('all')
+    est = pd.Series([0., 1., 2., 3.])
+    true = pd.Series([0., 1., 2., 7.])  # errors 0, 0, 0, 4: MSE 4.0, RMSE 2.0
+    ax = gs.validation_plot(est, true, stat_blk=['mse'])
+    assert ax.texts[0].get_text() == '$MSE = 4.000$'
+    plt.close('all')
+
+
+def test_histogram_plot_simulation_line_width_ylabel_and_stat_fontsize():
+    """lw_real, ylabel and stat_fontsize replace the values that were fixed in the code; the defaults are unchanged."""
+    plt.close('all')
+    sims = np.random.default_rng(0).normal(size=(50, 4))
+    ref = np.random.default_rng(1).normal(size=20)
+    grid = gs.GridDef([5, 0, 1, 5, 0, 1, 2, 0, 1])
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, lw=2)
+    widths = sorted(set(line.get_linewidth() for line in ax.lines))
+    assert widths == [1.0, 2.0]  # realizations at half of lw, the reference at lw
+    assert ax.get_ylabel() == 'Cumulative Frequency'
+    default_size = ax.texts[0].get_fontsize()
+    plt.close('all')
+    ax = gs.histogram_plot_simulation(sims, ref, griddef=grid, nreal=4, lw=2, lw_real=0.25, ylabel='Probability',
+                                      stat_fontsize=default_size + 4)
+    widths = sorted(set(line.get_linewidth() for line in ax.lines))
+    assert widths == [0.25, 2.0]
+    assert ax.get_ylabel() == 'Probability'
+    assert ax.texts[0].get_fontsize() == default_size + 4
+    plt.close('all')
+
+
+def test_variogram_plot_simulation_line_style_sill_and_realization_label():
+    """ls reaches the variograms (it was accepted but ignored); sill_color, sill_lw and real_label replace the values
+    that were fixed in the code, and the defaults are unchanged."""
+    plt.close('all')
+    sim, ref = _varsim_data()
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, legend_label='Reference')
+    sill = [line for line in ax.lines if list(line.get_ydata()) == [1, 1]][0]
+    assert sill.get_color() == 'k' and sill.get_linewidth() == 1.5
+    assert {line.get_linestyle() for line in ax.lines} == {'-'}
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ['Realizations', 'Reference']
+    plt.close('all')
+    ax = gs.variogram_plot_simulation(sim, 1, reference_data=ref, legend_label='Reference', ls='--', sill_color='red',
+                                      sill_lw=3, real_label='Simulated')
+    sill = [line for line in ax.lines if list(line.get_ydata()) == [1, 1]][0]
+    assert sill.get_color() == 'red' and sill.get_linewidth() == 3
+    others = [line for line in ax.lines if line is not sill]
+    assert len(others) == 4 and {line.get_linestyle() for line in others} == {'--'}  # 3 realizations and the reference
+    assert sill.get_linestyle() == '-'  # the sill line stays solid
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ['Simulated', 'Reference']
+    plt.close('all')
